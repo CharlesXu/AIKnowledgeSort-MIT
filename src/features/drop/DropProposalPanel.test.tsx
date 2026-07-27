@@ -44,4 +44,19 @@ describe("DropProposalPanel", () => {
       within(panel).getByText("No files have been changed"),
     ).toBeInTheDocument();
   });
+
+  test("keeps a passive drop surface visible beneath the proposal table", () => {
+    render(<DropProposalPanel proposal={proposal} />);
+
+    const surface = screen.getByRole("region", {
+      name: "Passive drop surface",
+    });
+    expect(surface).toHaveTextContent(
+      "Drop files or folders anywhere in this window",
+    );
+    expect(surface).toHaveTextContent(
+      "A trusted, review-only proposal will appear here",
+    );
+    expect(within(surface).queryByRole("button")).toBeNull();
+  });
 });

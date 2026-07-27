@@ -75,6 +75,16 @@ export function DropProposalPanel({
         ))}
       </div>
 
+      <div
+        aria-label="Passive drop surface"
+        className="proposal__drop-surface"
+        role="region"
+      >
+        <Icon name="inbox" size={20} />
+        <strong>Drop files or folders anywhere in this window</strong>
+        <span>A trusted, review-only proposal will appear here</span>
+      </div>
+
       <footer className="proposal__notice">
         <span className="proposal__notice-dot" aria-hidden="true" />
         <span>

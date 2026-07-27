@@ -78,4 +78,50 @@ describe("SourceTree", () => {
     fireEvent.click(readme);
     expect(readme).toBeChecked();
   });
+
+  test("filters matching sources while retaining their ancestor context", () => {
+    render(<SourceTree tree={demoSources} />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search sources" }), {
+      target: { value: "synthesis" },
+    });
+
+    expect(screen.getByText("Local workspace")).toBeInTheDocument();
+    expect(screen.getByText("Projects")).toBeInTheDocument();
+    expect(screen.getByText("Research")).toBeInTheDocument();
+    expect(screen.getByText("synthesis.txt")).toBeInTheDocument();
+    expect(screen.queryByText("Roadmap.md")).toBeNull();
+    expect(screen.queryByText("Notes")).toBeNull();
+  });
+
+  test("preserves selection while filtering and restoring the full tree", () => {
+    render(<SourceTree tree={demoSources} />);
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Select Projects directory" }),
+    );
+    expect(screen.getByText("2 unique eligible files selected")).toBeInTheDocument();
+
+    const search = screen.getByRole("searchbox", { name: "Search sources" });
+    fireEvent.change(search, { target: { value: "synthesis" } });
+    fireEvent.change(search, { target: { value: "" } });
+
+    expect(
+      screen.getByRole("checkbox", { name: "Select Projects directory" }),
+    ).toBeChecked();
+    expect(screen.getByText("2 unique eligible files selected")).toBeInTheDocument();
+  });
+
+  test("shows a clear empty result without removing the selection summary", () => {
+    render(<SourceTree tree={demoSources} />);
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search sources" }), {
+      target: { value: "no-such-source" },
+    });
+
+    expect(
+      screen.getByRole("status", { name: "Source filter status" }),
+    ).toHaveTextContent("No sources match");
+    expect(screen.getByText("0 unique eligible files selected")).toBeInTheDocument();
+  });
 });

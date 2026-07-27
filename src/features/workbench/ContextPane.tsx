@@ -8,6 +8,14 @@ interface ContextPaneProps {
   readonly proposal: DiscoveryProposal;
 }
 
+const statusDefinitions = [
+  ["Included", "included"],
+  ["Excluded", "excluded"],
+  ["Unreadable", "unreadable"],
+  ["Symlink", "symlink"],
+  ["Out of scope", "outOfScope"],
+] as const;
+
 export function ContextPane({
   collapsed,
   isDemo,
@@ -66,6 +74,30 @@ export function ContextPane({
                   <dd>None</dd>
                 </div>
               </dl>
+            </section>
+            <section
+              className="context-section context-section--statuses"
+              aria-labelledby="proposal-statuses"
+            >
+              <h3 id="proposal-statuses">Proposal status</h3>
+              <ul
+                aria-label="Proposal status counts"
+                className="context-status-list"
+              >
+                {statusDefinitions.map(([label, key]) => (
+                  <li
+                    aria-label={label}
+                    className={`context-status-row context-status-row--${key}`}
+                    key={key}
+                  >
+                    <span className="context-status-row__label">
+                      <i aria-hidden="true" />
+                      {label}
+                    </span>
+                    <strong>{proposal.counts[key]}</strong>
+                  </li>
+                ))}
+              </ul>
             </section>
             <section className="context-section" aria-labelledby="first-source">
               <h3 id="first-source">First included source</h3>

@@ -4,6 +4,7 @@ import {
   resolveEligibleSelection,
   toggleSelection,
 } from "./selection";
+import { Icon } from "../../ui/Icon";
 import { SourceTreeRow } from "./SourceTreeRow";
 import type { SourceNode } from "./types";
 
@@ -27,6 +28,20 @@ function initiallyExpanded(tree: SourceNode): ReadonlySet<string> {
   return ids;
 }
 
+function filterSourceTree(node: SourceNode, query: string): SourceNode | null {
+  if (node.name.toLocaleLowerCase().includes(query)) {
+    return node;
+  }
+
+  const matchingChildren = node.children
+    .map((child) => filterSourceTree(child, query))
+    .filter((child): child is SourceNode => child !== null);
+
+  return matchingChildren.length > 0
+    ? { ...node, children: matchingChildren }
+    : null;
+}
+
 export function SourceTree({
   tree,
   initialSelectionIds = [],
@@ -37,9 +52,18 @@ export function SourceTree({
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() =>
     initiallyExpanded(tree),
   );
+  const [filter, setFilter] = useState("");
   const resolved = useMemo(
     () => resolveEligibleSelection(tree, explicitIds),
     [explicitIds, tree],
+  );
+  const normalizedFilter = filter.trim().toLocaleLowerCase();
+  const filteredTree = useMemo(
+    () =>
+      normalizedFilter.length > 0
+        ? filterSourceTree(tree, normalizedFilter)
+        : tree,
+    [normalizedFilter, tree],
   );
   const selectedCount = resolved.files.length;
 
@@ -60,7 +84,8 @@ export function SourceTree({
   }
 
   function renderNode(node: SourceNode, depth: number): React.ReactNode {
-    const expanded = expandedIds.has(node.id);
+    const expanded =
+      normalizedFilter.length > 0 || expandedIds.has(node.id);
     return (
       <li key={node.id} role="none">
         <SourceTreeRow
@@ -82,9 +107,28 @@ export function SourceTree({
 
   return (
     <div className="source-tree">
+      <div className="source-tree__filter">
+        <Icon name="search" size={14} />
+        <input
+          aria-label="Search sources"
+          onChange={(event) => setFilter(event.target.value)}
+          placeholder="Filter files and folders"
+          type="search"
+          value={filter}
+        />
+      </div>
       <ul aria-label="Local source folders" role="tree">
-        {renderNode(tree, 0)}
+        {filteredTree ? renderNode(filteredTree, 0) : null}
       </ul>
+      {filteredTree === null ? (
+        <p
+          aria-label="Source filter status"
+          className="source-tree__empty"
+          role="status"
+        >
+          No sources match “{filter.trim()}”
+        </p>
+      ) : null}
       <p aria-live="polite" className="source-tree__summary">
         {selectedCount} unique eligible {selectedCount === 1 ? "file" : "files"}{" "}
         selected

@@ -57,7 +57,7 @@ input:focus-visible,
   min-height: 100vh;
   max-height: 100vh;
   background: var(--surface-subtle);
-  font-size: 13px;
+  font-size: 13.5px;
 }
 
 .tool-rail {
@@ -132,10 +132,10 @@ input:focus-visible,
 .source-panel__header,
 .pane-header {
   display: flex;
-  min-height: 58px;
+  min-height: 62px;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
+  padding: 11px 15px;
   border-bottom: 1px solid var(--divider);
   background: var(--surface);
 }
@@ -146,8 +146,8 @@ input:focus-visible,
 .proposal__header h2 {
   margin: 1px 0 0;
   color: #22252b;
-  font-size: 14px;
-  font-weight: 650;
+  font-size: 15px;
+  font-weight: 675;
   line-height: 1.35;
 }
 
@@ -155,7 +155,7 @@ input:focus-visible,
 .pane-header__path {
   margin: 0;
   color: #737884;
-  font-size: 10px;
+  font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.075em;
 }
@@ -221,7 +221,36 @@ input:focus-visible,
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding-top: 7px;
+  padding-top: 0;
+}
+
+.source-tree__filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin: 10px 10px 8px;
+}
+
+.source-tree__filter .icon {
+  position: absolute;
+  left: 9px;
+  color: #777c86;
+  pointer-events: none;
+}
+
+.source-tree__filter input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 29px;
+  border: 1px solid #d4d7de;
+  border-radius: 6px;
+  color: #30343b;
+  background: #fff;
+  font-size: 12px;
+}
+
+.source-tree__filter input::placeholder {
+  color: #858a94;
 }
 
 .source-tree ul {
@@ -238,12 +267,13 @@ input:focus-visible,
 .source-tree-row {
   display: flex;
   min-width: 0;
-  height: 28px;
+  height: 30px;
   align-items: center;
   gap: 6px;
   padding: 0 8px 0 calc(7px + var(--tree-depth) * 14px);
   color: #3c4149;
   border-radius: 4px;
+  font-size: 12.5px;
 }
 
 .source-tree-row:hover {
@@ -292,11 +322,19 @@ input:focus-visible,
 
 .source-tree__summary {
   margin: auto 0 0;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border-top: 1px solid var(--divider);
   color: #616672;
   background: #f5f6f8;
-  font-size: 11px;
+  font-size: 11.5px;
+}
+
+.source-tree__empty {
+  margin: 20px 14px;
+  color: #747984;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
 }
 
 .pane-separator {
@@ -357,7 +395,7 @@ input:focus-visible,
 .document-pane__body {
   min-height: 0;
   overflow: auto;
-  padding: 20px clamp(18px, 3vw, 40px) 36px;
+  padding: 24px clamp(20px, 3vw, 44px) 38px;
 }
 
 .document-pane__intro {
@@ -366,9 +404,9 @@ input:focus-visible,
   align-items: baseline;
   justify-content: space-between;
   gap: 24px;
-  margin: 0 auto 12px;
+  margin: 0 auto 14px;
   color: #5f6570;
-  font-size: 12px;
+  font-size: 12.5px;
 }
 
 .document-pane__intro p {
@@ -420,10 +458,10 @@ input:focus-visible,
 
 .proposal__header {
   display: flex;
-  min-height: 66px;
+  min-height: 70px;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  padding: 13px 17px;
   border-bottom: 1px solid var(--divider);
 }
 
@@ -448,7 +486,7 @@ input:focus-visible,
   min-width: 0;
   flex-direction: column;
   gap: 2px;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border-right: 1px solid var(--divider);
 }
 
@@ -457,7 +495,7 @@ input:focus-visible,
 }
 
 .proposal__count strong {
-  font-size: 16px;
+  font-size: 17px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
 }
@@ -465,7 +503,7 @@ input:focus-visible,
 .proposal__count span {
   overflow: hidden;
   color: #707580;
-  font-size: 10px;
+  font-size: 10.5px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -480,7 +518,7 @@ input:focus-visible,
   grid-template-columns: minmax(160px, 1fr) 72px 72px;
   align-items: center;
   gap: 12px;
-  min-height: 31px;
+  min-height: 34px;
   padding: 0 16px;
 }
 
@@ -496,7 +534,7 @@ input:focus-visible,
 .proposal__file-row {
   color: #4c515b;
   border-top: 1px solid #eceef1;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .proposal__file-name {
@@ -512,6 +550,32 @@ input:focus-visible,
 
 .proposal__included {
   color: #4d715d;
+}
+
+.proposal__drop-surface {
+  display: flex;
+  min-height: 104px;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 5px;
+  margin: 5px 16px 16px;
+  border: 1px dashed #aaa3c0;
+  border-radius: 6px;
+  color: #62577e;
+  background: #fbfbfd;
+  text-align: center;
+}
+
+.proposal__drop-surface strong {
+  color: #4a425e;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.proposal__drop-surface span {
+  color: #777184;
+  font-size: 11px;
 }
 
 .proposal__notice {
@@ -564,14 +628,14 @@ input:focus-visible,
 }
 
 .context-section {
-  padding: 14px;
+  padding: 15px;
   border-bottom: 1px solid var(--divider);
 }
 
 .context-section h3 {
   margin: 0 0 10px;
   color: #3e434b;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -590,7 +654,7 @@ input:focus-visible,
 .detail-list dt,
 .detail-list dd {
   margin: 0;
-  font-size: 11px;
+  font-size: 11.5px;
 }
 
 .detail-list dt {
@@ -610,7 +674,7 @@ input:focus-visible,
 
 .context-file {
   color: #353a42;
-  font-size: 11px;
+  font-size: 11.5px;
   font-weight: 600;
 }
 
@@ -628,6 +692,68 @@ input:focus-visible,
   background: #f5f6f8;
   font-size: 10px;
   line-height: 1.55;
+}
+
+.context-status-list {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-direction: column;
+  list-style: none;
+}
+
+.context-status-row {
+  display: flex;
+  min-height: 29px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid #e8eaee;
+  color: #4c515a;
+  font-size: 11.5px;
+}
+
+.context-status-row:first-child {
+  border-top: 0;
+}
+
+.context-status-row__label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.context-status-row__label i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #9a9fa8;
+}
+
+.context-status-row strong {
+  color: #353a42;
+  font-variant-numeric: tabular-nums;
+  font-weight: 675;
+}
+
+.context-status-row--included .context-status-row__label i {
+  background: #638270;
+}
+
+.context-status-row--excluded .context-status-row__label i {
+  background: #8c919a;
+}
+
+.context-status-row--unreadable .context-status-row__label i {
+  background: #aa7d3f;
+}
+
+.context-status-row--symlink .context-status-row__label i {
+  background: #7567a8;
+}
+
+.context-status-row--outOfScope .context-status-row__label i {
+  background: #9b6060;
 }
 
 .status-bar {
