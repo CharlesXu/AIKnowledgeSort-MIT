@@ -10,13 +10,20 @@ import {
   tauriNativeDropBridge,
   type NativeDropBridge,
 } from "./features/drop/useNativeDrop";
+import {
+  createBrowserArchiveClient,
+  createTauriArchiveClient,
+} from "./features/archive/archiveClient";
+import type { ArchiveClient } from "./features/archive/types";
 
 interface AppProps {
+  readonly archiveClient?: ArchiveClient;
   readonly discoveryClient?: DiscoveryClient;
   readonly dropBridge?: NativeDropBridge;
 }
 
 const browserDropBridge = createBrowserNativeDropBridge();
+const browserArchiveClient = createBrowserArchiveClient();
 const browserDiscoveryClient = createBrowserDiscoveryClient(
   demoDiscoveryProposal,
 );
@@ -26,6 +33,7 @@ function isTauriRuntime(): boolean {
 }
 
 export default function App({
+  archiveClient,
   discoveryClient,
   dropBridge,
 }: AppProps) {
@@ -33,6 +41,10 @@ export default function App({
 
   return (
     <AppShell
+      archiveClient={
+        archiveClient ??
+        (nativeRuntime ? createTauriArchiveClient() : browserArchiveClient)
+      }
       discoveryClient={
         discoveryClient ??
         (nativeRuntime

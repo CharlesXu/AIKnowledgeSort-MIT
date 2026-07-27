@@ -11,6 +11,7 @@ import { SourceTree } from "../features/sources/SourceTree";
 import { ContextPane } from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
 import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
+import type { ArchiveClient } from "../features/archive/types";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -69,11 +70,13 @@ function PaneSeparator({
 }
 
 interface AppShellProps {
+  readonly archiveClient: ArchiveClient;
   readonly discoveryClient: DiscoveryClient;
   readonly dropBridge: NativeDropBridge;
 }
 
 export function AppShell({
+  archiveClient,
   discoveryClient,
   dropBridge,
 }: AppShellProps) {
@@ -166,7 +169,7 @@ export function AppShell({
         />
       )}
       <section aria-label="Knowledge workspace" className="knowledge-workspace">
-        <ArchivePreviewPane proposal={proposal} />
+        <ArchivePreviewPane archiveClient={archiveClient} proposal={proposal} />
         <DocumentPane />
       </section>
       {layout.contextCollapsed ? null : (

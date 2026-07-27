@@ -73,6 +73,20 @@ test("shows all five proposal counts with no fake mutation action", async ({
   ).toHaveCount(0);
 });
 
+test("keeps archive operations honest in the browser fixture", async ({
+  page,
+}) => {
+  const archive = page.getByRole("region", { name: "Archive preview" });
+
+  await archive.getByRole("button", { name: "Choose Vault" }).click();
+
+  await expect(archive.getByRole("alert")).toContainText(
+    "Desktop runtime is required",
+  );
+  await expect(archive).toContainText("Uncommitted");
+  await expect(archive).not.toContainText("Archive committed");
+});
+
 test("collapses and restores the adjustable side panes", async ({ page }) => {
   await expect(
     page.getByRole("separator", { name: "Resize Sources panel" }),

@@ -92,6 +92,7 @@ impl ArchivePlanRegistry {
         validate_opaque_id(&vault.authority_id, "Vault authority")?;
 
         let mut seen_item_ids = HashSet::with_capacity(sources.len());
+        let mut seen_destinations = HashSet::with_capacity(sources.len());
         let mut items = Vec::with_capacity(sources.len());
         for source in sources {
             validate_opaque_id(&source.item_id, "reviewed item")?;
@@ -103,6 +104,9 @@ impl ArchivePlanRegistry {
             let destination = Path::new("Originals")
                 .join(&source.identity.digest)
                 .join(&source.name);
+            if !seen_destinations.insert(destination.clone()) {
+                return Err("Archive plan contains duplicate destinations".to_owned());
+            }
             items.push(ArchivePlanItem {
                 item_id: source.item_id,
                 source_path: source.path.to_string_lossy().into_owned(),
@@ -342,6 +346,18 @@ mod tests {
             .create_at(
                 "reviewed-proposal",
                 vec![duplicate.clone(), duplicate],
+                vault(),
+                now,
+                SystemTime::UNIX_EPOCH,
+            )
+            .is_err());
+        assert!(registry
+            .create_at(
+                "reviewed-proposal",
+                vec![
+                    source("same-destination-one", "same.md"),
+                    source("same-destination-two", "same.md"),
+                ],
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
