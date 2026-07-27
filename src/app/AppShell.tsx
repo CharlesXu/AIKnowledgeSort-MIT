@@ -9,7 +9,9 @@ import { ToolRail } from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
 import { ContextPane } from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
+import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
 import { Icon } from "../ui/Icon";
+import { AppHeader } from "./AppHeader";
 import {
   CONTEXT_WIDTH_MAX,
   CONTEXT_WIDTH_MIN,
@@ -104,6 +106,7 @@ export function AppShell({
       onDrop={drop.onDomDrop}
       style={layoutStyle}
     >
+      <AppHeader />
       <ToolRail />
       <section
         aria-label="Sources"
@@ -125,7 +128,7 @@ export function AppShell({
             <header className="source-panel__header">
               <div>
                 <p className="section-kicker">LOCAL</p>
-                <h2>Sources</h2>
+                <h2>IndexedSource</h2>
               </div>
               <div className="pane-header__actions">
                 <span className="source-panel__count">6 FILES</span>
@@ -155,12 +158,15 @@ export function AppShell({
           value={layout.navigationWidth}
         />
       )}
-      <DocumentPane
-        isDemo={drop.isDemo}
-        proposal={proposal}
-        status={drop.status}
-        statusMessage={drop.message}
-      />
+      <section aria-label="Knowledge workspace" className="knowledge-workspace">
+        <ArchivePreviewPane proposal={proposal} />
+        <DocumentPane
+          isDemo={drop.isDemo}
+          proposal={proposal}
+          status={drop.status}
+          statusMessage={drop.message}
+        />
+      </section>
       {layout.contextCollapsed ? null : (
         <PaneSeparator
           direction={-1}

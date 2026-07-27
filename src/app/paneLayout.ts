@@ -1,9 +1,9 @@
 export const PANE_LAYOUT_STORAGE_KEY = "ai-knowledge-sort:pane-layout";
 
-export const NAVIGATION_WIDTH_MIN = 220;
-export const NAVIGATION_WIDTH_MAX = 380;
-export const CONTEXT_WIDTH_MIN = 260;
-export const CONTEXT_WIDTH_MAX = 420;
+export const NAVIGATION_WIDTH_MIN = 190;
+export const NAVIGATION_WIDTH_MAX = 520;
+export const CONTEXT_WIDTH_MIN = 360;
+export const CONTEXT_WIDTH_MAX = 900;
 
 export interface PaneLayout {
   readonly version: 1;
@@ -15,8 +15,8 @@ export interface PaneLayout {
 
 export const DEFAULT_PANE_LAYOUT: PaneLayout = {
   version: 1,
-  navigationWidth: 286,
-  contextWidth: 300,
+  navigationWidth: 248,
+  contextWidth: 560,
   navigationCollapsed: false,
   contextCollapsed: false,
 };

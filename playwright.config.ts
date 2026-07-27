@@ -1,11 +1,13 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const e2eUrl = "http://127.0.0.1:1422";
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   reporter: "line",
   use: {
-    baseURL: "http://127.0.0.1:1420",
+    baseURL: e2eUrl,
     trace: "retain-on-failure",
   },
   projects: [
@@ -13,14 +15,14 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        viewport: { width: 1280, height: 800 },
+        viewport: { width: 1600, height: 900 },
       },
     },
   ],
   webServer: {
-    command: "npm run dev -- --host 127.0.0.1",
+    command: "npm run dev -- --host 127.0.0.1 --port 1422",
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
-    url: "http://127.0.0.1:1420",
+    url: e2eUrl,
   },
 });

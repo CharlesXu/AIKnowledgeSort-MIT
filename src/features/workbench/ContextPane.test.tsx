@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import type { DiscoveryProposal } from "../drop/types";
 import { ContextPane } from "./ContextPane";
@@ -26,6 +26,7 @@ describe("ContextPane", () => {
       />,
     );
 
+    fireEvent.click(screen.getByRole("tab", { name: "Import Review" }));
     const statuses = screen.getByRole("list", {
       name: "Proposal status counts",
     });

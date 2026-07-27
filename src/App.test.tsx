@@ -143,6 +143,9 @@ describe("source workbench shell", () => {
     render(<App />);
 
     const workbench = screen.getByRole("main", { name: "Source workbench" });
+    const header = within(workbench).getByRole("banner", {
+      name: "Application header",
+    });
     const toolbar = within(workbench).getByRole("toolbar", {
       name: "Workbench tools",
     });
@@ -150,10 +153,46 @@ describe("source workbench shell", () => {
       name: "Sources",
     });
 
+    expect(header).toHaveTextContent("AI Knowledge Sort");
+    expect(header).toHaveTextContent("Local");
     expect(toolbar).toHaveClass("tool-rail");
     expect(toolbar).toHaveAttribute("data-width", "44");
     expect(sources).toHaveClass("source-panel");
     expect(toolbar.nextElementSibling).toBe(sources);
+  });
+
+  test("uses the KL-Man workspace sequence without pretending files are ingested", () => {
+    render(<App />);
+
+    const sources = screen.getByRole("region", { name: "Sources" });
+    const archivePreview = screen.getByRole("region", {
+      name: "Archive preview",
+    });
+    const discoveryReview = screen.getByRole("region", {
+      name: "Discovery review",
+    });
+
+    expect(sources).toHaveTextContent("IndexedSource");
+    expect(archivePreview).toHaveTextContent("Archive Preview");
+    expect(archivePreview).toHaveTextContent("Uncommitted");
+    expect(archivePreview.compareDocumentPosition(discoveryReview)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  test("switches the right context between proposal topology and import review", () => {
+    render(<App />);
+
+    const topology = screen.getByRole("region", { name: "Proposal topology" });
+    expect(topology).toHaveTextContent("Not yet ingested");
+    expect(within(topology).getByText("meeting-notes.md")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Play knowledge timeline" }),
+    ).toBeDisabled();
+    expect(screen.getByText(/available after confirmed ingestion/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Import Review" }));
+    expect(screen.getByRole("list", { name: "Proposal status counts" })).toBeVisible();
   });
 
   test("provides adjustable pane separators and responsive collapse hooks", () => {
@@ -178,7 +217,7 @@ describe("source workbench shell", () => {
     );
     expect(
       screen.getByRole("complementary", { name: "Import review context" }),
-    ).toHaveAttribute("data-collapse-at", "1120");
+    ).toHaveAttribute("data-collapse-at", "1440");
   });
 
   test("labels deferred tools honestly and exposes no fake primary action", () => {
@@ -202,20 +241,20 @@ describe("source workbench shell", () => {
 
     fireEvent.keyDown(sourceSeparator, { key: "ArrowRight" });
     fireEvent.keyDown(contextSeparator, { key: "ArrowLeft" });
-    expect(sourceSeparator).toHaveAttribute("aria-valuenow", "294");
-    expect(contextSeparator).toHaveAttribute("aria-valuenow", "308");
+    expect(sourceSeparator).toHaveAttribute("aria-valuenow", "256");
+    expect(contextSeparator).toHaveAttribute("aria-valuenow", "568");
 
     first.unmount();
     render(<App />);
 
     expect(
       screen.getByRole("separator", { name: "Resize Sources panel" }),
-    ).toHaveAttribute("aria-valuenow", "294");
+    ).toHaveAttribute("aria-valuenow", "256");
     expect(
       screen.getByRole("separator", {
         name: "Resize import review context",
       }),
-    ).toHaveAttribute("aria-valuenow", "308");
+    ).toHaveAttribute("aria-valuenow", "568");
   });
 
   test("persists explicit pane collapse states and lets users restore both panes", () => {
@@ -256,7 +295,7 @@ describe("source workbench shell", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("complementary", { name: "Import review context" }),
-    ).toHaveTextContent("Proposal context");
+    ).toHaveTextContent("Knowledge Graph");
   });
 
   test.each([
@@ -265,8 +304,8 @@ describe("source workbench shell", () => {
       "wrong schema",
       JSON.stringify({
         version: 1,
-        navigationWidth: "286",
-        contextWidth: 300,
+        navigationWidth: "248",
+        contextWidth: 560,
         navigationCollapsed: false,
         contextCollapsed: false,
       }),
@@ -276,7 +315,7 @@ describe("source workbench shell", () => {
       JSON.stringify({
         version: 1,
         navigationWidth: 42,
-        contextWidth: 900,
+        contextWidth: 901,
         navigationCollapsed: true,
         contextCollapsed: true,
       }),
@@ -293,12 +332,12 @@ describe("source workbench shell", () => {
 
       expect(
         screen.getByRole("separator", { name: "Resize Sources panel" }),
-      ).toHaveAttribute("aria-valuenow", "286");
+      ).toHaveAttribute("aria-valuenow", "248");
       expect(
         screen.getByRole("separator", {
           name: "Resize import review context",
         }),
-      ).toHaveAttribute("aria-valuenow", "300");
+      ).toHaveAttribute("aria-valuenow", "560");
       expect(
         screen.getByRole("tree", { name: "Local source folders" }),
       ).toBeInTheDocument();
@@ -309,7 +348,7 @@ describe("source workbench shell", () => {
         screen.getByRole("complementary", {
           name: "Import review context",
         }),
-      ).toHaveTextContent("Proposal context");
+      ).toHaveTextContent("Knowledge Graph");
     },
   );
 });

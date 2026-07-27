@@ -23,9 +23,6 @@ export function ToolRail() {
       data-width="44"
       role="toolbar"
     >
-      <div className="tool-rail__mark" aria-hidden="true">
-        AK
-      </div>
       <div className="tool-rail__tools">
         {primaryTools.map((tool) => (
           <button

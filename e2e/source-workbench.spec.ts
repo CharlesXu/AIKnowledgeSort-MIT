@@ -11,6 +11,12 @@ test("loads the review-only workbench and supports tri-state source selection", 
     page.getByRole("main", { name: "Source workbench" }),
   ).toBeVisible();
   await expect(page.getByText("Demo proposal")).toBeVisible();
+  await expect(
+    page.getByRole("banner", { name: "Application header" }),
+  ).toContainText("AI Knowledge Sort");
+  await expect(
+    page.getByRole("region", { name: "Archive preview" }),
+  ).toContainText("Uncommitted");
 
   const workspace = page.getByRole("checkbox", {
     name: "Select Local workspace directory",
@@ -51,6 +57,12 @@ test("shows all five proposal counts with no fake mutation action", async ({
   }
 
   await expect(page.getByText("No files have been changed")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Proposal topology" }),
+  ).toContainText("Not yet ingested");
+  await expect(
+    page.getByRole("button", { name: "Play knowledge timeline" }),
+  ).toBeDisabled();
   await expect(
     page.getByRole("button", { name: /import files/i }),
   ).toHaveCount(0);
