@@ -54,10 +54,6 @@ impl Default for PlanRegistryLimits {
 
 struct StoredPlan {
     expires_at: Instant,
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "consumed by the archive transaction layer")
-    )]
     plan: ArchivePlan,
 }
 
@@ -155,10 +151,6 @@ impl ArchivePlanRegistry {
         Ok(plan)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(dead_code, reason = "consumed by the archive transaction layer")
-    )]
     pub(crate) fn consume_at(
         &self,
         plan_id: &str,

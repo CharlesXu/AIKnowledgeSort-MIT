@@ -1,4 +1,4 @@
-mod records;
+pub(crate) mod records;
 
 use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
 use cap_std::fs::Dir;
@@ -39,6 +39,11 @@ struct VaultAuthority {
     display_path: PathBuf,
 }
 
+pub(crate) struct VaultLease {
+    pub summary: VaultSummary,
+    pub directory: Dir,
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct VaultAuthorityRecord {
@@ -52,6 +57,30 @@ pub struct VaultAuthorityRegistry {
 }
 
 impl VaultAuthorityRegistry {
+    pub(crate) fn lease(&self, authority_id: &str) -> Result<VaultLease, String> {
+        let authority = self
+            .authority
+            .lock()
+            .map_err(|_| "Vault authority registry is unavailable".to_owned())?;
+        let current = authority
+            .as_ref()
+            .ok_or_else(|| "No authoritative Vault has been selected".to_owned())?;
+        if current.summary.authority_id != authority_id {
+            return Err("Archive plan Vault authority is no longer current".to_owned());
+        }
+        let directory = current
+            .directory
+            .try_clone()
+            .map_err(|error| format!("Authoritative Vault capability cannot be cloned: {error}"))?;
+        directory
+            .metadata(".")
+            .map_err(|error| format!("Authoritative Vault is no longer readable: {error}"))?;
+        Ok(VaultLease {
+            summary: current.summary.clone(),
+            directory,
+        })
+    }
+
     pub fn current_summary(&self) -> Result<VaultSummary, String> {
         let authority = self
             .authority
@@ -102,6 +131,13 @@ impl VaultAuthorityRegistry {
             display_path: display_path.to_string_lossy().into_owned(),
             status: VaultStatus::Authoritative,
         };
+        let lease = VaultLease {
+            summary: summary.clone(),
+            directory: directory
+                .try_clone()
+                .map_err(|error| format!("Vault capability cannot be cloned: {error}"))?,
+        };
+        crate::archive::reconcile_vault(&lease)?;
         *authority = Some(VaultAuthority {
             summary: summary.clone(),
             directory,

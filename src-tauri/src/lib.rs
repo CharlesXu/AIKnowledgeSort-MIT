@@ -73,7 +73,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
-            archive::create_archive_plan
+            archive::create_archive_plan,
+            archive::confirm_archive_plan
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| panic!("error while running {}: {error}", application_name()));
