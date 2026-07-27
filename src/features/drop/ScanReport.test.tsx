@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import type { DiscoveryProposal } from "./types";
-import { DropProposalPanel } from "./DropProposalPanel";
+import { ScanReport } from "./ScanReport";
 
 const proposal: DiscoveryProposal = {
   items: [
@@ -18,12 +18,19 @@ const proposal: DiscoveryProposal = {
   diagnostics: [],
 };
 
-describe("DropProposalPanel", () => {
+describe("ScanReport", () => {
   test("shows all five discovery counts and the non-mutating review state", () => {
-    render(<DropProposalPanel proposal={proposal} />);
+    render(
+      <ScanReport
+        isDemo
+        proposal={proposal}
+        status="idle"
+        statusMessage="Browser fixture ready."
+      />,
+    );
 
     const panel = screen.getByRole("region", {
-      name: "Discovery proposal",
+      name: "Scan report",
     });
     const expectations = {
       Included: "2",
@@ -39,24 +46,24 @@ describe("DropProposalPanel", () => {
       ).toHaveTextContent(value);
     }
 
-    expect(within(panel).getByText("Review only")).toBeInTheDocument();
+    expect(within(panel).getByText("Demo scan")).toBeInTheDocument();
     expect(
       within(panel).getByText("No files have been changed"),
     ).toBeInTheDocument();
   });
 
-  test("keeps a passive drop surface visible beneath the proposal table", () => {
-    render(<DropProposalPanel proposal={proposal} />);
+  test("shows scan feedback in the fixed report instead of the workspace", () => {
+    render(
+      <ScanReport
+        proposal={proposal}
+        status="loading"
+        statusMessage="Reviewing trusted local drop…"
+      />,
+    );
 
-    const surface = screen.getByRole("region", {
-      name: "Passive drop surface",
-    });
-    expect(surface).toHaveTextContent(
-      "Drop files or folders anywhere in this window",
+    expect(screen.getByRole("status", { name: "Drop status" })).toHaveTextContent(
+      "Reviewing trusted local drop",
     );
-    expect(surface).toHaveTextContent(
-      "A trusted, review-only proposal will appear here",
-    );
-    expect(within(surface).queryByRole("button")).toBeNull();
+    expect(screen.getByText("Live scan")).toBeInTheDocument();
   });
 });

@@ -58,8 +58,9 @@ describe("source workbench shell", () => {
   test("clearly labels the deterministic browser fixture", () => {
     render(<App />);
 
-    expect(screen.getByText("Demo proposal")).toBeInTheDocument();
-    expect(screen.getByText(/deterministic browser fixture/i)).toBeInTheDocument();
+    const scanReport = screen.getByRole("region", { name: "Scan report" });
+    expect(within(scanReport).getByText("Demo scan")).toBeInTheDocument();
+    expect(within(scanReport).getByText(/browser fixture/i)).toBeInTheDocument();
   });
 
   test("replaces the demo with a trusted native proposal", async () => {
@@ -79,8 +80,8 @@ describe("source workbench shell", () => {
     expect(harness.proposeLocalDrop).toHaveBeenCalledWith({
       grantId: "opaque-live-grant",
     });
-    expect(screen.queryByText("Demo proposal")).toBeNull();
-    expect(screen.getByText("Live proposal")).toBeInTheDocument();
+    expect(screen.queryByText("Demo scan")).toBeNull();
+    expect(screen.getByText("Live scan")).toBeInTheDocument();
     expect(
       screen.getByRole("status", { name: "Included" }),
     ).toHaveTextContent("7");
@@ -161,23 +162,57 @@ describe("source workbench shell", () => {
     expect(toolbar.nextElementSibling).toBe(sources);
   });
 
-  test("uses the KL-Man workspace sequence without pretending files are ingested", () => {
+  test("reserves the central workspace for Markdown, Mermaid, and code", () => {
     render(<App />);
 
     const sources = screen.getByRole("region", { name: "Sources" });
     const archivePreview = screen.getByRole("region", {
       name: "Archive preview",
     });
-    const discoveryReview = screen.getByRole("region", {
-      name: "Discovery review",
+    const documentWorkspace = screen.getByRole("region", {
+      name: "Document workspace",
     });
 
     expect(sources).toHaveTextContent("IndexedSource");
+    expect(within(sources).getByRole("region", { name: "Scan report" })).toHaveTextContent(
+      "No files have been changed",
+    );
     expect(archivePreview).toHaveTextContent("Archive Preview");
     expect(archivePreview).toHaveTextContent("Uncommitted");
-    expect(archivePreview.compareDocumentPosition(discoveryReview)).toBe(
+    expect(documentWorkspace).toHaveTextContent("Markdown");
+    expect(documentWorkspace).toHaveTextContent("Mermaid");
+    expect(documentWorkspace).toHaveTextContent("Code");
+    expect(
+      within(documentWorkspace).queryByRole("region", {
+        name: "Discovery proposal",
+      }),
+    ).toBeNull();
+    expect(archivePreview.compareDocumentPosition(documentWorkspace)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  test("edits a mixed document and previews Markdown plus fenced blocks safely", () => {
+    render(<App />);
+
+    const editor = screen.getByRole("textbox", {
+      name: "Markdown, Mermaid, and code editor",
+    });
+    fireEvent.change(editor, {
+      target: {
+        value:
+          "# Workspace note\n\nA changed paragraph.\n\n```mermaid\ngraph LR\nA --> B\n```\n\n```ts\nconst ready = true;\n```",
+      },
+    });
+    fireEvent.click(screen.getByRole("tab", { name: "Preview" }));
+
+    const preview = screen.getByRole("region", { name: "Document preview" });
+    expect(within(preview).getByRole("heading", { name: "Workspace note" })).toBeVisible();
+    expect(preview).toHaveTextContent("A changed paragraph.");
+    expect(preview).toHaveTextContent("graph LR");
+    expect(preview).toHaveTextContent("const ready = true;");
+    expect(within(preview).getByText("Mermaid")).toBeVisible();
+    expect(within(preview).getByText("TypeScript")).toBeVisible();
   });
 
   test("switches the right context between proposal topology and import review", () => {
@@ -342,7 +377,7 @@ describe("source workbench shell", () => {
         screen.getByRole("tree", { name: "Local source folders" }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole("region", { name: "Discovery proposal" }),
+        screen.getByRole("region", { name: "Scan report" }),
       ).toHaveTextContent("No files have been changed");
       expect(
         screen.getByRole("complementary", {

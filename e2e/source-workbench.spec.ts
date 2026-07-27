@@ -10,7 +10,7 @@ test("loads the review-only workbench and supports tri-state source selection", 
   await expect(
     page.getByRole("main", { name: "Source workbench" }),
   ).toBeVisible();
-  await expect(page.getByText("Demo proposal")).toBeVisible();
+  await expect(page.getByText("Demo scan")).toBeVisible();
   await expect(
     page.getByRole("banner", { name: "Application header" }),
   ).toContainText("AI Knowledge Sort");
@@ -93,16 +93,18 @@ test("collapses and restores the adjustable side panes", async ({ page }) => {
   ).toBeVisible();
 });
 
-test("keeps the discovery proposal usable at a narrower viewport", async ({
+test("keeps the document workspace usable at a narrower viewport", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 700, height: 760 });
 
   await expect(
-    page.getByRole("region", { name: "Discovery proposal" }),
+    page.getByRole("region", { name: "Document workspace" }),
   ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "Sources" }),
   ).toBeHidden();
-  await expect(page.getByText("No files have been changed")).toBeVisible();
+  await expect(
+    page.getByRole("textbox", { name: "Markdown, Mermaid, and code editor" }),
+  ).toBeVisible();
 });

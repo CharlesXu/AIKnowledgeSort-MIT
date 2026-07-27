@@ -5,6 +5,7 @@ import {
   useNativeDrop,
   type NativeDropBridge,
 } from "../features/drop/useNativeDrop";
+import { ScanReport } from "../features/drop/ScanReport";
 import { ToolRail } from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
 import { ContextPane } from "../features/workbench/ContextPane";
@@ -144,6 +145,12 @@ export function AppShell({
               </div>
             </header>
             <SourceTree tree={demoSources} />
+            <ScanReport
+              isDemo={drop.isDemo}
+              proposal={proposal}
+              status={drop.status}
+              statusMessage={drop.message}
+            />
           </>
         )}
       </section>
@@ -160,12 +167,7 @@ export function AppShell({
       )}
       <section aria-label="Knowledge workspace" className="knowledge-workspace">
         <ArchivePreviewPane proposal={proposal} />
-        <DocumentPane
-          isDemo={drop.isDemo}
-          proposal={proposal}
-          status={drop.status}
-          statusMessage={drop.message}
-        />
+        <DocumentPane />
       </section>
       {layout.contextCollapsed ? null : (
         <PaneSeparator
@@ -201,7 +203,7 @@ export function AppShell({
           <i className="status-bar__dot" aria-hidden="true" />
           {drop.isDemo ? "Local demo workspace" : "Trusted local proposal"}
         </span>
-        <span>Read-only discovery proposal</span>
+        <span>Read-only scan report</span>
         <span className="status-bar__right">
           {proposal.counts.included} eligible · 0 changes
         </span>
