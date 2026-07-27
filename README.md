@@ -21,3 +21,11 @@ symlink-directory reparse types, with a platform-gated test when the test
 account may create links. Full Windows junction and non-symlink reparse-point
 acceptance remains a Windows CI and manual acceptance item; it is not claimed
 by the current macOS verification.
+
+Drop-root issuance and discovery run on a bounded blocking worker pool rather
+than the Tauri window-event thread. Each request has a visible deadline and
+cooperative traversal checks. An individual operating-system metadata call on a
+hostile or stalled network filesystem cannot be forcibly cancelled; timed-out
+workers retain their bounded concurrency permit until that call returns, so the
+UI thread remains responsive and additional work is rejected at the configured
+limit.

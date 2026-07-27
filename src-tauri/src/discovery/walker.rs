@@ -9,6 +9,7 @@ use cap_std::fs::{Dir, DirEntry, File};
 use std::collections::BTreeSet;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::time::Instant;
 
 struct CapabilityDiscovery<'a, F, H>
 where
@@ -21,6 +22,8 @@ where
     proposal: DiscoveryProposal,
     readability_probe: &'a mut F,
     before_open: &'a mut H,
+    deadline: Instant,
+    deadline_reported: bool,
 }
 
 impl<F, H> CapabilityDiscovery<'_, F, H>
@@ -29,6 +32,14 @@ where
     H: FnMut(&Path),
 {
     fn inspect_root(&mut self, root: CapabilityRoot) {
+        let display_path = match &root {
+            CapabilityRoot::Directory { display_path, .. }
+            | CapabilityRoot::File { display_path, .. }
+            | CapabilityRoot::Diagnostic { display_path, .. } => display_path.clone(),
+        };
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         match root {
             CapabilityRoot::Directory {
                 display_path,
@@ -55,6 +66,9 @@ where
     }
 
     fn inspect_directory(&mut self, display_path: PathBuf, directory: Dir, depth: usize) {
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if self.seen_paths.contains(&display_path) {
             return;
         }
@@ -87,7 +101,16 @@ where
             }
         };
         let mut entries = Vec::with_capacity(remaining.saturating_add(1));
-        entries.extend(iterator.take(remaining.saturating_add(1)));
+        let iterator = iterator.take(remaining.saturating_add(1));
+        for entry in iterator {
+            if self.stop_for_deadline(&display_path) {
+                return;
+            }
+            entries.push(entry);
+        }
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if entries.len() > remaining {
             self.diagnostic(
                 DiagnosticCategory::TraversalLimit,
@@ -119,6 +142,9 @@ where
 
     fn inspect_entry(&mut self, parent_display: &Path, entry: DirEntry, depth: usize) {
         let display_path = parent_display.join(entry.file_name());
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if path_display_len(&display_path) > MAX_PATH_BYTES {
             self.diagnostic(
                 DiagnosticCategory::Excluded,
@@ -138,6 +164,9 @@ where
                 return;
             }
         };
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if file_type_is_link(&file_type) {
             self.diagnostic(
                 DiagnosticCategory::Symlink,
@@ -146,8 +175,19 @@ where
             );
             return;
         }
+        if !file_type.is_file() && !file_type.is_dir() {
+            self.diagnostic(
+                DiagnosticCategory::Excluded,
+                &display_path,
+                "Entry is not a regular file or directory",
+            );
+            return;
+        }
 
         (self.before_open)(&display_path);
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         let opened = match entry.open_with(&read_only_nofollow_options()) {
             Ok(opened) => opened,
             Err(error) => {
@@ -159,10 +199,16 @@ where
                 return;
             }
         };
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         self.inspect_opened_entry(display_path, opened, depth);
     }
 
     fn inspect_opened_entry(&mut self, display_path: PathBuf, opened: File, depth: usize) {
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         let metadata = match opened.metadata() {
             Ok(metadata) => metadata,
             Err(error) => {
@@ -174,6 +220,9 @@ where
                 return;
             }
         };
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if file_type_is_link(&metadata.file_type()) {
             self.diagnostic(
                 DiagnosticCategory::Symlink,
@@ -201,6 +250,9 @@ where
     }
 
     fn include_open_file(&mut self, display_path: PathBuf, file: File) {
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         if !self.seen_paths.insert(display_path.clone()) {
             return;
         }
@@ -210,6 +262,9 @@ where
                 &display_path,
                 format!("File is unreadable: {error}"),
             );
+            return;
+        }
+        if self.stop_for_deadline(&display_path) {
             return;
         }
         let metadata = match file.metadata() {
@@ -223,6 +278,9 @@ where
                 return;
             }
         };
+        if self.stop_for_deadline(&display_path) {
+            return;
+        }
         let name = display_path
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -233,6 +291,21 @@ where
             byte_size: metadata.len(),
         });
         self.proposal.counts.included += 1;
+    }
+
+    fn stop_for_deadline(&mut self, path: &Path) -> bool {
+        if Instant::now() < self.deadline {
+            return false;
+        }
+        if !self.deadline_reported {
+            self.deadline_reported = true;
+            self.diagnostic(
+                DiagnosticCategory::TraversalLimit,
+                path,
+                "Filesystem discovery deadline exceeded",
+            );
+        }
+        true
     }
 
     fn diagnostic(
@@ -263,9 +336,30 @@ fn bounded_text(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
 }
 
+#[cfg(test)]
 pub(super) fn discover_grant_with_hooks<F, H>(
     grant: DropGrant,
     max_items: usize,
+    readability_probe: F,
+    before_open: H,
+) -> Result<DiscoveryProposal, String>
+where
+    F: FnMut(&Path) -> io::Result<()>,
+    H: FnMut(&Path),
+{
+    discover_grant_with_hooks_and_deadline(
+        grant,
+        max_items,
+        Instant::now() + super::DROP_WORK_TIMEOUT,
+        readability_probe,
+        before_open,
+    )
+}
+
+pub(super) fn discover_grant_with_hooks_and_deadline<F, H>(
+    grant: DropGrant,
+    max_items: usize,
+    deadline: Instant,
     mut readability_probe: F,
     mut before_open: H,
 ) -> Result<DiscoveryProposal, String>
@@ -283,6 +377,8 @@ where
         proposal: DiscoveryProposal::default(),
         readability_probe: &mut readability_probe,
         before_open: &mut before_open,
+        deadline,
+        deadline_reported: false,
     };
     for root in grant.roots {
         discovery.inspect_root(root);
@@ -299,9 +395,18 @@ where
     Ok(discovery.proposal)
 }
 
+#[cfg(test)]
 pub(super) fn discover_grant_with_limit(
     grant: DropGrant,
     max_items: usize,
 ) -> Result<DiscoveryProposal, String> {
     discover_grant_with_hooks(grant, max_items, |_| Ok(()), |_| {})
+}
+
+pub(super) fn discover_grant_with_deadline(
+    grant: DropGrant,
+    max_items: usize,
+    deadline: Instant,
+) -> Result<DiscoveryProposal, String> {
+    discover_grant_with_hooks_and_deadline(grant, max_items, deadline, |_| Ok(()), |_| {})
 }

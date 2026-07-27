@@ -1,13 +1,17 @@
 use super::DiagnosticCategory;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt, OpenOptionsMaybeDirExt};
 use cap_std::ambient_authority;
+#[cfg(unix)]
+use cap_std::fs::OpenOptionsExt;
 use cap_std::fs::{Dir, File, FileType, OpenOptions};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io;
+#[cfg(windows)]
+use std::path::Prefix;
 use std::path::{Component, Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
@@ -40,9 +44,10 @@ pub(crate) struct DropGrantIssued {
     pub grant_id: String,
 }
 
+#[derive(Clone)]
 pub(crate) struct DropGrantRegistry {
     limits: RegistryLimits,
-    grants: Mutex<HashMap<String, DropGrant>>,
+    grants: Arc<Mutex<HashMap<String, DropGrant>>>,
 }
 
 impl Default for DropGrantRegistry {
@@ -55,7 +60,7 @@ impl DropGrantRegistry {
     pub(super) fn new(limits: RegistryLimits) -> Self {
         Self {
             limits,
-            grants: Mutex::new(HashMap::new()),
+            grants: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -175,6 +180,8 @@ pub(super) fn read_only_nofollow_options() -> OpenOptions {
         .read(true)
         .follow(FollowSymlinks::No)
         .maybe_dir(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NONBLOCK | libc::O_NOFOLLOW);
     options
 }
 
@@ -257,6 +264,13 @@ fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
             "Dropped root is a link or reparse point",
         );
     }
+    if !metadata.is_file() && !metadata.is_dir() {
+        return root_diagnostic(
+            display_path,
+            DiagnosticCategory::Excluded,
+            "Dropped root is not a regular file or directory",
+        );
+    }
     let opened = match open_nofollow(&directory, relative) {
         Ok(opened) => opened,
         Err(error) => {
@@ -277,6 +291,10 @@ fn absolute_capability_path(path: &Path) -> Option<(PathBuf, Vec<OsString>)> {
     match components.next()? {
         Component::RootDir => filesystem_root.push(std::path::MAIN_SEPARATOR_STR),
         Component::Prefix(prefix) => {
+            #[cfg(windows)]
+            if matches!(prefix.kind(), Prefix::DeviceNS(_) | Prefix::Verbatim(_)) {
+                return None;
+            }
             filesystem_root.push(prefix.as_os_str());
             if components.next()? != Component::RootDir {
                 return None;

@@ -1,11 +1,17 @@
 use super::grant::{DropGrantRegistry, RegistryLimits};
-use super::walker::{discover_grant_with_hooks, discover_grant_with_limit};
-use super::{DiagnosticCategory, DiscoveryProposal};
+use super::walker::{
+    discover_grant_with_hooks, discover_grant_with_hooks_and_deadline, discover_grant_with_limit,
+};
+use super::{DiagnosticCategory, DiscoveryProposal, DropWorkLimiter};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+#[cfg(unix)]
+use std::sync::mpsc;
+#[cfg(unix)]
+use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
@@ -117,6 +123,28 @@ fn issue_and_consume(
         .expect("consume trusted test grant")
 }
 
+#[cfg(unix)]
+fn create_fifo(path: &Path) {
+    let status = std::process::Command::new("mkfifo")
+        .arg(path)
+        .status()
+        .expect("run mkfifo");
+    assert!(status.success(), "mkfifo must create the generated FIFO");
+}
+
+#[cfg(unix)]
+fn finish_without_blocking(
+    operation: impl FnOnce() -> DiscoveryProposal + Send + 'static,
+) -> DiscoveryProposal {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    thread::spawn(move || {
+        let _ = sender.send(operation());
+    });
+    receiver
+        .recv_timeout(Duration::from_millis(500))
+        .expect("special filesystem item handling must not block")
+}
+
 #[test]
 fn denies_spoofed_reused_and_expired_grant_ids() {
     let tree = TempTree::new();
@@ -170,6 +198,16 @@ fn bounds_grant_count_dropped_path_count_and_path_length() {
         .issue_at(vec![one], now)
         .expect("issue bounded grant");
     assert!(registry.issue_at(vec![two], now).is_err());
+}
+
+#[test]
+fn bounds_blocking_filesystem_work_and_releases_capacity() {
+    let limiter = DropWorkLimiter::new(1);
+    let permit = limiter.try_acquire().expect("first work permit");
+
+    assert!(limiter.try_acquire().is_err());
+    drop(permit);
+    assert!(limiter.try_acquire().is_ok());
 }
 
 #[test]
@@ -253,6 +291,33 @@ fn excludes_an_oversized_directory_as_one_bounded_diagnostic() {
     );
 }
 
+#[test]
+fn traversal_deadline_returns_one_visible_bounded_failure() {
+    let tree = TempTree::new();
+    let directory = tree.path("deadline");
+    fs::create_dir(&directory).expect("create generated directory");
+    fs::write(directory.join("one.txt"), b"one\n").expect("write generated file");
+    let registry = DropGrantRegistry::default();
+    let grant = issue_and_consume(&registry, vec![directory], Instant::now());
+
+    let proposal = discover_grant_with_hooks_and_deadline(
+        grant,
+        10,
+        Instant::now() + Duration::from_millis(10),
+        |_| Ok(()),
+        |_| std::thread::sleep(Duration::from_millis(30)),
+    )
+    .expect("deadline produces a proposal");
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.diagnostics.len(), 1);
+    assert_eq!(
+        proposal.diagnostics[0].category,
+        DiagnosticCategory::TraversalLimit
+    );
+    assert!(proposal.diagnostics[0].message.contains("deadline"));
+}
+
 #[cfg(unix)]
 #[test]
 fn nofollow_open_rejects_a_file_swapped_to_a_symlink_during_traversal() {
@@ -329,6 +394,41 @@ fn descendant_below_a_symlink_parent_is_rejected() {
     assert_eq!(proposal.counts.symlink, 1);
 }
 
+#[cfg(unix)]
+#[test]
+fn fifo_drop_root_is_excluded_without_blocking() {
+    let tree = TempTree::new();
+    let fifo = tree.path("root.fifo");
+    create_fifo(&fifo);
+
+    let proposal = finish_without_blocking(move || {
+        let registry = DropGrantRegistry::default();
+        let grant = issue_and_consume(&registry, vec![fifo], Instant::now());
+        discover_grant_with_limit(grant, 10).expect("discover FIFO root safely")
+    });
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.counts.excluded, 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn fifo_directory_child_is_excluded_without_blocking() {
+    let tree = TempTree::new();
+    let directory = tree.path("drop");
+    fs::create_dir(&directory).expect("create generated directory");
+    create_fifo(&directory.join("child.fifo"));
+
+    let proposal = finish_without_blocking(move || {
+        let registry = DropGrantRegistry::default();
+        let grant = issue_and_consume(&registry, vec![directory], Instant::now());
+        discover_grant_with_limit(grant, 10).expect("discover FIFO child safely")
+    });
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.counts.excluded, 1);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_symlink_reparse_root_is_rejected_when_creation_is_permitted() {
@@ -366,6 +466,17 @@ fn windows_symlink_parent_is_rejected_when_creation_is_permitted() {
 
     assert!(proposal.items.is_empty());
     assert_eq!(proposal.counts.symlink, 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_device_namespace_root_is_rejected_before_open() {
+    let registry = DropGrantRegistry::default();
+    let grant = issue_and_consume(&registry, vec![PathBuf::from(r"\\.\NUL")], Instant::now());
+    let proposal = discover_grant_with_limit(grant, 10).expect("reject device namespace");
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.counts.excluded, 1);
 }
 
 #[test]
