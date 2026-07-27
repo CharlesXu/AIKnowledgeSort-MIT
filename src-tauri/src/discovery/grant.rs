@@ -4,6 +4,7 @@ use cap_std::ambient_authority;
 use cap_std::fs::{Dir, File, FileType, OpenOptions};
 use serde::Serialize;
 use std::collections::HashMap;
+use std::ffi::OsString;
 use std::io;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Mutex;
@@ -194,28 +195,45 @@ fn root_diagnostic(
 }
 
 fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
-    let Some(name) = display_path.file_name() else {
-        return open_filesystem_root(display_path);
+    let (filesystem_root, components) = match absolute_capability_path(&display_path) {
+        Some(parts) => parts,
+        None => {
+            return root_diagnostic(
+                display_path,
+                DiagnosticCategory::Excluded,
+                "Dropped root is not an absolute traversal-free path",
+            )
+        }
     };
-    let Some(parent_path) = display_path.parent() else {
-        return root_diagnostic(
-            display_path,
-            DiagnosticCategory::Excluded,
-            "Dropped root has no accessible parent",
-        );
-    };
-    let parent = match Dir::open_ambient_dir(parent_path, ambient_authority()) {
-        Ok(parent) => parent,
+    let mut directory = match Dir::open_ambient_dir(&filesystem_root, ambient_authority()) {
+        Ok(directory) => directory,
         Err(error) => {
             return root_diagnostic(
                 display_path,
                 DiagnosticCategory::Unreadable,
-                format!("Dropped root parent is unreadable: {error}"),
+                format!("Dropped filesystem root is unreadable: {error}"),
             )
         }
     };
+    if components.is_empty() {
+        return CapabilityRoot::Directory {
+            display_path,
+            directory,
+        };
+    }
+
+    let (name, ancestors) = components
+        .split_last()
+        .expect("non-empty absolute path components");
+    for ancestor in ancestors {
+        directory = match open_ancestor_directory(&directory, ancestor) {
+            Ok(directory) => directory,
+            Err((category, message)) => return root_diagnostic(display_path, category, message),
+        };
+    }
+
     let relative = Path::new(name);
-    let metadata = match parent.symlink_metadata(relative) {
+    let metadata = match directory.symlink_metadata(relative) {
         Ok(metadata) => metadata,
         Err(error) if error.kind() == io::ErrorKind::NotFound => {
             return root_diagnostic(
@@ -239,7 +257,7 @@ fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
             "Dropped root is a link or reparse point",
         );
     }
-    let opened = match open_nofollow(&parent, relative) {
+    let opened = match open_nofollow(&directory, relative) {
         Ok(opened) => opened,
         Err(error) => {
             return root_diagnostic(
@@ -252,18 +270,98 @@ fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
     classify_opened_root(display_path, opened)
 }
 
-fn open_filesystem_root(display_path: PathBuf) -> CapabilityRoot {
-    match Dir::open_ambient_dir(&display_path, ambient_authority()) {
-        Ok(directory) => CapabilityRoot::Directory {
-            display_path,
-            directory,
-        },
-        Err(error) => root_diagnostic(
-            display_path,
-            DiagnosticCategory::Unreadable,
-            format!("Dropped filesystem root is unreadable: {error}"),
-        ),
+fn absolute_capability_path(path: &Path) -> Option<(PathBuf, Vec<OsString>)> {
+    let mut components = path.components();
+    let mut filesystem_root = PathBuf::new();
+
+    match components.next()? {
+        Component::RootDir => filesystem_root.push(std::path::MAIN_SEPARATOR_STR),
+        Component::Prefix(prefix) => {
+            filesystem_root.push(prefix.as_os_str());
+            if components.next()? != Component::RootDir {
+                return None;
+            }
+            filesystem_root.push(std::path::MAIN_SEPARATOR_STR);
+        }
+        _ => return None,
     }
+
+    let mut relative_components = Vec::new();
+    for component in components {
+        match component {
+            Component::Normal(component) => relative_components.push(component.to_os_string()),
+            Component::CurDir => {}
+            Component::RootDir | Component::Prefix(_) | Component::ParentDir => return None,
+        }
+    }
+    Some((filesystem_root, relative_components))
+}
+
+fn open_ancestor_directory(
+    directory: &Dir,
+    name: &OsString,
+) -> Result<Dir, (DiagnosticCategory, String)> {
+    let relative = Path::new(name);
+    let metadata = match directory.symlink_metadata(relative) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            return Err((
+                DiagnosticCategory::Excluded,
+                "Dropped path ancestor does not exist".to_owned(),
+            ))
+        }
+        Err(error) => {
+            return Err((
+                DiagnosticCategory::Unreadable,
+                format!("Dropped path ancestor metadata is unreadable: {error}"),
+            ))
+        }
+    };
+    if file_type_is_link(&metadata.file_type()) {
+        return Err((
+            DiagnosticCategory::Symlink,
+            "Dropped path contains a link or reparse-point ancestor".to_owned(),
+        ));
+    }
+    if !metadata.is_dir() {
+        return Err((
+            DiagnosticCategory::Excluded,
+            "Dropped path ancestor is not a directory".to_owned(),
+        ));
+    }
+    let opened = match open_nofollow(directory, relative) {
+        Ok(opened) => opened,
+        Err(error) => {
+            return Err((
+                DiagnosticCategory::Unreadable,
+                format!("Dropped path ancestor cannot be opened without links: {error}"),
+            ))
+        }
+    };
+    let opened_metadata = opened.metadata().map_err(|error| {
+        (
+            DiagnosticCategory::Unreadable,
+            format!("Dropped path ancestor handle metadata is unreadable: {error}"),
+        )
+    })?;
+    if file_type_is_link(&opened_metadata.file_type()) {
+        return Err((
+            DiagnosticCategory::Symlink,
+            "Dropped path ancestor resolved to a link or reparse point".to_owned(),
+        ));
+    }
+    if !opened_metadata.is_dir() {
+        return Err((
+            DiagnosticCategory::Excluded,
+            "Dropped path ancestor is not a directory".to_owned(),
+        ));
+    }
+    Dir::reopen_dir(&opened).map_err(|error| {
+        (
+            DiagnosticCategory::Unreadable,
+            format!("Dropped path ancestor capability cannot be opened: {error}"),
+        )
+    })
 }
 
 fn classify_opened_root(display_path: PathBuf, opened: File) -> CapabilityRoot {

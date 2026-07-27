@@ -27,6 +27,9 @@ impl TempTree {
         );
         let root = std::env::temp_dir().join(unique);
         fs::create_dir(&root).expect("create generated temporary tree");
+        let root = root
+            .canonicalize()
+            .expect("canonical generated temporary tree root");
         Self { root }
     }
 
@@ -306,6 +309,26 @@ fn file_root_uses_the_issued_handle_after_its_name_is_replaced() {
     assert_eq!(proposal.items[0].byte_size, 5);
 }
 
+#[cfg(unix)]
+#[test]
+fn descendant_below_a_symlink_parent_is_rejected() {
+    let tree = TempTree::new();
+    let real_directory = tree.path("real");
+    let alias = tree.path("alias");
+    let file = real_directory.join("inside.txt");
+    fs::create_dir(&real_directory).expect("create generated real directory");
+    fs::write(&file, b"inside\n").expect("write generated file");
+    std::os::unix::fs::symlink(&real_directory, &alias).expect("create generated parent symlink");
+    let registry = DropGrantRegistry::default();
+    let now = Instant::now();
+    let grant = issue_and_consume(&registry, vec![alias.join("inside.txt")], now);
+
+    let proposal = discover_grant_with_limit(grant, 10).expect("discover descendant safely");
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.counts.symlink, 1);
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_symlink_reparse_root_is_rejected_when_creation_is_permitted() {
@@ -320,6 +343,26 @@ fn windows_symlink_reparse_root_is_rejected_when_creation_is_permitted() {
     let now = Instant::now();
     let grant = issue_and_consume(&registry, vec![link], now);
     let proposal = discover_grant_with_limit(grant, 10).expect("discover link root");
+
+    assert!(proposal.items.is_empty());
+    assert_eq!(proposal.counts.symlink, 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_symlink_parent_is_rejected_when_creation_is_permitted() {
+    let tree = TempTree::new();
+    let real_directory = tree.path("real");
+    let alias = tree.path("alias");
+    fs::create_dir(&real_directory).expect("create generated real directory");
+    fs::write(real_directory.join("inside.txt"), b"inside\n").expect("write generated file");
+    if std::os::windows::fs::symlink_dir(&real_directory, &alias).is_err() {
+        return;
+    }
+    let registry = DropGrantRegistry::default();
+    let now = Instant::now();
+    let grant = issue_and_consume(&registry, vec![alias.join("inside.txt")], now);
+    let proposal = discover_grant_with_limit(grant, 10).expect("discover descendant safely");
 
     assert!(proposal.items.is_empty());
     assert_eq!(proposal.counts.symlink, 1);
