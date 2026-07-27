@@ -1,0 +1,47 @@
+requirement_id,title,clean_source_type,clean_source_reference,black_box_cases,black_box_status,authorized_asset,source_analysis_card,reviewer,sanitization_status
+ARCH-001,Local-first Windows macOS Linux application,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-ARCH,,,,,source-aware-reviewer-2026-07-27-A,PASS
+ARCH-002,Continuous archive-then-knowledge workflow,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-ARCH,,,,,source-aware-reviewer-2026-07-27-A,PASS
+ARCH-003,Single authoritative Vault,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-ARCH,,,,,source-aware-reviewer-2026-07-27-A,PASS
+FILE-001,Stable SHA-256 content identity across rename and relocation,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-FILE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+FILE-002,Readable SHA-256-verified registered original,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-FILE,BB-008,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+FILE-003,Derived artifacts never replace originals,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-FILE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+FILE-004,Verified atomic file-operation commit,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-FILE,BB-008,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+FILE-005,Source preserved by default,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-FILE,BB-006;BB-007;BB-008,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+NAME-001,Replace unreadable or meaningless names,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-NAME,BB-004,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+NAME-002,Preserve meaningful tokens and extension,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-NAME,,,,,source-aware-reviewer-2026-07-27-A,PASS
+NAME-003,Cross-platform normalization and deterministic collisions,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-NAME,,,,,source-aware-reviewer-2026-07-27-A,PASS
+NAME-004,Review missing facts and audit every rename,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-NAME,,,,,source-aware-reviewer-2026-07-27-A,PASS
+RULE-001,Declarative non-executable versioned profiles,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-RULE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+RULE-002,Authorized classification specification reuse,authorized KLOrgFromFile,AUTHORIZATIONS.md authorization provenance 2026-07-27 record AUTH-2026-07-27-CLASSIFICATION,,,KLOrgFromFile,,source-aware-reviewer-2026-07-27-A,PASS
+RULE-003,Candidate profile import preserves review evidence,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-RULE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+RULE-004,Conflicts use dedicated review without catch-all directories,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-RULE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+RULE-005,Ninebot profile starts as draft pilot,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-RULE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+KNOW-001,Knowledge generation follows confirmed archive,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-KNOW,,,,,source-aware-reviewer-2026-07-27-A,PASS
+KNOW-002,Markdown is authoritative with three viewing modes,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-KNOW,,,,,source-aware-reviewer-2026-07-27-A,PASS
+KNOW-003,Extended Markdown authoring features,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-KNOW,,,,,source-aware-reviewer-2026-07-27-A,PASS
+KNOW-004,Mermaid mixed editing diagnostics and safe local rendering,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-KNOW,,,,,source-aware-reviewer-2026-07-27-A,PASS
+KNOW-005,Graph relations trace to archived evidence,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-KNOW,,,,,source-aware-reviewer-2026-07-27-A,PASS
+AGENT-001,Independent proposals from identical evidence,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-AGENT,,,,,source-aware-reviewer-2026-07-27-A,PASS
+AGENT-002,Agent adjudication records decision reason and evidence,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-AGENT,,,,,source-aware-reviewer-2026-07-27-A,PASS
+AGENT-003,Deterministic core enforces safety without semantic voting,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-AGENT,,,,,source-aware-reviewer-2026-07-27-A,PASS
+AGENT-004,Model failure cannot authorize file changes,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-AGENT,,,,,source-aware-reviewer-2026-07-27-A,PASS
+MCP-001,Local-only stdio and loopback transports,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-MCP,,,,,source-aware-reviewer-2026-07-27-A,PASS
+MCP-002,Agents cannot bypass the trusted core,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-MCP,,,,,source-aware-reviewer-2026-07-27-A,PASS
+MCP-003,No Agent-only duplicate-cleanup execution tool,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-MCP,,,,,source-aware-reviewer-2026-07-27-A,PASS
+MCP-004,Permission grants are bounded and expiring,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-MCP,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-001,Authorized first-party UI inputs,authorized KL-Man,AUTHORIZATIONS.md authorization provenance 2026-07-27 record AUTH-2026-07-27-UI,,,KL-Man,,source-aware-reviewer-2026-07-27-A,PASS
+UI-002,Adjustable collapsible splittable persisted three-pane workbench,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-UI,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-003,Compact graph playback bar,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-UI,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-004,Figma is a design-only tool,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-UI,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-005,Obsidian-inspired interaction without copied assets,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-UI,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-006,Narrow toolbar and tri-state mixed source tree selection,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record D-012,,,,,source-aware-reviewer-2026-07-27-A,PASS
+UI-007,Mixed file and directory operating-system drop proposal,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record D-012,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-001,Duplicate cleanup is user-controlled and off by default,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,BB-008,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-002,Agent may only suggest bounded cleanup,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-003,Trash default and separately confirmed permanent deletion,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,BB-008,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-004,Persistent lifecycle and auditable critical actions,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-005,Undo preserves the last-original invariant,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,BB-009,blocked_not_observed,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-006,Knowledge failure does not roll back a safe archive,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-007,Unapproved failures produce no filesystem mutation,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-008,Third-party material requires separate review,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record OD-2026-07-27-SAFE,,,,,source-aware-reviewer-2026-07-27-A,PASS
+SAFE-009,Selection and drop discovery is non-mutating and reviewable,user decision,AUTHORIZATIONS.md owner decision provenance 2026-07-27 record D-012,,,,,source-aware-reviewer-2026-07-27-A,PASS

@@ -1,0 +1,793 @@
+{
+  "schemaVersion": 1,
+  "origin": "AI Knowledge Sort clean-room project",
+  "fixtureManifest": "embedded://generatedFixtures",
+  "fixturePolicy": "All fixture bytes referenced by vectors are embedded in generatedFixtures; no external manifest or fixture file is required.",
+  "generatedFixtures": [
+    {
+      "id": "ambiguous-numeric-name",
+      "filename": "000173.txt",
+      "origin": "created_for_ai_knowledge_sort_cleanroom",
+      "license": "MIT-project-test-data",
+      "encoding": "utf-8",
+      "contentUtf8": "客户访谈摘要：关注续航、可靠性和售后响应。\n",
+      "sha256": "c78781c8297644e4752e39fef43b3a1823e7430e01dd0b3a4644f7974b5f8a1f",
+      "size": 64
+    },
+    {
+      "id": "markdown-meeting-note",
+      "filename": "meeting-2026-07-27.md",
+      "origin": "created_for_ai_knowledge_sort_cleanroom",
+      "license": "MIT-project-test-data",
+      "encoding": "utf-8",
+      "contentUtf8": "# 项目 Alpha 周会\n\n- 决议：完成 EVT 样机检查\n- 行动：整理测试报告\n",
+      "sha256": "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+      "size": 88
+    },
+    {
+      "id": "structured-json-record",
+      "filename": "product-record.json",
+      "origin": "created_for_ai_knowledge_sort_cleanroom",
+      "license": "MIT-project-test-data",
+      "encoding": "utf-8",
+      "contentUtf8": "{\n  \"project\": \"Alpha\",\n  \"phase\": \"EVT\",\n  \"documentType\": \"verification record\",\n  \"version\": \"1.0\"\n}",
+      "sha256": "09ad9f38f1197e357f7e0363947282ca8ebfb371131d2353752b8ed5ed16fba4",
+      "size": 103
+    },
+    {
+      "id": "plain-text-project-note",
+      "filename": "project-alpha-evt-summary.txt",
+      "origin": "created_for_ai_knowledge_sort_cleanroom",
+      "license": "MIT-project-test-data",
+      "encoding": "utf-8",
+      "contentUtf8": "项目 Alpha 已进入 EVT。本文记录验证范围、风险和下阶段计划。\n",
+      "sha256": "ab5f329afb80f567b441324ad2d048ca910644b17c7426f9cc585307c5077496",
+      "size": 84
+    },
+    {
+      "id": "unsupported-binary",
+      "filename": "unknown-format.bin",
+      "origin": "created_for_ai_knowledge_sort_cleanroom",
+      "license": "MIT-project-test-data",
+      "encoding": "base64",
+      "contentBase64": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+      "sha256": "630dcd2966c4336691125448bbb25b4ff412a49c732db2c8abc1b8581bd710dd",
+      "size": 32
+    },
+    {
+      "id": "profile-candidate-url-example",
+      "encoding": "utf-8",
+      "content": "{\"testProfile\":{\"identity\":\"fixture-profile\",\"version\":\"1\",\"approval\":\"candidate\",\"rules\":[]}}\n",
+      "sha256": "21a933ca1001bf605890e426e62466f5c06d4ead17ef8d18f0c110e3fe01722f",
+      "size": 95
+    },
+    {
+      "id": "markdown-extended-syntax",
+      "encoding": "utf-8",
+      "content": "---\ntitle: Extended\n---\n\n# Extended\n\n| A | B |\n|---|---|\n| 1 | 2 |\n\n- [ ] task\n\nFootnote[^1]\n\n[^1]: note\n\n> [!NOTE]\n> callout\n\n[[Target]] and ^block-ref\n",
+      "sha256": "09ba20a84c880635071a935dfcef1e771d8483b53b8d754a541494d6b6d5689b",
+      "size": 153
+    },
+    {
+      "id": "markdown-invalid-mermaid",
+      "encoding": "utf-8",
+      "content": "# Mixed\n\nSafe text.\n\n```mermaid\ngraph TD\nA -->\n```\n\nUnaffected text.\n",
+      "sha256": "b9c7edad6bc11ead97f7890bb792c17ef50b4f2f1a092933637b8f2adf974839",
+      "size": 69
+    },
+    {
+      "id": "markdown-malicious-render",
+      "encoding": "utf-8",
+      "content": "# Safe heading\n\n<script>globalThis.pwned=true</script>\n<img src=x onerror=\"bridge.invoke('delete')\">\n<foreignObject><script>alert(1)</script></foreignObject>\n[unsafe](javascript:alert(1))\n![external](https://example.invalid/pixel.png)\n[local](file:///etc/passwd)\n\n```mermaid\n%%{init: {'securityLevel': 'loose'}}%%\ngraph TD\nA[\"bridge.invoke('delete')\"] --> B\n```\n\nUnaffected text.\n",
+      "sha256": "89505c3c2b4bab976e4acebca9866dc90042bb230435ff2d35fa987fe0895d8d",
+      "size": 380
+    },
+    {
+      "id": "license-review-sentinel",
+      "encoding": "utf-8",
+      "content": "license-review-sentinel\n",
+      "sha256": "c039df0eb2c0b8ec8404ef1235c2979c9bde160ecc7de3f4bd5b98e39816b376",
+      "size": 24
+    }
+  ],
+  "vectors": [
+    {
+      "id": "ARCH-001-offline-platform-baseline",
+      "requirements": ["ARCH-001"],
+      "fixtureIds": [],
+      "fixtureRationale": "Platform and offline capability check does not require a file fixture.",
+      "preconditions": ["A packaged build is installed on each of Windows, macOS, and Linux and network access is disabled."],
+      "actions": ["Launch the application and exercise Vault browsing, Markdown editing, graph browsing, and deterministic safety checks."],
+      "observableAssertions": ["Each platform launches and the listed local capabilities remain usable without network access."],
+      "implementationFreedoms": ["Packaging, windowing, and offline-state presentation may differ by platform."]
+    },
+    {
+      "id": "ARCH-001-target-stack-build-metadata",
+      "requirements": ["ARCH-001"],
+      "fixtureIds": [],
+      "fixtureRationale": "Build metadata and packaged-runtime inspection do not require file content.",
+      "preconditions": ["Release build inputs and packaged artifacts are available for Windows, macOS, and Linux."],
+      "actions": ["Build each target and inspect declared and packaged application metadata using platform-appropriate tooling."],
+      "observableAssertions": ["Each build succeeds and verifiable metadata or packaged runtime evidence identifies Tauri 2, a React and TypeScript interface, and Rust trusted capabilities."],
+      "implementationFreedoms": ["Build system layout, metadata source, inspection tooling, and packaging details are unconstrained."]
+    },
+    {
+      "id": "ARCH-002-continuous-two-stage-flow",
+      "requirements": ["ARCH-002", "KNOW-001"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["The fixture is selected and has no confirmed archive."],
+      "actions": ["Complete a confirmed archive and continue to knowledge creation in the same import workflow."],
+      "observableAssertions": ["Knowledge creation is unavailable before confirmation and becomes available after archive confirmation without a second import."],
+      "implementationFreedoms": ["Progress and navigation presentation are unconstrained."]
+    },
+    {
+      "id": "ARCH-003-single-authoritative-vault",
+      "requirements": ["ARCH-003"],
+      "fixtureIds": [],
+      "fixtureRationale": "Vault authority configuration is independent of file content.",
+      "preconditions": ["One local Vault is authoritative and a second local directory exists."],
+      "actions": ["Attempt to mark the second directory authoritative without an authority transfer, then perform an explicit user-approved transfer."],
+      "observableAssertions": ["The first attempt is rejected and the approved transfer ends with exactly one authoritative Vault."],
+      "implementationFreedoms": ["Authority-transfer UI and persistence encoding are unconstrained."]
+    },
+    {
+      "id": "FILE-001-identity-survives-name-and-location",
+      "requirements": ["FILE-001"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["The fixture SHA-256 is independently calculated."],
+      "actions": ["Register, rename, and relocate the fixture without modifying its bytes."],
+      "observableAssertions": ["Every state reports algorithm SHA-256 and the same 64-hex digest."],
+      "implementationFreedoms": ["SHA-256 library and registration storage are unconstrained."]
+    },
+    {
+      "id": "FILE-002-readable-registered-original",
+      "requirements": ["FILE-002"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["The source is readable and the archive destination is approved."],
+      "actions": ["Archive the fixture and independently verify the committed destination."],
+      "observableAssertions": ["One readable registered original exists and its SHA-256 matches the manifest."],
+      "implementationFreedoms": ["Archive directory layout is unconstrained."]
+    },
+    {
+      "id": "FILE-003-derived-artifacts-are-not-originals",
+      "requirements": ["FILE-003"],
+      "fixtureIds": ["markdown-meeting-note"],
+      "preconditions": ["The fixture is archived and derived Markdown and graph records exist."],
+      "actions": ["Remove the derived artifacts and inspect original registrations."],
+      "observableAssertions": ["The original remains readable and registered; derived artifacts are never counted as original copies."],
+      "implementationFreedoms": ["Derived artifact storage is unconstrained."]
+    },
+    {
+      "id": "FILE-004-copy-hash-mismatch",
+      "requirements": ["FILE-004", "FILE-005", "SAFE-007"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A test destination writer will alter one byte in temporary output."],
+      "actions": ["Attempt the archive transaction and calculate source and temporary-output SHA-256 independently."],
+      "observableAssertions": ["No committed archive is reported, the source bytes are unchanged, and the mismatch is visible."],
+      "implementationFreedoms": ["Temporary filename and failure-message wording are unconstrained."]
+    },
+    {
+      "id": "FILE-004-unreadable-output-rejected",
+      "requirements": ["FILE-002", "FILE-004", "FILE-005", "SAFE-007"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["The source is readable and a test fault makes the copied temporary destination unreadable after its write completes."],
+      "actions": ["Attempt the archive transaction, inspect externally visible operation and audit results, and independently recalculate the source SHA-256."],
+      "observableAssertions": ["No committed archive or original registration is produced, the temporary output is not treated as an original, the source remains readable with its manifest SHA-256 unchanged, and the unreadable-output failure is visible and auditable."],
+      "implementationFreedoms": ["The unreadable-output fault mechanism, temporary filename, cleanup timing, and diagnostic wording are unconstrained."]
+    },
+    {
+      "id": "FILE-001-non-sha256-identity-rejected",
+      "requirements": ["FILE-001", "FILE-002", "SAFE-001", "SAFE-005"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Two readable copies are presented with matching values labeled as a non-SHA-256 algorithm, and a second attempt presents a malformed SHA-256 digest."],
+      "actions": ["Attempt to validate archive identity, establish duplicate eligibility, and authorize cleanup using each supplied digest record, then request fresh SHA-256 verification."],
+      "observableAssertions": ["Neither supplied record establishes content identity, archive validity, duplicate eligibility, or cleanup authorization; no copy is moved or deleted; a literal SHA-256 algorithm label with a valid 64-hex digest is required and SHA-256 is independently recomputed before any later eligibility decision."],
+      "implementationFreedoms": ["Digest-validation library, recomputation scheduling, and rejection-message wording are unconstrained."]
+    },
+    {
+      "id": "FILE-004-registration-failure",
+      "requirements": ["FILE-004", "FILE-005"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["Copy and digest verification can succeed but registration is forced to fail."],
+      "actions": ["Attempt the archive transaction."],
+      "observableAssertions": ["No destination is exposed as committed and the source remains unchanged."],
+      "implementationFreedoms": ["Registration backend and temporary cleanup timing are unconstrained."]
+    },
+    {
+      "id": "FILE-004-interrupted-copy-recovery",
+      "requirements": ["FILE-004", "SAFE-004"],
+      "fixtureIds": ["unsupported-binary"],
+      "preconditions": ["The archive operation can be interrupted during temporary copy."],
+      "actions": ["Interrupt the copy, restart the application, and inspect the persistent operation state."],
+      "observableAssertions": ["The operation resumes safely or ends in a visible safe failure with no unregistered committed destination."],
+      "implementationFreedoms": ["Recovery journal format is unconstrained."]
+    },
+    {
+      "id": "FILE-004-crash-after-registration-before-exposure",
+      "requirements": ["FILE-002", "FILE-004", "FILE-005", "SAFE-004"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["A deterministic fault stops the process after registration work begins but before the authoritative destination is exposed."],
+      "actions": ["Run the archive operation, trigger the fault, restart, and allow reconciliation to complete."],
+      "observableAssertions": ["The item reconciles to either not committed with no authoritative registration or exposed destination, or fully committed with a readable SHA-256-verified destination and matching authoritative registration; in both outcomes the source remains readable, byte-unchanged, and valid under an independently recomputed SHA-256 identity; no phantom registration remains."],
+      "implementationFreedoms": ["Registration store, exposure mechanism, journal, and reconciliation strategy are unconstrained."]
+    },
+    {
+      "id": "FILE-004-crash-after-exposure-before-finalization",
+      "requirements": ["FILE-002", "FILE-004", "FILE-005", "SAFE-004"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A deterministic fault stops the process after destination exposure but before final lifecycle completion."],
+      "actions": ["Run the archive operation, trigger the fault, restart, and allow reconciliation to complete."],
+      "observableAssertions": ["The item reconciles to either not committed with no authoritative registration or exposed destination, or fully committed with a readable SHA-256-verified destination and matching authoritative registration; in both outcomes the source remains readable, byte-unchanged, and valid under an independently recomputed SHA-256 identity; no orphan authoritative destination remains."],
+      "implementationFreedoms": ["Commit markers, exposure mechanism, journal, and reconciliation strategy are unconstrained."]
+    },
+    {
+      "id": "FILE-005-source-preserved-by-default",
+      "requirements": ["FILE-005"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["The fixture source is readable and archive scope is approved."],
+      "actions": ["Complete a default archive operation."],
+      "observableAssertions": ["The source remains readable and byte-identical after commit."],
+      "implementationFreedoms": ["Copy mechanism and destination layout are unconstrained."]
+    },
+    {
+      "id": "NAME-001-meaningful-proposal",
+      "requirements": ["NAME-001", "NAME-002"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["Sufficient project evidence is supplied for the numeric fixture name."],
+      "actions": ["Request a canonical-name proposal."],
+      "observableAssertions": ["A meaningful proposal is shown and the .txt extension is preserved."],
+      "implementationFreedoms": ["Name template and evidence ranking are unconstrained."]
+    },
+    {
+      "id": "NAME-002-preserve-evidenced-tokens",
+      "requirements": ["NAME-002"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Project, model, regulation, and version tokens are supplied as naming evidence."],
+      "actions": ["Generate and approve a normalized naming proposal."],
+      "observableAssertions": ["All evidenced meaningful tokens and the original extension remain present."],
+      "implementationFreedoms": ["Token separators and case style are unconstrained."]
+    },
+    {
+      "id": "NAME-003-deterministic-collision",
+      "requirements": ["NAME-003"],
+      "fixtureIds": ["plain-text-project-note", "structured-json-record"],
+      "preconditions": ["Both fixtures are configured to propose the same logical destination name."],
+      "actions": ["Resolve the collision twice from identical inputs on Windows, macOS, and Linux."],
+      "observableAssertions": ["Each run produces the same collision resolution for the same logical inputs without overwriting either file."],
+      "implementationFreedoms": ["Collision suffix syntax is unconstrained."]
+    },
+    {
+      "id": "NAME-003-cross-platform-unsafe-name",
+      "requirements": ["NAME-003"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["Naming evidence would produce a reserved or unsafe platform path component."],
+      "actions": ["Request a canonical-name proposal on each supported platform."],
+      "observableAssertions": ["The unsafe name is rejected or safely normalized with a deterministic visible result."],
+      "implementationFreedoms": ["Normalization library is unconstrained."]
+    },
+    {
+      "id": "NAME-004-missing-evidence-review",
+      "requirements": ["NAME-004"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["A required naming fact is absent."],
+      "actions": ["Request and attempt to confirm canonical naming."],
+      "observableAssertions": ["A review item is produced, no fact is fabricated, and no rename commits."],
+      "implementationFreedoms": ["Review presentation is unconstrained."]
+    },
+    {
+      "id": "NAME-004-rename-audit",
+      "requirements": ["NAME-004", "SAFE-004"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A canonical name has sufficient evidence and user approval."],
+      "actions": ["Commit the rename and inspect its audit record."],
+      "observableAssertions": ["The audit exposes original and canonical paths, applied rule, SHA-256 identity, confirmation, and outcome."],
+      "implementationFreedoms": ["Audit encoding and display are unconstrained."]
+    },
+    {
+      "id": "RULE-001-valid-declarative-profile",
+      "requirements": ["RULE-001"],
+      "fixtureIds": [],
+      "fixtureRationale": "The conformance harness constructs semantic profile properties in the implementation's documented representation, whose serialization is intentionally unconstrained.",
+      "preconditions": ["A declarative non-executable profile representation exposes identity, exact version, approval status, rules, provenance, and evidence."],
+      "actions": ["Import the profile and request a classification proposal."],
+      "observableAssertions": ["The profile loads as non-executable data and every proposal exposes its exact profile identity and version."],
+      "implementationFreedoms": ["Serialization, schema field names, storage, rule vocabulary, and matching technique are unconstrained."]
+    },
+    {
+      "id": "RULE-001-executable-profile-rejected",
+      "requirements": ["RULE-001", "SAFE-007"],
+      "fixtureIds": [],
+      "fixtureRationale": "The conformance harness expresses an executable directive through the implementation's documented candidate-ingress representation.",
+      "preconditions": ["A candidate representation contains a command or executable evaluation directive in addition to semantic profile properties."],
+      "actions": ["Attempt to import and activate the candidate."],
+      "observableAssertions": ["The candidate is rejected, no code executes, and active rules and files remain unchanged."],
+      "implementationFreedoms": ["Serialization, schema field names, validation implementation, and diagnostic wording are unconstrained."]
+    },
+    {
+      "id": "RULE-002-authorized-rewrite-boundary",
+      "requirements": ["RULE-002", "SAFE-008"],
+      "fixtureIds": [],
+      "fixtureRationale": "This is a provenance review of profile material.",
+      "preconditions": ["A rewritten owned classification profile and its material provenance record are available."],
+      "actions": ["Run the release provenance review."],
+      "observableAssertions": ["Owned material is attributable and any embedded uncleared third-party material is excluded."],
+      "implementationFreedoms": ["Provenance report format is unconstrained."]
+    },
+    {
+      "id": "RULE-003-file-candidate-evidence",
+      "requirements": ["RULE-003"],
+      "fixtureIds": [],
+      "fixtureRationale": "The conformance harness writes semantic candidate properties using the implementation's documented profile representation.",
+      "preconditions": ["A valid candidate profile in the implementation's documented representation is available as a local file."],
+      "actions": ["Import the file without approving it and inspect its record."],
+      "observableAssertions": ["Source, SHA-256 identity, parsed version, diff, candidate status, and empty approval decision are preserved; active rules do not change."],
+      "implementationFreedoms": ["Profile serialization, schema field names, diff representation, and candidate storage are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-candidate-offline",
+      "requirements": ["RULE-003", "SAFE-007"],
+      "fixtureIds": [],
+      "fixtureRationale": "URL import behavior does not require a manifest fixture.",
+      "preconditions": ["Network access is disabled and the user supplies a profile URL."],
+      "actions": ["Attempt the import."],
+      "observableAssertions": ["Failure is visible and neither the active profile nor filesystem content changes."],
+      "implementationFreedoms": ["Timeout and error presentation are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-candidate-bounded-success",
+      "requirements": ["RULE-003"],
+      "fixtureIds": ["profile-candidate-url-example"],
+      "preconditions": ["A bounded test HTTP server on a permitted non-local target serves the generated fixture with an accepted content type; the conformance adapter maps its semantic profile properties through the implementation's documented representation."],
+      "actions": ["Import the user-provided URL without embedded credentials or redirects and inspect the candidate and provenance results."],
+      "observableAssertions": ["One unapproved candidate is created, its semantic identity and version are reviewable, the fetched bytes have the generated fixture SHA-256 and size, and minimized provenance and a reviewable diff are recorded without changing active rules or files."],
+      "implementationFreedoms": ["The example fixture serialization is test data rather than a required product format; profile serialization, schema field names, HTTP library, and provenance presentation are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-import-ssrf-and-redirect-rejection",
+      "requirements": ["RULE-003", "SAFE-007"],
+      "fixtureIds": ["profile-candidate-url-example"],
+      "preconditions": ["Test URLs cover embedded credentials, local-file, loopback, private, and link-local targets plus a permitted initial target that redirects to each prohibited target."],
+      "actions": ["Attempt every direct and redirected import while monitoring network requests, candidate state, active rules, and files."],
+      "observableAssertions": ["Every prohibited direct target is rejected before fetch, every redirect target is revalidated and rejected, and no candidate activation or filesystem mutation occurs."],
+      "implementationFreedoms": ["URL parser, address classification, redirect limit, and diagnostic wording are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-cross-origin-credential-stripping",
+      "requirements": ["RULE-003", "SAFE-007"],
+      "fixtureIds": ["profile-candidate-url-example"],
+      "preconditions": ["A permitted HTTPS origin request carries a synthetic origin-scoped Authorization value and cookie, then redirects to a different permitted HTTPS origin serving the generated fixture; both origins record received request headers, and no real credential is used."],
+      "actions": ["Import the initial URL, follow the permitted redirect under normal URL-import bounds, and inspect the request record at the second origin."],
+      "observableAssertions": ["The second origin receives no Authorization header, cookie, or other credential from the first origin; the redirect target is independently revalidated before fetch; any successful candidate result retains fetched-byte SHA-256 and minimized provenance without persisting the synthetic credential."],
+      "implementationFreedoms": ["Synthetic credential values, HTTP client, origin comparison, header stripping mechanism, and minimized provenance representation are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-import-bounds",
+      "requirements": ["RULE-003", "SAFE-007"],
+      "fixtureIds": ["profile-candidate-url-example"],
+      "preconditions": ["Controlled servers produce an oversized response, a response that exceeds the time limit, and a disallowed content type."],
+      "actions": ["Attempt each URL import and inspect candidate, active-profile, audit, and filesystem state."],
+      "observableAssertions": ["Each request stops at its documented bound, reports a visible rejection, creates no approved or active candidate, and causes no filesystem mutation."],
+      "implementationFreedoms": ["Documented size and time limits, accepted content types, cancellation mechanism, and diagnostics are unconstrained."]
+    },
+    {
+      "id": "RULE-003-url-secret-redaction",
+      "requirements": ["RULE-003", "SAFE-004"],
+      "fixtureIds": ["profile-candidate-url-example"],
+      "preconditions": ["A permitted URL contains synthetic sensitive query and fragment values but no embedded authority credentials, and the server returns the generated fixture."],
+      "actions": ["Complete a bounded import and inspect UI, candidate provenance, diagnostics, and audit outputs."],
+      "observableAssertions": ["The candidate preserves fetched-byte SHA-256 and sufficient minimized provenance for review, while the sensitive query and fragment values do not appear in persisted state, UI, diagnostics, or audit."],
+      "implementationFreedoms": ["Redaction form, locator digest, minimized provenance fields, and retention representation are unconstrained."]
+    },
+    {
+      "id": "RULE-003-unapproved-candidate",
+      "requirements": ["RULE-003"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["A valid imported candidate remains unapproved and a different profile is active."],
+      "actions": ["Request and attempt to commit classification for the fixture."],
+      "observableAssertions": ["Committed classification cannot use the candidate and records the active approved profile version."],
+      "implementationFreedoms": ["Candidate comparison UI is unconstrained."]
+    },
+    {
+      "id": "RULE-004-conflict-dedicated-review",
+      "requirements": ["RULE-004"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["Two declarative rules produce conflicting destinations from the fixture evidence."],
+      "actions": ["Request classification."],
+      "observableAssertions": ["A classification_review item is created and no pending, unclassified, or equivalent catch-all directory is created."],
+      "implementationFreedoms": ["Review queue organization is unconstrained."]
+    },
+    {
+      "id": "RULE-005-ninebot-draft-pilot",
+      "requirements": ["RULE-005"],
+      "fixtureIds": [],
+      "fixtureRationale": "Profile status inspection does not require a file fixture.",
+      "preconditions": ["The first-release Ninebot profile is installed."],
+      "actions": ["Inspect its status and attempt production activation without approval."],
+      "observableAssertions": ["Its initial status is draft or pilot and it does not become approved without an explicit user decision."],
+      "implementationFreedoms": ["Draft and pilot badges are unconstrained."]
+    },
+    {
+      "id": "KNOW-001-archive-prerequisite",
+      "requirements": ["KNOW-001"],
+      "fixtureIds": ["markdown-meeting-note"],
+      "preconditions": ["The fixture has not been archived."],
+      "actions": ["Request Markdown and graph generation."],
+      "observableAssertions": ["No knowledge artifact or confirmed graph result is created and the archive prerequisite is visible."],
+      "implementationFreedoms": ["Prerequisite messaging is unconstrained."]
+    },
+    {
+      "id": "KNOW-002-three-modes-one-source",
+      "requirements": ["KNOW-002"],
+      "fixtureIds": ["markdown-meeting-note"],
+      "preconditions": ["The archived fixture has an authoritative Vault Markdown document."],
+      "actions": ["Edit in source mode, switch through live preview and reading mode, then reopen source mode."],
+      "observableAssertions": ["All modes reflect the same persisted authoritative Markdown source."],
+      "implementationFreedoms": ["Editor component and preview strategy are unconstrained."]
+    },
+    {
+      "id": "KNOW-003-extended-markdown",
+      "requirements": ["KNOW-003"],
+      "fixtureIds": ["markdown-extended-syntax"],
+      "preconditions": ["The generated fixture is loaded as authoritative Markdown."],
+      "actions": ["Open and edit the document in all supported modes."],
+      "observableAssertions": ["Each documented construct remains editable and has a documented local representation."],
+      "implementationFreedoms": ["Specific Markdown extension libraries are unconstrained."]
+    },
+    {
+      "id": "KNOW-004-invalid-mermaid-preserves-source",
+      "requirements": ["KNOW-004"],
+      "fixtureIds": ["markdown-invalid-mermaid"],
+      "preconditions": ["The generated fixture contains invalid Mermaid syntax beside valid Markdown."],
+      "actions": ["Open live preview and edit the invalid diagram."],
+      "observableAssertions": ["Source text is preserved, unaffected Markdown remains usable, and an actionable diagram diagnostic is shown."],
+      "implementationFreedoms": ["Diagnostic wording and placement are unconstrained."]
+    },
+    {
+      "id": "KNOW-004-unsafe-render-content",
+      "requirements": ["KNOW-004", "MCP-002"],
+      "fixtureIds": ["markdown-malicious-render"],
+      "preconditions": ["Renderer network monitoring and a privileged-bridge invocation monitor are active, and the generated malicious fixture is authoritative Markdown."],
+      "actions": ["Open live preview and reading mode, interact with the unsafe and local links, and inspect generated DOM and SVG."],
+      "observableAssertions": ["Script and event-handler code does not run; foreignObject, unsafe schemes, unsafe Mermaid directives, and generated DOM or SVG active content are blocked or sanitized; no external subresource request occurs; the file URL is not opened; no privileged bridge call occurs; source and unaffected text remain available."],
+      "implementationFreedoms": ["Sanitizer, renderer process boundary, safe-scheme allowlist, link handoff UI, and isolation mechanism are unconstrained."]
+    },
+    {
+      "id": "KNOW-005-evidence-backed-relation",
+      "requirements": ["KNOW-005"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["The fixture is archived and a proposed graph relation cites its registered identity and evidence."],
+      "actions": ["Confirm the relation and inspect provenance."],
+      "observableAssertions": ["The confirmed relation exposes its source, type, target, status, and archived evidence reference."],
+      "implementationFreedoms": ["Graph store and relation taxonomy are unconstrained."]
+    },
+    {
+      "id": "KNOW-005-relation-without-evidence",
+      "requirements": ["KNOW-005"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A proposed relation has no archived evidence reference."],
+      "actions": ["Attempt to confirm the relation."],
+      "observableAssertions": ["The relation remains unconfirmed or enters review and no provenance is fabricated."],
+      "implementationFreedoms": ["Unconfirmed-state styling is unconstrained."]
+    },
+    {
+      "id": "AGENT-001-identical-evidence-independent-proposals",
+      "requirements": ["AGENT-001"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["Desktop and Agent-side models are available."],
+      "actions": ["Submit one comparison request and capture the externally visible request envelopes and proposals."],
+      "observableAssertions": ["Both requests contain identical content identity, rule snapshot, and evidence, and two distinguishable proposals are recorded."],
+      "implementationFreedoms": ["Providers, prompts, and proposal layout are unconstrained."]
+    },
+    {
+      "id": "AGENT-002-adjudication-reason-evidence",
+      "requirements": ["AGENT-002"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["Two model proposals are available."],
+      "actions": ["Attempt each adjudication outcome without and then with a reason and evidence reference."],
+      "observableAssertions": ["Accept, revise, reject, and review remain incomplete until both reason and evidence are recorded."],
+      "implementationFreedoms": ["Adjudication UI is unconstrained."]
+    },
+    {
+      "id": "AGENT-003-semantic-accept-safety-refusal",
+      "requirements": ["AGENT-003", "SAFE-005"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["An Agent accepts a proposal that would remove the only valid original."],
+      "actions": ["Submit the accepted proposal for execution."],
+      "observableAssertions": ["The deterministic core refuses execution without adding a replacement semantic vote and the original remains intact."],
+      "implementationFreedoms": ["Core component boundaries are unconstrained."]
+    },
+    {
+      "id": "AGENT-004-model-timeout-no-mutation",
+      "requirements": ["AGENT-004", "SAFE-007"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["One model is forced to time out before a filesystem proposal is confirmed."],
+      "actions": ["Run comparison and inspect the fixture location and bytes."],
+      "observableAssertions": ["A visible failure or review state appears and no filesystem mutation occurs."],
+      "implementationFreedoms": ["Timeout threshold and retry UI are unconstrained."]
+    },
+    {
+      "id": "AGENT-004-model-disagreement-review",
+      "requirements": ["AGENT-004", "AGENT-002"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["The two models return materially conflicting proposals."],
+      "actions": ["Run Agent adjudication without enough evidence to resolve the conflict."],
+      "observableAssertions": ["A reasoned review or rejection is recorded and no filesystem operation is authorized."],
+      "implementationFreedoms": ["Disagreement visualization is unconstrained."]
+    },
+    {
+      "id": "MCP-001-local-transports",
+      "requirements": ["MCP-001"],
+      "fixtureIds": [],
+      "fixtureRationale": "Transport binding validation does not require a file fixture.",
+      "preconditions": ["The MCP service is configured for stdio and Streamable HTTP testing."],
+      "actions": ["Connect over stdio, loopback HTTP, and a non-loopback interface."],
+      "observableAssertions": ["Stdio and loopback requests reach authorization while non-loopback binding or connection is denied."],
+      "implementationFreedoms": ["MCP library and authentication mechanism are unconstrained."]
+    },
+    {
+      "id": "MCP-002-trusted-core-path-boundary",
+      "requirements": ["MCP-002"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["An Agent grant covers one Vault subdirectory and an out-of-scope target is reachable through traversal or a link."],
+      "actions": ["Request a filesystem-changing operation against the escaped target."],
+      "observableAssertions": ["The resolved path is denied before mutation and the target remains unchanged."],
+      "implementationFreedoms": ["Path-resolution library and denial wording are unconstrained."]
+    },
+    {
+      "id": "MCP-002-runtime-path-substitution",
+      "requirements": ["MCP-002", "MCP-004", "SAFE-007"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A reviewed in-scope archive path is approved and a deterministic test hook can replace a symlink, junction, parent, or target with an out-of-scope location after review but before commit."],
+      "actions": ["Perform each substitution at the operation boundary and during the transaction, then attempt commit."],
+      "observableAssertions": ["Authorization and containment failure safely aborts or rejects every transaction, no out-of-scope target is mutated, and no committed archive result is reported."],
+      "implementationFreedoms": ["Race-safe path confinement and substitution-detection mechanisms are unconstrained."]
+    },
+    {
+      "id": "MCP-003-no-agent-cleanup-tool",
+      "requirements": ["MCP-003", "SAFE-002"],
+      "fixtureIds": [],
+      "fixtureRationale": "Capability enumeration does not require a file fixture.",
+      "preconditions": ["An Agent has the broadest supported tool grant."],
+      "actions": ["Enumerate Agent-facing capabilities and submit a cleanup suggestion."],
+      "observableAssertions": ["No direct or Agent-only cleanup execution capability exists; the suggestion requires user review and confirmation."],
+      "implementationFreedoms": ["Tool names and suggestion schema are unconstrained."]
+    },
+    {
+      "id": "MCP-004-permission-dimensions-and-expiry",
+      "requirements": ["MCP-004"],
+      "fixtureIds": [],
+      "fixtureRationale": "Grant-dimension validation does not require a file fixture.",
+      "preconditions": ["A grant identifies one Agent, directory, tool, expiry, and resource limit."],
+      "actions": ["Vary each dimension outside its grant and repeat an allowed request after expiry."],
+      "observableAssertions": ["Each out-of-scope or expired request is denied independently without filesystem mutation."],
+      "implementationFreedoms": ["Grant encoding and expiry clock implementation are unconstrained."]
+    },
+    {
+      "id": "MCP-004-authenticated-session-identity",
+      "requirements": ["MCP-004", "SAFE-007"],
+      "fixtureIds": [],
+      "fixtureRationale": "Authenticated caller and session validation does not require file content.",
+      "preconditions": ["Two authenticated Agent sessions exist with different identities and grants."],
+      "actions": ["Send an allowed request from its bound session, then spoof the other Agent identity and substitute the other session binding."],
+      "observableAssertions": ["The correctly bound request reaches authorization, spoofed and substituted requests are denied per request, and no denied request mutates files."],
+      "implementationFreedoms": ["Caller authentication, session binding, and denial codes are unconstrained."]
+    },
+    {
+      "id": "MCP-004-replay-revocation-expiry",
+      "requirements": ["MCP-004", "SAFE-007"],
+      "fixtureIds": [],
+      "fixtureRationale": "Permission replay, revocation, and expiry checks do not require file content.",
+      "preconditions": ["An authenticated session has a bounded grant and one valid single-use request is captured."],
+      "actions": ["Submit the request once, replay it, revoke the grant and submit a fresh request, then repeat with an independently expired grant."],
+      "observableAssertions": ["The first request is evaluated once; replay, post-revocation, and post-expiry requests are denied without mutation, with current authorization checked for each request."],
+      "implementationFreedoms": ["Nonce, sequence, timestamp, replay cache, revocation propagation, and clock mechanisms are unconstrained."]
+    },
+    {
+      "id": "MCP-004-loopback-browser-origin",
+      "requirements": ["MCP-001", "MCP-004"],
+      "fixtureIds": [],
+      "fixtureRationale": "Browser-origin and loopback transport authorization do not require file content.",
+      "preconditions": ["Loopback Streamable HTTP is running and test requests include an untrusted browser origin, a CSRF-style request, and an explicitly authenticated and allowed caller-origin-session binding."],
+      "actions": ["Send all request forms to the loopback endpoint."],
+      "observableAssertions": ["Untrusted cross-origin and CSRF-style requests are rejected; only the explicitly authenticated and allowed binding proceeds to normal per-request authorization."],
+      "implementationFreedoms": ["Origin policy, anti-CSRF binding, authentication, and response codes are unconstrained."]
+    },
+    {
+      "id": "UI-001-authorized-ui-provenance",
+      "requirements": ["UI-001", "SAFE-008"],
+      "fixtureIds": [],
+      "fixtureRationale": "UI asset provenance review does not require a file fixture.",
+      "preconditions": ["The release candidate contains its UI components and asset inventory."],
+      "actions": ["Review the origin and clearance of every shipped UI asset."],
+      "observableAssertions": ["Authorized owned material is attributable and every third-party item is cleared or excluded."],
+      "implementationFreedoms": ["Inventory format is unconstrained."]
+    },
+    {
+      "id": "UI-002-layout-persistence",
+      "requirements": ["UI-002"],
+      "fixtureIds": [],
+      "fixtureRationale": "Workbench layout behavior does not require a file fixture.",
+      "preconditions": ["The application starts with a valid default layout."],
+      "actions": ["Resize, collapse, and split all three panes, relaunch, then corrupt the saved layout and relaunch again."],
+      "observableAssertions": ["The valid layout is restored after the first relaunch and a usable three-pane fallback appears after invalid data without Vault data loss."],
+      "implementationFreedoms": ["Pane library and persistence format are unconstrained."]
+    },
+    {
+      "id": "UI-003-compact-playback-bar",
+      "requirements": ["UI-003"],
+      "fixtureIds": [],
+      "fixtureRationale": "Graph playback dimensions do not require a file fixture.",
+      "preconditions": ["Graph history is visible at supported display scales."],
+      "actions": ["Measure the playback bar logical height at each scale."],
+      "observableAssertions": ["The logical height remains between 32 and 36 pixels inclusive."],
+      "implementationFreedoms": ["Playback controls and visual styling are unconstrained."]
+    },
+    {
+      "id": "UI-004-figma-design-only",
+      "requirements": ["UI-004"],
+      "fixtureIds": [],
+      "fixtureRationale": "Runtime dependency inspection does not require a file fixture.",
+      "preconditions": ["A release build is available without design tooling installed."],
+      "actions": ["Launch and exercise the workbench while inspecting runtime dependency requirements."],
+      "observableAssertions": ["The application functions without Figma or a Figma connection."],
+      "implementationFreedoms": ["Design handoff process is unconstrained."]
+    },
+    {
+      "id": "UI-005-inspiration-without-copied-assets",
+      "requirements": ["UI-005"],
+      "fixtureIds": [],
+      "fixtureRationale": "Interaction and asset review does not require a file fixture.",
+      "preconditions": ["The first-release workbench and asset inventory are available."],
+      "actions": ["Exercise the three-pane knowledge workflow and review shipped branding and assets."],
+      "observableAssertions": ["The interaction supports the intended workbench pattern without copied third-party branding or proprietary visual assets."],
+      "implementationFreedoms": ["Original visual styling is unconstrained."]
+    },
+    {
+      "id": "SAFE-001-cleanup-off-by-default",
+      "requirements": ["SAFE-001"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Two registered copies exist and no cleanup preference has been set."],
+      "actions": ["Launch cleanup surfaces without enabling cleanup."],
+      "observableAssertions": ["Cleanup is disabled and no copy is moved or deleted."],
+      "implementationFreedoms": ["Enablement control placement is unconstrained."]
+    },
+    {
+      "id": "SAFE-002-agent-suggestion-bounded",
+      "requirements": ["SAFE-002"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Two eligible registered copies exist and an Agent has read and analysis grants."],
+      "actions": ["Ask the Agent for a cleanup suggestion and attempt to expand its scope at execution."],
+      "observableAssertions": ["The Agent does not execute cleanup, the proposal lists exact copies, and expanded scope requires fresh user review."],
+      "implementationFreedoms": ["Suggestion ranking and presentation are unconstrained."]
+    },
+    {
+      "id": "SAFE-003-trash-default",
+      "requirements": ["SAFE-003", "FILE-002"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Two independently verified registered originals have matching SHA-256 identities and one is selected."],
+      "actions": ["Confirm cleanup without selecting permanent deletion."],
+      "observableAssertions": ["The selected copy moves to platform trash and the other remains readable and SHA-256-valid."],
+      "implementationFreedoms": ["Platform trash API is unconstrained."]
+    },
+    {
+      "id": "SAFE-003-permanent-delete-separate-confirmation",
+      "requirements": ["SAFE-003"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Two eligible originals exist and one is selected for permanent deletion."],
+      "actions": ["Complete cleanup selection confirmation but withhold the separate permanent-delete confirmation, then explicitly provide it."],
+      "observableAssertions": ["No permanent deletion occurs after the first confirmation; deletion can proceed only after the separate confirmation and safety recheck."],
+      "implementationFreedoms": ["Confirmation dialog wording is unconstrained."]
+    },
+    {
+      "id": "SAFE-003-confirmation-plan-binding",
+      "requirements": ["FILE-001", "MCP-004", "SAFE-003", "SAFE-004", "SAFE-007"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A destructive plan snapshot is reviewed with exact SHA-256 identities, resolved paths, disposition, plan version, grant, expiry, and a single-use binding."],
+      "actions": ["Separately change file identity, resolved path, selected scope, grant, expiry, plan version, and relevant filesystem state after confirmation; then replay an unchanged previously consumed confirmation."],
+      "observableAssertions": ["Every changed or stale case invalidates confirmation and forces fresh review, the replay is rejected, and no selected or out-of-scope file is moved or deleted."],
+      "implementationFreedoms": ["Immutable snapshot encoding, nonce or equivalent binding, replay defense, and re-review UI are unconstrained."]
+    },
+    {
+      "id": "SAFE-004-critical-action-audit",
+      "requirements": ["SAFE-004"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["A user-approved archive and rename plan exists."],
+      "actions": ["Commit the plan and inspect operation lifecycle and audit records."],
+      "observableAssertions": ["Persistent records expose actor, time, action, scope, identity, decision, confirmation, invariant result, and outcome."],
+      "implementationFreedoms": ["Lifecycle and audit storage formats are unconstrained."]
+    },
+    {
+      "id": "SAFE-004-audit-completeness-and-tamper-detection",
+      "requirements": ["SAFE-004"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["A confirmed critical action has succeeded and its audit record is available to an authorized local user."],
+      "actions": ["Verify required audit properties, then deterministically alter one record field and separately truncate the record sequence before running audit verification."],
+      "observableAssertions": ["The intact record exposes time, actor, action, scope, content identity, decision and evidence, confirmation binding, invariant result, and outcome; each unauthorized alteration or truncation is observably detected."],
+      "implementationFreedoms": ["Audit encoding, access-control mechanism, retention representation, and tamper-evidence technique are unconstrained."]
+    },
+    {
+      "id": "SAFE-005-last-original-deletion-refusal",
+      "requirements": ["SAFE-005", "FILE-002"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["Exactly one readable SHA-256-valid registered original exists alongside derived artifacts."],
+      "actions": ["Attempt trash and permanent deletion of the original."],
+      "observableAssertions": ["Both operations are refused and the original remains readable and SHA-256-valid."],
+      "implementationFreedoms": ["Refusal presentation is unconstrained."]
+    },
+    {
+      "id": "SAFE-005-undo-preserves-last-original",
+      "requirements": ["SAFE-005"],
+      "fixtureIds": ["structured-json-record"],
+      "preconditions": ["A prior operation is undoable but current state makes its undo remove the last valid original."],
+      "actions": ["Request undo."],
+      "observableAssertions": ["Undo is refused without partial mutation and the last valid original remains intact."],
+      "implementationFreedoms": ["Undo journal representation is unconstrained."]
+    },
+    {
+      "id": "SAFE-006-knowledge-failure-keeps-archive",
+      "requirements": ["SAFE-006", "KNOW-001"],
+      "fixtureIds": ["markdown-meeting-note"],
+      "preconditions": ["The fixture has a confirmed readable archive and knowledge generation is forced to fail."],
+      "actions": ["Run knowledge generation and reverify the archive."],
+      "observableAssertions": ["Derived work reports failure while the archive remains registered, readable, and SHA-256-valid."],
+      "implementationFreedoms": ["Knowledge failure injection and retry UI are unconstrained."]
+    },
+    {
+      "id": "SAFE-007-unapproved-operation-no-mutation",
+      "requirements": ["SAFE-007"],
+      "fixtureIds": ["ambiguous-numeric-name"],
+      "preconditions": ["A naming and relocation proposal has not received user confirmation."],
+      "actions": ["Trigger execution entry points and inspect source and destination."],
+      "observableAssertions": ["No filesystem mutation occurs and the unapproved state is visible."],
+      "implementationFreedoms": ["Proposal state storage is unconstrained."]
+    },
+    {
+      "id": "SAFE-007-expired-permission-no-mutation",
+      "requirements": ["SAFE-007", "MCP-004"],
+      "fixtureIds": ["plain-text-project-note"],
+      "preconditions": ["A previously valid filesystem grant has expired."],
+      "actions": ["Request a rename through MCP."],
+      "observableAssertions": ["The request is denied, source name and bytes remain unchanged, and denial is auditable."],
+      "implementationFreedoms": ["Denial code and audit encoding are unconstrained."]
+    },
+    {
+      "id": "SAFE-008-third-party-review-gate",
+      "requirements": ["SAFE-008"],
+      "fixtureIds": ["license-review-sentinel"],
+      "preconditions": ["The generated sentinel stands in for a proposed third-party component or asset, first without and then with recorded clearance."],
+      "actions": ["Run the handoff provenance review with and without recorded clearance."],
+      "observableAssertions": ["Uncleared material is excluded; cleared material is included only with its review evidence."],
+      "implementationFreedoms": ["License review record format is unconstrained."]
+    },
+    {
+      "id": "UI-006-source-tree-mixed-selection",
+      "requirements": ["UI-006"],
+      "fixtureIds": [],
+      "fixtureRationale": "A generated hierarchy and checkbox-state transitions are sufficient; no file-content fixture is required.",
+      "preconditions": ["The narrow left toolbar and adjacent source tree display generated directory root/a with eligible files root/a/one.txt and root/a/sub/two.txt, and the same two files are also displayed beneath a second selected view."],
+      "actions": ["Select directory root/a, deselect root/a/sub/two.txt, inspect root/a/sub and root/a, reselect the child, then explicitly select root/a and root/a/one.txt together."],
+      "observableAssertions": ["Selecting root/a selects both eligible descendants; deselecting the child makes root/a/sub and root/a indeterminate; reselecting it makes every displayed ancestor selected; and the final mixed file-and-directory selection remains explicit while resolving to exactly the two unique eligible files."],
+      "implementationFreedoms": ["Tree virtualization, checkbox-state calculation, path presentation, and selection storage are unconstrained."]
+    },
+    {
+      "id": "UI-007-mixed-file-directory-drop",
+      "requirements": ["UI-007", "SAFE-009"],
+      "fixtureIds": [],
+      "fixtureRationale": "A temporary generated filesystem hierarchy supplies local drop paths without external fixture bytes.",
+      "preconditions": ["Within an active grant, generated directory drop/a contains files one.txt and sub/two.txt, and the operating-system drop batch contains drop/a, drop/a/one.txt, and drop/a/sub."],
+      "actions": ["Drop the mixed file-and-directory batch and inspect the discovery/import result before approving any later operation."],
+      "observableAssertions": ["Exactly one scoped discovery/import proposal appears; overlapping roots resolve to the two unique local files; included, excluded, unreadable, symlink, and out-of-scope counts are visible; and no source path, filename, bytes, or registration changes."],
+      "implementationFreedoms": ["Operating-system drop integration, traversal order, proposal layout, and deduplication representation are unconstrained."]
+    },
+    {
+      "id": "SAFE-009-drop-boundary-review",
+      "requirements": ["SAFE-009", "UI-007"],
+      "fixtureIds": [],
+      "fixtureRationale": "Generated permission, link, scope, text, and URL cases exercise discovery boundaries without reusable file content.",
+      "preconditions": ["A generated local drop batch contains one readable in-scope file, one unreadable in-scope file, one symlink, and one path outside the active grant; separate drag data contains plain text and an HTTPS URL; all source metadata and bytes are recorded before the test."],
+      "actions": ["Drop the local batch, then drop the plain text and URL, decline advancement of every resulting proposal, and compare filesystem state with the recorded baseline."],
+      "observableAssertions": ["The proposal identifies or counts one included item plus the unreadable, symlink, and out-of-scope cases for review; excluded items are not proposed for action; plain text and the URL are not treated as local files or directories; and discovery does not move, rename, archive, delete, or otherwise mutate any filesystem item."],
+      "implementationFreedoms": ["Permission simulation, link construction, count presentation, and diagnostic wording are unconstrained."]
+    }
+  ]
+}
