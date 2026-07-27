@@ -5,7 +5,7 @@ export interface PreparedMarkdown {
 
 type CalloutKind = "note" | "tip" | "warning" | "danger";
 
-const calloutPattern = /^>\s*\[!(NOTE|TIP|WARNING|DANGER)\](?:\s|$)/i;
+const calloutPattern = /^(?:>\s*)?\[!(NOTE|TIP|WARNING|DANGER)\](?:\s|$)/i;
 const fencePattern = /^\s*(```+|~~~+)/;
 const wikiLinkPattern = /\[\[([^\]|]+?)(?:\|([^\]]+?))?\]\]/g;
 const blockReferencePattern = /(^|\s)(\^[A-Za-z0-9][\w-]*)\s*$/;
@@ -75,6 +75,6 @@ export function prepareLocalMarkdown(source: string): PreparedMarkdown {
 }
 
 export function calloutKind(source: string): CalloutKind | null {
-  const match = calloutPattern.exec(source);
+  const match = calloutPattern.exec(source.trimStart());
   return match?.[1]?.toLocaleLowerCase() as CalloutKind | undefined ?? null;
 }
