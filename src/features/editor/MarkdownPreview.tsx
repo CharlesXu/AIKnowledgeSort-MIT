@@ -5,6 +5,7 @@ import ReactMarkdown, {
 import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import { calloutKind, prepareLocalMarkdown } from "./localMarkdown";
+import { MermaidBlock } from "./MermaidBlock";
 
 interface MarkdownPreviewProps {
   readonly source: string;
@@ -89,6 +90,11 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
         const isBlock = className?.startsWith("language-");
         if (!isBlock) {
           return <code className={className}>{children}</code>;
+        }
+        if (className === "language-mermaid") {
+          return (
+            <MermaidBlock source={String(children).replace(/\n$/, "")} />
+          );
         }
         return (
           <section className="code-preview">

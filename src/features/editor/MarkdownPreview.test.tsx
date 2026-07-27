@@ -102,4 +102,17 @@ describe("MarkdownPreview", () => {
     expect(screen.getByText("<img src=x onerror=alert(1)>")).toBeVisible();
     expect(document.querySelector("img")).toBeNull();
   });
+
+  test("routes Mermaid fences through the strict diagram policy", () => {
+    render(
+      <MarkdownPreview
+        source={'```mermaid\ngraph TD\nclick A href "https://example.com"\n```'}
+      />,
+    );
+
+    expect(
+      screen.getByRole("alert", { name: "Mermaid diagnostic" }),
+    ).toHaveTextContent(/click directives are disabled/i);
+    expect(screen.getByText("Mermaid source")).toBeVisible();
+  });
 });

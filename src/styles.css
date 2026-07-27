@@ -1037,6 +1037,89 @@ input:focus-visible,
   border-color: #d5cfe3;
 }
 
+.mermaid-block {
+  overflow: hidden;
+  margin: 14px 0 20px;
+  border: 1px solid #d7d1e3;
+  border-radius: 6px;
+  background: #fbfafd;
+}
+
+.mermaid-block > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid #ded9e8;
+  color: #514864;
+  background: #f2f0f6;
+  font-size: 9.5px;
+  font-weight: 675;
+}
+
+.mermaid-block > header small {
+  color: #85808f;
+  font-size: 8.5px;
+  font-weight: 500;
+}
+
+.mermaid-block__diagram {
+  overflow: auto;
+  padding: 18px;
+  background: #fff;
+  text-align: center;
+}
+
+.mermaid-block__diagram svg {
+  width: 100%;
+  max-width: 720px;
+  max-height: 420px;
+}
+
+.mermaid-block__diagram .node rect,
+.mermaid-block__diagram .node circle,
+.mermaid-block__diagram .node polygon,
+.mermaid-block__diagram .node path {
+  fill: #f3f0f8;
+  stroke: #7567a8;
+}
+
+.mermaid-block__diagram .edgePath path,
+.mermaid-block__diagram .flowchart-link {
+  stroke: #8a80a3;
+}
+
+.mermaid-block__diagnostic {
+  margin: 0;
+  padding: 9px 11px;
+  border-bottom: 1px solid #e2d9d9;
+  color: #784f4f;
+  background: #fbf5f5;
+  font-size: 10.5px;
+}
+
+.mermaid-block__source {
+  border-top: 1px solid #e3e0e8;
+}
+
+.mermaid-block__source summary {
+  padding: 7px 10px;
+  color: #686271;
+  background: #f8f7fa;
+  cursor: pointer;
+  font-size: 9px;
+}
+
+.mermaid-block__source pre {
+  overflow: auto;
+  margin: 0;
+  padding: 11px 12px;
+  color: #3c3f47;
+  background: #f6f7f9;
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
 .context-pane {
   display: flex;
   grid-column: 6;
