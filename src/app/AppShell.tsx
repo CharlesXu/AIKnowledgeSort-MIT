@@ -1,9 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { demoDiscoveryProposal, demoSources } from "../data/demoSources";
 import { ToolRail } from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
 import { ContextPane } from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
+import { Icon } from "../ui/Icon";
+import {
+  CONTEXT_WIDTH_MAX,
+  CONTEXT_WIDTH_MIN,
+  NAVIGATION_WIDTH_MAX,
+  NAVIGATION_WIDTH_MIN,
+  persistPaneLayout,
+  readPaneLayout,
+  type PaneLayout,
+} from "./paneLayout";
 
 interface PaneSeparatorProps {
   readonly label: string;
@@ -51,12 +61,21 @@ function PaneSeparator({
 }
 
 export function AppShell() {
-  const [sourceWidth, setSourceWidth] = useState(286);
-  const [contextWidth, setContextWidth] = useState(300);
+  const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const layoutStyle = {
-    "--source-width": `${sourceWidth}px`,
-    "--context-width": `${contextWidth}px`,
+    "--source-width": `${layout.navigationCollapsed ? 34 : layout.navigationWidth}px`,
+    "--source-separator-width": layout.navigationCollapsed ? "0px" : "5px",
+    "--context-width": `${layout.contextCollapsed ? 34 : layout.contextWidth}px`,
+    "--context-separator-width": layout.contextCollapsed ? "0px" : "5px",
   } as React.CSSProperties;
+
+  useEffect(() => {
+    persistPaneLayout(layout);
+  }, [layout]);
+
+  function updateLayout(changes: Partial<PaneLayout>): void {
+    setLayout((current) => ({ ...current, ...changes }));
+  }
 
   return (
     <main
@@ -67,38 +86,73 @@ export function AppShell() {
       <ToolRail />
       <section
         aria-label="Sources"
-        className="source-panel"
+        className={`source-panel${layout.navigationCollapsed ? " source-panel--collapsed" : ""}`}
         data-collapse-at="760"
       >
-        <header className="source-panel__header">
-          <div>
-            <p className="section-kicker">LOCAL</p>
-            <h2>Sources</h2>
-          </div>
-          <span className="source-panel__count">6 FILES</span>
-        </header>
-        <SourceTree tree={demoSources} />
+        {layout.navigationCollapsed ? (
+          <button
+            aria-label="Expand Sources panel"
+            className="pane-restore-control"
+            onClick={() => updateLayout({ navigationCollapsed: false })}
+            title="Expand Sources panel"
+            type="button"
+          >
+            <Icon name="chevron" size={14} />
+          </button>
+        ) : (
+          <>
+            <header className="source-panel__header">
+              <div>
+                <p className="section-kicker">LOCAL</p>
+                <h2>Sources</h2>
+              </div>
+              <div className="pane-header__actions">
+                <span className="source-panel__count">6 FILES</span>
+                <button
+                  aria-label="Collapse Sources panel"
+                  className="pane-collapse-control pane-collapse-control--left"
+                  onClick={() => updateLayout({ navigationCollapsed: true })}
+                  title="Collapse Sources panel"
+                  type="button"
+                >
+                  <Icon name="chevron" size={13} />
+                </button>
+              </div>
+            </header>
+            <SourceTree tree={demoSources} />
+          </>
+        )}
       </section>
-      <PaneSeparator
-        direction={1}
-        label="Resize Sources panel"
-        max={380}
-        min={220}
-        onChange={setSourceWidth}
-        side="source"
-        value={sourceWidth}
-      />
+      {layout.navigationCollapsed ? null : (
+        <PaneSeparator
+          direction={1}
+          label="Resize Sources panel"
+          max={NAVIGATION_WIDTH_MAX}
+          min={NAVIGATION_WIDTH_MIN}
+          onChange={(navigationWidth) => updateLayout({ navigationWidth })}
+          side="source"
+          value={layout.navigationWidth}
+        />
+      )}
       <DocumentPane proposal={demoDiscoveryProposal} />
-      <PaneSeparator
-        direction={-1}
-        label="Resize import review context"
-        max={420}
-        min={260}
-        onChange={setContextWidth}
-        side="context"
-        value={contextWidth}
+      {layout.contextCollapsed ? null : (
+        <PaneSeparator
+          direction={-1}
+          label="Resize import review context"
+          max={CONTEXT_WIDTH_MAX}
+          min={CONTEXT_WIDTH_MIN}
+          onChange={(contextWidth) => updateLayout({ contextWidth })}
+          side="context"
+          value={layout.contextWidth}
+        />
+      )}
+      <ContextPane
+        collapsed={layout.contextCollapsed}
+        onCollapsedChange={(contextCollapsed) =>
+          updateLayout({ contextCollapsed })
+        }
+        proposal={demoDiscoveryProposal}
       />
-      <ContextPane proposal={demoDiscoveryProposal} />
       <footer className="status-bar">
         <span>
           <i className="status-bar__dot" aria-hidden="true" />
