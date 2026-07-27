@@ -36,6 +36,7 @@ Package metadata and license texts are available from the
 | cap-fs-ext | 4.0.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | cap-std | 4.0.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | libc | 0.2 | Apache-2.0 OR MIT |
+| SHA-2 | 0.10 | Apache-2.0 OR MIT |
 | Tauri | 2.11.5 | Apache-2.0 OR MIT |
 | Tauri Build | 2.6.3 | Apache-2.0 OR MIT |
 | Tokio | 1 | MIT |
