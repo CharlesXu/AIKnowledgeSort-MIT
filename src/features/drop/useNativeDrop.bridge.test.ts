@@ -1,4 +1,7 @@
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
+import type { DiscoveryClient } from "./discoveryClient";
+import type { DiscoveryProposal } from "./types";
 
 const tauri = vi.hoisted(() => {
   const eventHandlers = new Map<string, (event: { payload: unknown }) => void>();
@@ -46,7 +49,7 @@ vi.mock("@tauri-apps/api/webview", () => ({
   }),
 }));
 
-import { tauriNativeDropBridge } from "./useNativeDrop";
+import { tauriNativeDropBridge, useNativeDrop } from "./useNativeDrop";
 
 describe("tauriNativeDropBridge", () => {
   beforeEach(() => {
@@ -95,5 +98,82 @@ describe("tauriNativeDropBridge", () => {
     expect(tauri.unlistenGrant).toHaveBeenCalledOnce();
     expect(tauri.unlistenError).toHaveBeenCalledOnce();
     expect(tauri.unlistenDrag).toHaveBeenCalledOnce();
+  });
+
+  test("waits for a trusted grant after a mixed overlapping native drop", async () => {
+    const deduplicatedProposal: DiscoveryProposal = {
+      items: [
+        {
+          path: "/trusted/project/README.md",
+          name: "README.md",
+          byteSize: 128,
+        },
+        {
+          path: "/trusted/project/notes/day-one.txt",
+          name: "day-one.txt",
+          byteSize: 256,
+        },
+      ],
+      counts: {
+        included: 2,
+        excluded: 1,
+        unreadable: 1,
+        symlink: 1,
+        outOfScope: 1,
+      },
+      diagnostics: [],
+    };
+    const proposeLocalDrop = vi.fn(async ({ grantId }) => {
+      expect(grantId).toBe("mixed-overlap-grant");
+      return deduplicatedProposal;
+    });
+    const discoveryClient: DiscoveryClient = { proposeLocalDrop };
+    const { result } = renderHook(() =>
+      useNativeDrop({
+        bridge: tauriNativeDropBridge,
+        discoveryClient,
+      }),
+    );
+
+    await waitFor(() => expect(tauri.onDragDropEvent).toHaveBeenCalledOnce());
+    act(() => {
+      tauri.dragHandler?.({
+        payload: {
+          type: "drop",
+          paths: [
+            "/raw/project",
+            "/raw/project/README.md",
+            "/raw/project/notes",
+            "/raw/project/notes/day-one.txt",
+          ],
+          position: { x: 8, y: 13 },
+        },
+      });
+    });
+
+    expect(proposeLocalDrop).not.toHaveBeenCalled();
+    expect(JSON.stringify(result.current)).not.toContain("/raw/project");
+
+    act(() => {
+      tauri.eventHandlers.get("local-drop-grant")?.({
+        payload: { grantId: "mixed-overlap-grant" },
+      });
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("ready"));
+    expect(proposeLocalDrop).toHaveBeenCalledOnce();
+    expect(proposeLocalDrop).toHaveBeenCalledWith({
+      grantId: "mixed-overlap-grant",
+    });
+    expect(result.current.proposal?.items).toEqual(
+      deduplicatedProposal.items,
+    );
+    expect(result.current.proposal?.counts).toEqual({
+      included: 2,
+      excluded: 1,
+      unreadable: 1,
+      symlink: 1,
+      outOfScope: 1,
+    });
   });
 });
