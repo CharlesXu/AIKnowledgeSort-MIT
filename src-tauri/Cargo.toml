@@ -1,0 +1,19 @@
+[package]
+name = "ai-knowledge-sort"
+version = "0.1.0"
+description = "A local source workbench"
+authors = ["AIKnowledgeSort contributors"]
+license = "MIT"
+repository = ""
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "ai_knowledge_sort_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "2.11.5", features = [] }
