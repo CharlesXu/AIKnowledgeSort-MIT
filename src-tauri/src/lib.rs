@@ -28,11 +28,12 @@ pub fn run() {
                     .clone();
                 let dropped_paths = paths.clone();
                 let target = window.clone();
+                let deadline = std::time::Instant::now() + discovery::DROP_WORK_TIMEOUT;
 
                 tauri::async_runtime::spawn(async move {
                     let task = tauri::async_runtime::spawn_blocking(move || {
                         let _permit = permit;
-                        discovery::issue_drop_grant(&registry, dropped_paths)
+                        discovery::issue_drop_grant(&registry, dropped_paths, deadline)
                     });
                     match tokio::time::timeout(discovery::DROP_WORK_TIMEOUT, task).await {
                         Ok(Ok(Ok(issued))) => {

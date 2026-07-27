@@ -201,6 +201,31 @@ fn bounds_grant_count_dropped_path_count_and_path_length() {
 }
 
 #[test]
+fn expired_worker_cannot_insert_a_hidden_grant() {
+    let tree = TempTree::new();
+    let delayed = tree.path("delayed.txt");
+    let valid = tree.path("valid.txt");
+    fs::write(&delayed, b"delayed\n").expect("write delayed file");
+    fs::write(&valid, b"valid\n").expect("write valid file");
+    let registry = DropGrantRegistry::new(RegistryLimits {
+        max_grants: 1,
+        max_paths: 2,
+        max_path_bytes: 4_096,
+        ttl: Duration::from_secs(5),
+    });
+    let deadline = Instant::now() + Duration::from_millis(10);
+
+    let expired = registry.issue_with_deadline_and_hook(vec![delayed], deadline, || {
+        std::thread::sleep(Duration::from_millis(30))
+    });
+
+    assert!(expired.is_err());
+    registry
+        .issue_at(vec![valid], Instant::now())
+        .expect("expired worker must leave registry capacity available");
+}
+
+#[test]
 fn bounds_blocking_filesystem_work_and_releases_capacity() {
     let limiter = DropWorkLimiter::new(1);
     let permit = limiter.try_acquire().expect("first work permit");

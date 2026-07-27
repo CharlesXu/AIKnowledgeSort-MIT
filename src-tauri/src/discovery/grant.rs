@@ -64,37 +64,73 @@ impl DropGrantRegistry {
         }
     }
 
-    pub(super) fn issue_at(
+    pub(super) fn issue_with_deadline(
         &self,
         paths: Vec<PathBuf>,
-        now: Instant,
+        deadline: Instant,
+    ) -> Result<DropGrantIssued, String> {
+        self.issue_with_deadline_inner(paths, deadline, || {})
+    }
+
+    fn issue_with_deadline_inner(
+        &self,
+        paths: Vec<PathBuf>,
+        deadline: Instant,
+        before_insert: impl FnOnce(),
     ) -> Result<DropGrantIssued, String> {
         validate_paths(&paths, self.limits)?;
         let mut paths = paths;
         paths.sort();
         paths.dedup();
-        let roots = paths
-            .into_iter()
-            .map(open_trusted_drop_root)
-            .collect::<Vec<_>>();
+        let mut roots = Vec::with_capacity(paths.len());
+        for path in paths {
+            ensure_before_deadline(deadline)?;
+            roots.push(open_trusted_drop_root(path));
+            ensure_before_deadline(deadline)?;
+        }
 
+        before_insert();
+        ensure_before_deadline(deadline)?;
         let mut grants = self
             .grants
             .lock()
             .map_err(|_| "Drop grant registry is unavailable".to_owned())?;
-        grants.retain(|_, grant| grant.expires_at > now);
+        let locked_at = Instant::now();
+        ensure_before_deadline_at(deadline, locked_at)?;
+        grants.retain(|_, grant| grant.expires_at > locked_at);
         if grants.len() >= self.limits.max_grants {
             return Err("Too many unconsumed drop grants".to_owned());
         }
         let grant_id = unique_grant_id(&grants);
+        let insertion_time = Instant::now();
+        ensure_before_deadline_at(deadline, insertion_time)?;
         grants.insert(
             grant_id.clone(),
             DropGrant {
-                expires_at: now + self.limits.ttl,
+                expires_at: insertion_time + self.limits.ttl,
                 roots,
             },
         );
         Ok(DropGrantIssued { grant_id })
+    }
+
+    #[cfg(test)]
+    pub(super) fn issue_at(
+        &self,
+        paths: Vec<PathBuf>,
+        now: Instant,
+    ) -> Result<DropGrantIssued, String> {
+        self.issue_with_deadline(paths, now + super::DROP_WORK_TIMEOUT)
+    }
+
+    #[cfg(test)]
+    pub(super) fn issue_with_deadline_and_hook(
+        &self,
+        paths: Vec<PathBuf>,
+        deadline: Instant,
+        before_insert: impl FnOnce(),
+    ) -> Result<DropGrantIssued, String> {
+        self.issue_with_deadline_inner(paths, deadline, before_insert)
     }
 
     pub(super) fn consume_at(&self, grant_id: &str, now: Instant) -> Result<DropGrant, String> {
@@ -118,8 +154,21 @@ impl DropGrantRegistry {
 pub(crate) fn issue_drop_grant(
     registry: &DropGrantRegistry,
     paths: Vec<PathBuf>,
+    deadline: Instant,
 ) -> Result<DropGrantIssued, String> {
-    registry.issue_at(paths, Instant::now())
+    registry.issue_with_deadline(paths, deadline)
+}
+
+fn ensure_before_deadline(deadline: Instant) -> Result<(), String> {
+    ensure_before_deadline_at(deadline, Instant::now())
+}
+
+fn ensure_before_deadline_at(deadline: Instant, now: Instant) -> Result<(), String> {
+    if now >= deadline {
+        Err("Drop grant processing deadline exceeded".to_owned())
+    } else {
+        Ok(())
+    }
 }
 
 pub(super) struct DropGrant {
