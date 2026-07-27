@@ -10,6 +10,11 @@ licenses remain the property of their respective copyright holders.
 | Tauri JavaScript API | 2.11.1 | Apache-2.0 OR MIT |
 | React | 19.2.8 | MIT |
 | React DOM | 19.2.8 | MIT |
+| React Markdown | 10.1.0 | MIT |
+| remark GFM | 4.0.1 | MIT |
+| remark Frontmatter | 5.0.0 | MIT |
+| Mermaid | 11.16.0 | MIT |
+| DOMPurify | 3.4.12 | MPL-2.0 OR Apache-2.0 |
 | Tauri CLI | 2.11.4 | Apache-2.0 OR MIT |
 | Testing Library DOM matchers | 7.0.0 | MIT |
 | Testing Library React | 16.3.2 | MIT |
