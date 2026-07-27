@@ -4,7 +4,17 @@ import type { DiscoveryProposal } from "../drop/types";
 import { ContextPane } from "./ContextPane";
 
 const proposal: DiscoveryProposal = {
-  items: [{ path: "/review/guide.md", name: "guide.md", byteSize: 1024 }],
+  proposalId: "context-proposal",
+  items: [{
+    itemId: "context-guide",
+    path: "/review/guide.md",
+    name: "guide.md",
+    byteSize: 1024,
+    identity: {
+      algorithm: "SHA-256",
+      digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+    },
+  }],
   counts: {
     included: 2,
     excluded: 3,

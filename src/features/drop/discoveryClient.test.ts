@@ -6,11 +6,17 @@ import {
 import type { DiscoveryProposal } from "./types";
 
 const fixture: DiscoveryProposal = {
+  proposalId: "fixture-proposal",
   items: [
     {
+      itemId: "fixture-a",
       path: "/grant/a.txt",
       name: "a.txt",
       byteSize: 3,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "7692c3ad3540bb803c020b3aee66cd8887123234ea0c6e7143c0add73ff431ed",
+      },
     },
   ],
   counts: {

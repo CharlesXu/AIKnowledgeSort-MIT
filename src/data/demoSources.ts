@@ -85,21 +85,37 @@ export const demoSources: SourceNode = {
 };
 
 export const demoDiscoveryProposal: DiscoveryProposal = {
+  proposalId: "demo-proposal",
   items: [
     {
+      itemId: "demo-meeting-notes",
       path: "/review/meeting-notes.md",
       name: "meeting-notes.md",
       byteSize: 18432,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+      },
     },
     {
+      itemId: "demo-research-summary",
       path: "/review/research-summary.txt",
       name: "research-summary.txt",
       byteSize: 9728,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "ab5f329afb80f567b441324ad2d048ca910644b17c7426f9cc585307c5077496",
+      },
     },
     {
+      itemId: "demo-source-index",
       path: "/review/source-index.csv",
       name: "source-index.csv",
       byteSize: 6144,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "09ad9f38f1197e357f7e0363947282ca8ebfb371131d2353752b8ed5ed16fba4",
+      },
     },
   ],
   counts: {

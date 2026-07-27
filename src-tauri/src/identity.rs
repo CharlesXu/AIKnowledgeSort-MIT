@@ -68,8 +68,7 @@ mod tests {
     fn validates_only_literal_sha256_and_lowercase_hex() {
         let valid = ContentIdentity {
             algorithm: "SHA-256".to_owned(),
-            digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-                .to_owned(),
+            digest: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".to_owned(),
         };
         assert_eq!(valid.validate(), Ok(()));
 

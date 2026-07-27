@@ -102,16 +102,27 @@ describe("tauriNativeDropBridge", () => {
 
   test("waits for a trusted grant after a mixed overlapping native drop", async () => {
     const deduplicatedProposal: DiscoveryProposal = {
+      proposalId: "mixed-overlap-proposal",
       items: [
         {
+          itemId: "mixed-readme",
           path: "/trusted/project/README.md",
           name: "README.md",
           byteSize: 128,
+          identity: {
+            algorithm: "SHA-256",
+            digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+          },
         },
         {
+          itemId: "mixed-day-one",
           path: "/trusted/project/notes/day-one.txt",
           name: "day-one.txt",
           byteSize: 256,
+          identity: {
+            algorithm: "SHA-256",
+            digest: "ab5f329afb80f567b441324ad2d048ca910644b17c7426f9cc585307c5077496",
+          },
         },
       ],
       counts: {

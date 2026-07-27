@@ -16,7 +16,17 @@ import type {
 import type { DiscoveryProposal } from "./features/drop/types";
 
 const liveProposal: DiscoveryProposal = {
-  items: [{ path: "/live/trusted.md", name: "trusted.md", byteSize: 1024 }],
+  proposalId: "live-proposal",
+  items: [{
+    itemId: "live-trusted",
+    path: "/live/trusted.md",
+    name: "trusted.md",
+    byteSize: 1024,
+    identity: {
+      algorithm: "SHA-256",
+      digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+    },
+  }],
   counts: {
     included: 7,
     excluded: 6,

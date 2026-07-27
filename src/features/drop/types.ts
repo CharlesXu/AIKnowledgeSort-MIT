@@ -5,10 +5,17 @@ export type DiscoveryDiagnosticCategory =
   | "outOfScope"
   | "traversalLimit";
 
+export interface ContentIdentity {
+  readonly algorithm: "SHA-256";
+  readonly digest: string;
+}
+
 export interface DiscoveredItem {
+  readonly itemId: string;
   readonly path: string;
   readonly name: string;
   readonly byteSize: number;
+  readonly identity: ContentIdentity;
 }
 
 export interface DiscoveryCounts {
@@ -26,6 +33,7 @@ export interface DiscoveryDiagnostic {
 }
 
 export interface DiscoveryProposal {
+  readonly proposalId: string;
   readonly items: readonly DiscoveredItem[];
   readonly counts: DiscoveryCounts;
   readonly diagnostics: readonly DiscoveryDiagnostic[];

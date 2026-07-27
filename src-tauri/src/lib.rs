@@ -10,6 +10,7 @@ pub mod identity;
 pub fn run() {
     tauri::Builder::default()
         .manage(discovery::DropGrantRegistry::default())
+        .manage(discovery::ReviewedSourceRegistry::default())
         .manage(discovery::DropWorkLimiter::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};

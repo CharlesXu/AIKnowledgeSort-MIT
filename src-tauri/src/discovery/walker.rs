@@ -5,6 +5,7 @@ use super::{
     DiagnosticCategory, DiscoveredItem, DiscoveryDiagnostic, DiscoveryProposal, MAX_DIAGNOSTICS,
     MAX_DIRECTORY_DEPTH, MAX_DISCOVERY_ITEMS, MAX_PATH_BYTES,
 };
+use crate::identity::ContentIdentity;
 use cap_std::fs::{Dir, DirEntry, File};
 use std::collections::BTreeSet;
 use std::io;
@@ -249,7 +250,7 @@ where
         }
     }
 
-    fn include_open_file(&mut self, display_path: PathBuf, file: File) {
+    fn include_open_file(&mut self, display_path: PathBuf, mut file: File) {
         if self.stop_for_deadline(&display_path) {
             return;
         }
@@ -285,10 +286,23 @@ where
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
             .unwrap_or_else(|| display_path.to_string_lossy().into_owned());
+        let identity = match ContentIdentity::from_reader(&mut file) {
+            Ok(identity) => identity,
+            Err(error) => {
+                self.diagnostic(
+                    DiagnosticCategory::Unreadable,
+                    &display_path,
+                    format!("File content cannot be hashed: {error}"),
+                );
+                return;
+            }
+        };
         self.proposal.items.push(DiscoveredItem {
+            item_id: uuid::Uuid::new_v4().simple().to_string(),
             path: display_path.to_string_lossy().into_owned(),
             name,
             byte_size: metadata.len(),
+            identity,
         });
         self.proposal.counts.included += 1;
     }

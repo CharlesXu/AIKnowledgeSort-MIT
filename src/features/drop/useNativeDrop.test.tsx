@@ -9,7 +9,17 @@ import {
 } from "./useNativeDrop";
 
 const proposal: DiscoveryProposal = {
-  items: [{ path: "/trusted/result.md", name: "result.md", byteSize: 12 }],
+  proposalId: "trusted-proposal",
+  items: [{
+    itemId: "trusted-result",
+    path: "/trusted/result.md",
+    name: "result.md",
+    byteSize: 12,
+    identity: {
+      algorithm: "SHA-256",
+      digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+    },
+  }],
   counts: {
     included: 1,
     excluded: 2,
@@ -62,7 +72,14 @@ function deferred<T>() {
 function proposalNamed(name: string): DiscoveryProposal {
   return {
     ...proposal,
-    items: [{ path: `/trusted/${name}`, name, byteSize: 12 }],
+    proposalId: `proposal-${name}`,
+    items: [{
+      itemId: `item-${name}`,
+      path: `/trusted/${name}`,
+      name,
+      byteSize: 12,
+      identity: proposal.items[0].identity,
+    }],
   };
 }
 

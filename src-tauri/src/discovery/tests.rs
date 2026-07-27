@@ -285,6 +285,21 @@ fn discovers_overlapping_roots_and_boundaries_without_mutation() {
             .collect::<Vec<_>>(),
         vec!["one.txt", "two.txt"]
     );
+    assert_eq!(
+        proposal
+            .items
+            .iter()
+            .map(|item| item.identity.digest.as_str())
+            .collect::<Vec<_>>(),
+        vec![
+            "2c8b08da5ce60398e1f19af0e5dccc744df274b826abe585eaba68c525434806",
+            "27dd8ed44a83ff94d557f9fd0412ed5a8cbca69ea04922d88c01184a07300a5a",
+        ]
+    );
+    assert!(proposal
+        .items
+        .iter()
+        .all(|item| item.identity.algorithm == "SHA-256" && !item.item_id.is_empty()));
     assert_eq!(proposal.counts.included, 2);
     assert_eq!(proposal.counts.excluded, 1);
     assert_eq!(proposal.counts.unreadable, 1);
@@ -508,6 +523,8 @@ fn windows_device_namespace_root_is_rejected_before_open() {
 fn serializes_frontend_contract_in_camel_case() {
     let value = serde_json::to_value(DiscoveryProposal::default()).expect("serialize proposal");
 
+    assert!(value.get("proposalId").is_some());
+    assert!(value.get("proposal_id").is_none());
     assert!(value["counts"].get("outOfScope").is_some());
     assert!(value["counts"].get("out_of_scope").is_none());
 }

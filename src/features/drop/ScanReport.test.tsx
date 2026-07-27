@@ -4,9 +4,28 @@ import type { DiscoveryProposal } from "./types";
 import { ScanReport } from "./ScanReport";
 
 const proposal: DiscoveryProposal = {
+  proposalId: "scan-report-proposal",
   items: [
-    { path: "/demo/guide.md", name: "guide.md", byteSize: 8400 },
-    { path: "/demo/notes.txt", name: "notes.txt", byteSize: 2100 },
+    {
+      itemId: "scan-guide",
+      path: "/demo/guide.md",
+      name: "guide.md",
+      byteSize: 8400,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+      },
+    },
+    {
+      itemId: "scan-notes",
+      path: "/demo/notes.txt",
+      name: "notes.txt",
+      byteSize: 2100,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "ab5f329afb80f567b441324ad2d048ca910644b17c7426f9cc585307c5077496",
+      },
+    },
   ],
   counts: {
     included: 2,
