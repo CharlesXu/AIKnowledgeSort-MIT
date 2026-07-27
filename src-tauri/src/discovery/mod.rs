@@ -10,7 +10,8 @@ use std::time::{Duration, Instant};
 use crate::identity::ContentIdentity;
 
 pub(crate) use grant::{
-    issue_drop_grant, DropGrantRegistry, DROP_GRANT_ERROR_EVENT, DROP_GRANT_EVENT,
+    issue_drop_grant, open_trusted_drop_root, CapabilityRoot, DropGrantRegistry,
+    DROP_GRANT_ERROR_EVENT, DROP_GRANT_EVENT,
 };
 pub(crate) use proposal::ReviewedSourceRegistry;
 

@@ -176,7 +176,7 @@ pub(super) struct DropGrant {
     pub roots: Vec<CapabilityRoot>,
 }
 
-pub(super) enum CapabilityRoot {
+pub(crate) enum CapabilityRoot {
     Directory {
         display_path: PathBuf,
         directory: Dir,
@@ -250,7 +250,7 @@ fn root_diagnostic(
     }
 }
 
-fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
+pub(crate) fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
     let (filesystem_root, components) = match absolute_capability_path(&display_path) {
         Some(parts) => parts,
         None => {

@@ -5,13 +5,16 @@ fn application_name() -> &'static str {
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
+mod vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .manage(discovery::DropGrantRegistry::default())
         .manage(discovery::ReviewedSourceRegistry::default())
         .manage(discovery::DropWorkLimiter::default())
+        .manage(vault::VaultAuthorityRegistry::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};
 
@@ -65,7 +68,10 @@ pub fn run() {
                 });
             }
         })
-        .invoke_handler(tauri::generate_handler![discovery::propose_local_drop])
+        .invoke_handler(tauri::generate_handler![
+            discovery::propose_local_drop,
+            vault::choose_authoritative_vault
+        ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| panic!("error while running {}: {error}", application_name()));
 }

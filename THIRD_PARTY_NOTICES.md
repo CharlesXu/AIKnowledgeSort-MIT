@@ -39,6 +39,7 @@ Package metadata and license texts are available from the
 | SHA-2 | 0.10 | Apache-2.0 OR MIT |
 | Tauri | 2.11.5 | Apache-2.0 OR MIT |
 | Tauri Build | 2.6.3 | Apache-2.0 OR MIT |
+| Tauri Dialog Plugin | 2.7.2 | Apache-2.0 OR MIT |
 | Tokio | 1 | MIT |
 | UUID | 1 | Apache-2.0 OR MIT |
 
