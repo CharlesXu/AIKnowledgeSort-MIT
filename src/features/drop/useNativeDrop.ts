@@ -137,25 +137,25 @@ export function useNativeDrop({
   const [isDemo, setIsDemo] = useState(initialProposal !== undefined);
   const seenGrantIds = useRef(new Set<string>());
   const statusBeforeHover = useRef<NativeDropStatus>("idle");
-  const mounted = useRef(true);
+  const requestSequence = useRef(0);
 
   useEffect(() => {
-    mounted.current = true;
     let disposed = false;
     let cleanup: (() => void) | undefined;
 
     const callbacks: NativeDropCallbacks = {
       onGrant(grant) {
-        if (seenGrantIds.current.has(grant.grantId)) {
+        if (disposed || seenGrantIds.current.has(grant.grantId)) {
           return;
         }
         seenGrantIds.current.add(grant.grantId);
+        const requestId = ++requestSequence.current;
         setStatus("loading");
         setMessage("Reviewing trusted local drop…");
         void discoveryClient
           .proposeLocalDrop({ grantId: grant.grantId })
           .then((nextProposal) => {
-            if (!mounted.current) {
+            if (disposed || requestId !== requestSequence.current) {
               return;
             }
             setProposal(nextProposal);
@@ -164,7 +164,7 @@ export function useNativeDrop({
             setMessage("Trusted local discovery proposal is ready.");
           })
           .catch((error: unknown) => {
-            if (!mounted.current) {
+            if (disposed || requestId !== requestSequence.current) {
               return;
             }
             setStatus("error");
@@ -172,10 +172,17 @@ export function useNativeDrop({
           });
       },
       onGrantError(errorMessage) {
+        if (disposed) {
+          return;
+        }
+        requestSequence.current += 1;
         setStatus("error");
         setMessage(boundedMessage(errorMessage));
       },
       onDragState(event) {
+        if (disposed) {
+          return;
+        }
         if (event.type === "over") {
           setStatus((current) => {
             if (current !== "hovering") {
@@ -212,7 +219,7 @@ export function useNativeDrop({
 
     return () => {
       disposed = true;
-      mounted.current = false;
+      requestSequence.current += 1;
       cleanup?.();
     };
   }, [bridge, discoveryClient]);

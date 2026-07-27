@@ -39,7 +39,7 @@ function createBridge() {
     emitGrantError(message: string) {
       callbacks?.onGrantError(message);
     },
-    emitDrag(type: "over" | "drop" | "cancel", _paths: readonly string[] = []) {
+    emitDrag(type: "over" | "drop" | "cancel") {
       callbacks?.onDragState({ type });
     },
   };
@@ -49,6 +49,21 @@ function createClient() {
   const proposeLocalDrop = vi.fn().mockResolvedValue(proposal);
   const client: DiscoveryClient = { proposeLocalDrop };
   return { client, proposeLocalDrop };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
+}
+
+function proposalNamed(name: string): DiscoveryProposal {
+  return {
+    ...proposal,
+    items: [{ path: `/trusted/${name}`, name, byteSize: 12 }],
+  };
 }
 
 describe("useNativeDrop", () => {
@@ -130,7 +145,118 @@ describe("useNativeDrop", () => {
     await waitFor(() => expect(native.cleanup).toHaveBeenCalledOnce());
   });
 
-  test("uses webview paths only for hover and cancel visual state", async () => {
+  test("keeps the newest grant result when requests resolve out of order", async () => {
+    const native = createBridge();
+    const grantA = deferred<DiscoveryProposal>();
+    const grantB = deferred<DiscoveryProposal>();
+    const discoveryClient: DiscoveryClient = {
+      proposeLocalDrop: vi.fn(({ grantId }) =>
+        grantId === "grant-a" ? grantA.promise : grantB.promise,
+      ),
+    };
+    const { result } = renderHook(() =>
+      useNativeDrop({
+        bridge: native.bridge,
+        discoveryClient,
+      }),
+    );
+
+    act(() => {
+      native.emitGrant("grant-a");
+      native.emitGrant("grant-b");
+    });
+    await act(async () => grantB.resolve(proposalNamed("newest.md")));
+    await waitFor(() =>
+      expect(result.current.proposal?.items[0]?.name).toBe("newest.md"),
+    );
+
+    await act(async () => grantA.resolve(proposalNamed("stale.md")));
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.proposal?.items[0]?.name).toBe("newest.md");
+  });
+
+  test("ignores an old client promise after bridge and client dependencies change", async () => {
+    const oldNative = createBridge();
+    const newNative = createBridge();
+    const oldRequest = deferred<DiscoveryProposal>();
+    const oldClient: DiscoveryClient = {
+      proposeLocalDrop: vi.fn(() => oldRequest.promise),
+    };
+    const newClient: DiscoveryClient = {
+      proposeLocalDrop: vi.fn().mockResolvedValue(proposalNamed("new.md")),
+    };
+    const { rerender, result } = renderHook(
+      ({ bridge, discoveryClient }) =>
+        useNativeDrop({ bridge, discoveryClient }),
+      {
+        initialProps: {
+          bridge: oldNative.bridge,
+          discoveryClient: oldClient,
+        },
+      },
+    );
+
+    act(() => oldNative.emitGrant("old-grant"));
+    rerender({
+      bridge: newNative.bridge,
+      discoveryClient: newClient,
+    });
+    act(() => newNative.emitGrant("new-grant"));
+    await waitFor(() =>
+      expect(result.current.proposal?.items[0]?.name).toBe("new.md"),
+    );
+
+    await act(async () => oldRequest.resolve(proposalNamed("old.md")));
+
+    expect(result.current.status).toBe("ready");
+    expect(result.current.proposal?.items[0]?.name).toBe("new.md");
+  });
+
+  test("ignores late error and drag callbacks from a disposed subscription", () => {
+    const oldNative = createBridge();
+    const newNative = createBridge();
+    const discovery = createClient();
+    const { rerender, result } = renderHook(
+      ({ bridge }) =>
+        useNativeDrop({
+          bridge,
+          discoveryClient: discovery.client,
+        }),
+      { initialProps: { bridge: oldNative.bridge } },
+    );
+
+    rerender({ bridge: newNative.bridge });
+    act(() => {
+      oldNative.emitGrantError("stale native error");
+      oldNative.emitDrag("over");
+    });
+
+    expect(result.current.status).toBe("idle");
+    expect(result.current.message).toBe("");
+  });
+
+  test("ignores late error and drag callbacks after unmount", () => {
+    const native = createBridge();
+    const discovery = createClient();
+    const rendered = renderHook(() =>
+      useNativeDrop({
+        bridge: native.bridge,
+        discoveryClient: discovery.client,
+      }),
+    );
+    const snapshot = rendered.result.current;
+
+    rendered.unmount();
+    act(() => {
+      native.emitGrantError("late native error");
+      native.emitDrag("over");
+    });
+
+    expect(rendered.result.current).toBe(snapshot);
+  });
+
+  test("uses native drag callbacks only for hover and cancel visual state", async () => {
     const native = createBridge();
     const discovery = createClient();
     const { result } = renderHook(() =>
@@ -140,10 +266,10 @@ describe("useNativeDrop", () => {
       }),
     );
 
-    act(() => native.emitDrag("over", ["/must/not/be/invoked"]));
+    act(() => native.emitDrag("over"));
     expect(result.current.status).toBe("hovering");
 
-    act(() => native.emitDrag("cancel", ["/still/not/invoked"]));
+    act(() => native.emitDrag("cancel"));
     expect(result.current.status).toBe("idle");
     expect(discovery.proposeLocalDrop).not.toHaveBeenCalled();
   });
@@ -179,7 +305,7 @@ describe("useNativeDrop", () => {
     expect(discovery.proposeLocalDrop).not.toHaveBeenCalled();
   });
 
-  test("never uses raw webview drop paths as a discovery request", () => {
+  test("never discovers from an untrusted native drop callback", () => {
     const native = createBridge();
     const discovery = createClient();
     renderHook(() =>
@@ -189,7 +315,7 @@ describe("useNativeDrop", () => {
       }),
     );
 
-    act(() => native.emitDrag("drop", ["/secret/raw/path"]));
+    act(() => native.emitDrag("drop"));
 
     expect(discovery.proposeLocalDrop).not.toHaveBeenCalled();
   });
