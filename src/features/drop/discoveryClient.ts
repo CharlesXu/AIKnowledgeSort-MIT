@@ -16,8 +16,7 @@ export function createTauriDiscoveryClient(
   return {
     proposeLocalDrop(request) {
       return invoke<DiscoveryProposal>("propose_local_drop", {
-        droppedPaths: [...request.droppedPaths],
-        grantedRoots: [...request.grantedRoots],
+        grantId: request.grantId,
       });
     },
   };

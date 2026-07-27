@@ -35,23 +35,20 @@ describe("DiscoveryClient", () => {
     const client = createTauriDiscoveryClient(invoke);
 
     const proposal = await client.proposeLocalDrop({
-      droppedPaths: ["/grant/a.txt"],
-      grantedRoots: ["/grant"],
+      grantId: "opaque-grant-id",
     });
 
     expect(proposal).toEqual(fixture);
     expect(invoke).toHaveBeenCalledOnce();
     expect(invoke).toHaveBeenCalledWith("propose_local_drop", {
-      droppedPaths: ["/grant/a.txt"],
-      grantedRoots: ["/grant"],
+      grantId: "opaque-grant-id",
     });
   });
 
   test("memory adapter returns deterministic isolated fixture copies", async () => {
     const client = createMemoryDiscoveryClient(fixture);
     const request = {
-      droppedPaths: ["/grant/a.txt"],
-      grantedRoots: ["/grant"],
+      grantId: "fixture-grant",
     };
 
     const first = await client.proposeLocalDrop(request);
@@ -62,9 +59,6 @@ describe("DiscoveryClient", () => {
     expect(first).not.toBe(fixture);
     expect(first).not.toBe(second);
     expect(first.items).not.toBe(second.items);
-    expect(request).toEqual({
-      droppedPaths: ["/grant/a.txt"],
-      grantedRoots: ["/grant"],
-    });
+    expect(request).toEqual({ grantId: "fixture-grant" });
   });
 });

@@ -7,6 +7,7 @@ licenses remain the property of their respective copyright holders.
 
 | Dependency | Version | License |
 | --- | ---: | --- |
+| Tauri JavaScript API | 2.11.1 | Apache-2.0 OR MIT |
 | React | 19.2.8 | MIT |
 | React DOM | 19.2.8 | MIT |
 | Tauri CLI | 2.11.4 | Apache-2.0 OR MIT |
@@ -27,8 +28,11 @@ Package metadata and license texts are available from the
 
 | Dependency | Version requirement | License |
 | --- | ---: | --- |
+| cap-fs-ext | 4.0.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
+| cap-std | 4.0.2 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT |
 | Tauri | 2.11.5 | Apache-2.0 OR MIT |
 | Tauri Build | 2.6.3 | Apache-2.0 OR MIT |
+| UUID | 1 | Apache-2.0 OR MIT |
 
 Crate metadata and license texts are available from
 [crates.io](https://crates.io/).

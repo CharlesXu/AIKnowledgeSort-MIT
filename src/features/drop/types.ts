@@ -32,6 +32,9 @@ export interface DiscoveryProposal {
 }
 
 export interface DiscoveryRequest {
-  readonly droppedPaths: readonly string[];
-  readonly grantedRoots: readonly string[];
+  readonly grantId: string;
+}
+
+export interface DropGrantIssued {
+  readonly grantId: string;
 }
