@@ -1,6 +1,14 @@
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
+import { MarkdownPreview } from "../editor/MarkdownPreview";
 
-const initialDraft = `# Knowledge workspace
+type DocumentMode = "source" | "live" | "reading";
+
+const initialDraft = `---
+title: Knowledge workspace
+status: draft
+---
+
+# Knowledge workspace
 
 Use this document surface for research notes, classification decisions, and generated knowledge.
 
@@ -15,66 +23,35 @@ flowchart LR
 
 ## Review state
 
+| State | Meaning |
+| --- | --- |
+| Draft | Local edits only |
+| Approved | Eligible for a later archive workflow |
+
+- [x] Preserve the source
+- [ ] Confirm the archive
+
+Link evidence with [[Reliability|a local knowledge note]] and stable block references. ^review-state
+
+> [!WARNING]
+> Source files remain unchanged until an approved archive operation is verified.
+
 \`\`\`ts
 type ReviewState = "draft" | "approved";
 const currentState: ReviewState = "draft";
-\`\`\`
+\`\`\``;
 
-> Source files remain unchanged until an approved archive operation is verified.`;
-
-const languageNames: Readonly<Record<string, string>> = {
-  js: "JavaScript",
-  javascript: "JavaScript",
-  mermaid: "Mermaid",
-  ts: "TypeScript",
-  typescript: "TypeScript",
-};
-
-function renderDocument(source: string): readonly ReactNode[] {
-  const lines = source.split("\n");
-  const blocks: ReactNode[] = [];
-  let index = 0;
-
-  while (index < lines.length) {
-    const line = lines[index] ?? "";
-    if (line.startsWith("```")) {
-      const language = line.slice(3).trim().toLocaleLowerCase() || "text";
-      const code: string[] = [];
-      index += 1;
-      while (index < lines.length && !lines[index]?.startsWith("```")) {
-        code.push(lines[index] ?? "");
-        index += 1;
-      }
-      blocks.push(
-        <section className={`code-preview code-preview--${language}`} key={`code-${index}`}>
-          <header>
-            <span>{languageNames[language] ?? language}</span>
-            <small>{language === "mermaid" ? "Diagram source preview" : "Code block"}</small>
-          </header>
-          <pre>
-            <code>{code.join("\n")}</code>
-          </pre>
-        </section>,
-      );
-    } else if (line.startsWith("# ")) {
-      blocks.push(<h1 key={`line-${index}`}>{line.slice(2)}</h1>);
-    } else if (line.startsWith("## ")) {
-      blocks.push(<h2 key={`line-${index}`}>{line.slice(3)}</h2>);
-    } else if (line.startsWith("> ")) {
-      blocks.push(<blockquote key={`line-${index}`}>{line.slice(2)}</blockquote>);
-    } else if (line.startsWith("- ")) {
-      blocks.push(<p key={`line-${index}`}>• {line.slice(2)}</p>);
-    } else if (line.length > 0) {
-      blocks.push(<p key={`line-${index}`}>{line}</p>);
-    }
-    index += 1;
-  }
-
-  return blocks;
-}
+const modes: readonly {
+  readonly id: DocumentMode;
+  readonly label: string;
+}[] = [
+  { id: "source", label: "Source" },
+  { id: "live", label: "Live preview" },
+  { id: "reading", label: "Reading" },
+];
 
 export function DocumentPane() {
-  const [mode, setMode] = useState<"edit" | "preview">("edit");
+  const [mode, setMode] = useState<DocumentMode>("source");
   const [draft, setDraft] = useState(initialDraft);
 
   return (
@@ -83,23 +60,22 @@ export function DocumentPane() {
         <div className="document-toolbar__path">
           Workspace / Drafts / Knowledge workspace.md
         </div>
-        <div aria-label="Document mode" className="document-toolbar__tabs" role="tablist">
-          <button
-            aria-selected={mode === "edit"}
-            onClick={() => setMode("edit")}
-            role="tab"
-            type="button"
-          >
-            Edit
-          </button>
-          <button
-            aria-selected={mode === "preview"}
-            onClick={() => setMode("preview")}
-            role="tab"
-            type="button"
-          >
-            Preview
-          </button>
+        <div
+          aria-label="Document mode"
+          className="document-toolbar__tabs"
+          role="tablist"
+        >
+          {modes.map((item) => (
+            <button
+              aria-selected={mode === item.id}
+              key={item.id}
+              onClick={() => setMode(item.id)}
+              role="tab"
+              type="button"
+            >
+              {item.label}
+            </button>
+          ))}
         </div>
       </header>
       <div className="document-heading">
@@ -107,10 +83,15 @@ export function DocumentPane() {
           <h1>Knowledge workspace</h1>
           <p>Local draft · not saved</p>
         </div>
-        <span className="document-heading__formats">Markdown · Mermaid · Code</span>
+        <span className="document-heading__formats">
+          Markdown · Mermaid · Code
+        </span>
       </div>
-      <div className="document-pane__body">
-        {mode === "edit" ? (
+      <div
+        className={`document-pane__body document-pane__body--${mode}`}
+        data-document-mode={mode}
+      >
+        {mode !== "reading" ? (
           <textarea
             aria-label="Markdown, Mermaid, and code editor"
             className="document-editor"
@@ -118,15 +99,8 @@ export function DocumentPane() {
             spellCheck={false}
             value={draft}
           />
-        ) : (
-          <article
-            aria-label="Document preview"
-            className="document-preview"
-            role="region"
-          >
-            {renderDocument(draft)}
-          </article>
-        )}
+        ) : null}
+        {mode !== "source" ? <MarkdownPreview source={draft} /> : null}
       </div>
     </section>
   );

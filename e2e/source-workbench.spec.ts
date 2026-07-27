@@ -107,4 +107,51 @@ test("keeps the document workspace usable at a narrower viewport", async ({
   await expect(
     page.getByRole("textbox", { name: "Markdown, Mermaid, and code editor" }),
   ).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Source" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Live preview" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Reading" })).toBeVisible();
+});
+
+test("preserves one mixed draft across all document modes", async ({ page }) => {
+  const draft =
+    '# Browser note\n\nRendered safely.\n\n```mermaid\ngraph TD\nclick A href "https://example.com"\n```';
+  const editor = page.getByRole("textbox", {
+    name: "Markdown, Mermaid, and code editor",
+  });
+  await editor.fill(draft);
+
+  await page.getByRole("tab", { name: "Live preview" }).click();
+  await expect(editor).toHaveValue(draft);
+  await expect(
+    page.getByRole("region", { name: "Document preview" }),
+  ).toContainText("Browser note");
+  await expect(
+    page.getByRole("alert", { name: "Mermaid diagnostic" }),
+  ).toContainText("click directives are disabled");
+
+  await page.getByRole("tab", { name: "Reading" }).click();
+  await expect(editor).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Document preview" }),
+  ).toContainText("Rendered safely");
+
+  await page.getByRole("tab", { name: "Source" }).click();
+  await expect(
+    page.getByRole("textbox", {
+      name: "Markdown, Mermaid, and code editor",
+    }),
+  ).toHaveValue(draft);
+
+  const validDraft =
+    "# Valid diagram\n\n```mermaid\nflowchart LR\nSource --> Review --> Archive\n```";
+  await page
+    .getByRole("textbox", {
+      name: "Markdown, Mermaid, and code editor",
+    })
+    .fill(validDraft);
+  await page.getByRole("tab", { name: "Live preview" }).click();
+  await expect(
+    page.getByRole("img", { name: "Rendered Mermaid diagram" }),
+  ).toBeVisible();
+  await expect(page.getByText("Mermaid source")).toBeVisible();
 });

@@ -192,27 +192,52 @@ describe("source workbench shell", () => {
     );
   });
 
-  test("edits a mixed document and previews Markdown plus fenced blocks safely", () => {
+  test("keeps one exact draft through source, live preview, and reading modes", () => {
     render(<App />);
 
     const editor = screen.getByRole("textbox", {
       name: "Markdown, Mermaid, and code editor",
     });
+    const changedDraft =
+      "# Workspace note\n\nA changed paragraph.\n\n```mermaid\ngraph TD\nclick A href \"https://example.com\"\n```\n\n```ts\nconst ready = true;\n```";
     fireEvent.change(editor, {
-      target: {
-        value:
-          "# Workspace note\n\nA changed paragraph.\n\n```mermaid\ngraph LR\nA --> B\n```\n\n```ts\nconst ready = true;\n```",
-      },
+      target: { value: changedDraft },
     });
-    fireEvent.click(screen.getByRole("tab", { name: "Preview" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Live preview" }));
 
     const preview = screen.getByRole("region", { name: "Document preview" });
+    expect(
+      screen.getByRole("textbox", {
+        name: "Markdown, Mermaid, and code editor",
+      }),
+    ).toHaveValue(changedDraft);
     expect(within(preview).getByRole("heading", { name: "Workspace note" })).toBeVisible();
     expect(preview).toHaveTextContent("A changed paragraph.");
-    expect(preview).toHaveTextContent("graph LR");
+    expect(
+      within(preview).getByRole("alert", { name: "Mermaid diagnostic" }),
+    ).toHaveTextContent(/click directives are disabled/i);
     expect(preview).toHaveTextContent("const ready = true;");
-    expect(within(preview).getByText("Mermaid")).toBeVisible();
     expect(within(preview).getByText("TypeScript")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Reading" }));
+    expect(
+      screen.queryByRole("textbox", {
+        name: "Markdown, Mermaid, and code editor",
+      }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("region", { name: "Document preview" }),
+    ).toHaveTextContent("Workspace note");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Source" }));
+    expect(
+      screen.getByRole("textbox", {
+        name: "Markdown, Mermaid, and code editor",
+      }),
+    ).toHaveValue(changedDraft);
+    expect(
+      screen.queryByRole("region", { name: "Document preview" }),
+    ).toBeNull();
   });
 
   test("switches the right context between proposal topology and import review", () => {
