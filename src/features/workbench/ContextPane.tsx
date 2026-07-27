@@ -3,12 +3,14 @@ import { Icon } from "../../ui/Icon";
 
 interface ContextPaneProps {
   readonly collapsed: boolean;
+  readonly isDemo: boolean;
   readonly onCollapsedChange: (collapsed: boolean) => void;
   readonly proposal: DiscoveryProposal;
 }
 
 export function ContextPane({
   collapsed,
+  isDemo,
   onCollapsedChange,
   proposal,
 }: ContextPaneProps) {
@@ -53,7 +55,7 @@ export function ContextPane({
               <dl className="detail-list">
                 <div>
                   <dt>Mode</dt>
-                  <dd>Local preview</dd>
+                  <dd>{isDemo ? "Demo fixture" : "Trusted local preview"}</dd>
                 </div>
                 <div>
                   <dt>Eligible</dt>

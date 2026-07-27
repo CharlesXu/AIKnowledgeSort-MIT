@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
 import { demoDiscoveryProposal, demoSources } from "../data/demoSources";
+import type { DiscoveryClient } from "../features/drop/discoveryClient";
+import {
+  useNativeDrop,
+  type NativeDropBridge,
+} from "../features/drop/useNativeDrop";
 import { ToolRail } from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
 import { ContextPane } from "../features/workbench/ContextPane";
@@ -60,8 +65,22 @@ function PaneSeparator({
   );
 }
 
-export function AppShell() {
+interface AppShellProps {
+  readonly discoveryClient: DiscoveryClient;
+  readonly dropBridge: NativeDropBridge;
+}
+
+export function AppShell({
+  discoveryClient,
+  dropBridge,
+}: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
+  const drop = useNativeDrop({
+    bridge: dropBridge,
+    discoveryClient,
+    initialProposal: demoDiscoveryProposal,
+  });
+  const proposal = drop.proposal ?? demoDiscoveryProposal;
   const layoutStyle = {
     "--source-width": `${layout.navigationCollapsed ? 34 : layout.navigationWidth}px`,
     "--source-separator-width": layout.navigationCollapsed ? "0px" : "5px",
@@ -80,7 +99,9 @@ export function AppShell() {
   return (
     <main
       aria-label="Source workbench"
-      className="workbench"
+      className={`workbench${drop.status === "hovering" ? " workbench--drop-hovering" : ""}`}
+      onDragOver={drop.onDomDragOver}
+      onDrop={drop.onDomDrop}
       style={layoutStyle}
     >
       <ToolRail />
@@ -134,7 +155,12 @@ export function AppShell() {
           value={layout.navigationWidth}
         />
       )}
-      <DocumentPane proposal={demoDiscoveryProposal} />
+      <DocumentPane
+        isDemo={drop.isDemo}
+        proposal={proposal}
+        status={drop.status}
+        statusMessage={drop.message}
+      />
       {layout.contextCollapsed ? null : (
         <PaneSeparator
           direction={-1}
@@ -151,15 +177,28 @@ export function AppShell() {
         onCollapsedChange={(contextCollapsed) =>
           updateLayout({ contextCollapsed })
         }
-        proposal={demoDiscoveryProposal}
+        isDemo={drop.isDemo}
+        proposal={proposal}
       />
+      {drop.status === "hovering" ? (
+        <div
+          aria-label="Native drop target"
+          className="native-drop-overlay"
+          role="status"
+        >
+          <strong>Release to review</strong>
+          <span>Paths stay native; discovery starts only after a trusted grant.</span>
+        </div>
+      ) : null}
       <footer className="status-bar">
         <span>
           <i className="status-bar__dot" aria-hidden="true" />
-          Local demo workspace
+          {drop.isDemo ? "Local demo workspace" : "Trusted local proposal"}
         </span>
         <span>Read-only discovery proposal</span>
-        <span className="status-bar__right">3 eligible · 0 changes</span>
+        <span className="status-bar__right">
+          {proposal.counts.included} eligible · 0 changes
+        </span>
       </footer>
     </main>
   );
