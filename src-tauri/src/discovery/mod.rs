@@ -13,7 +13,7 @@ pub(crate) use grant::{
     issue_drop_grant, open_trusted_drop_root, CapabilityRoot, DropGrantRegistry,
     DROP_GRANT_ERROR_EVENT, DROP_GRANT_EVENT,
 };
-pub(crate) use proposal::ReviewedSourceRegistry;
+pub(crate) use proposal::{ReviewedSource, ReviewedSourceRegistry};
 
 const MAX_DISCOVERY_ITEMS: usize = 10_000;
 const MAX_DIAGNOSTICS: usize = 256;

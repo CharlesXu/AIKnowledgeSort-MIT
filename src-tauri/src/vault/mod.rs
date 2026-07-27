@@ -52,6 +52,21 @@ pub struct VaultAuthorityRegistry {
 }
 
 impl VaultAuthorityRegistry {
+    pub fn current_summary(&self) -> Result<VaultSummary, String> {
+        let authority = self
+            .authority
+            .lock()
+            .map_err(|_| "Vault authority registry is unavailable".to_owned())?;
+        let current = authority
+            .as_ref()
+            .ok_or_else(|| "No authoritative Vault has been selected".to_owned())?;
+        current
+            .directory
+            .metadata(".")
+            .map_err(|error| format!("Authoritative Vault is no longer readable: {error}"))?;
+        Ok(current.summary.clone())
+    }
+
     pub fn authorize_path(&self, path: &Path) -> Result<VaultSummary, String> {
         let mut authority = self
             .authority
