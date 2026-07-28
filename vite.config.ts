@@ -11,7 +11,7 @@ export default defineConfig({
   envPrefix: ["VITE_", "TAURI_"],
   test: {
     environment: "jsdom",
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    exclude: [...configDefaults.exclude, "e2e/**", "**/.worktrees/**"],
     setupFiles: "./src/test/setup.ts",
   },
 });
