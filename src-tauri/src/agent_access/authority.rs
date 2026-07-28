@@ -29,6 +29,7 @@ struct PendingSelection {
 
 struct ActiveGrant {
     roots: HashMap<String, SelectedRoot>,
+    used_request_ids: HashSet<String>,
 }
 
 struct AgentSession {
@@ -36,7 +37,6 @@ struct AgentSession {
     agent_id: String,
     session_token_sha256: String,
     expires_at: SystemTime,
-    request_ids: HashSet<String>,
     request_count: u32,
 }
 
@@ -129,7 +129,6 @@ impl AgentAccessAuthority {
                 agent_id: record.agent_id,
                 session_token_sha256,
                 expires_at,
-                request_ids: HashSet::new(),
                 request_count: 0,
             },
         );
@@ -186,7 +185,11 @@ impl AgentAccessAuthority {
                 "Agent authentication failed",
             ));
         }
-        if session.request_ids.contains(&request.request_id) {
+        if state
+            .active_grants
+            .get(&record.grant_id)
+            .is_some_and(|active| active.used_request_ids.contains(&request.request_id))
+        {
             return Err(denial(
                 DenialCode::ReplayedRequest,
                 "Agent request id has already been used",
@@ -253,8 +256,13 @@ impl AgentAccessAuthority {
             .sessions
             .get_mut(&request.session_id)
             .ok_or_else(|| denial(DenialCode::UnknownSession, "Agent session does not exist"))?;
-        session.request_ids.insert(request.request_id);
         session.request_count = session.request_count.saturating_add(1);
+        state
+            .active_grants
+            .get_mut(&record.grant_id)
+            .ok_or_else(|| denial(DenialCode::InactiveGrant, "Agent grant is inactive"))?
+            .used_request_ids
+            .insert(request.request_id);
         state.persisted.next_audit_sequence = sequence;
         Ok(AuthorizedRequest {
             tool,
@@ -405,7 +413,13 @@ impl AgentAccessAuthority {
             .map(|root| (root.summary.scope_id.clone(), root))
             .collect();
         state.persisted = next;
-        state.active_grants.insert(grant_id, ActiveGrant { roots });
+        state.active_grants.insert(
+            grant_id,
+            ActiveGrant {
+                roots,
+                used_request_ids: HashSet::new(),
+            },
+        );
         Ok(IssuedAgentGrant {
             grant: summary(&record, true, now_ms),
             grant_token: token.into_string(),
@@ -902,6 +916,18 @@ mod tests {
         assert_eq!(
             authority
                 .authorize_request(authorize_request(&issued, &session, "request-1"), now())
+                .unwrap_err()
+                .code,
+            DenialCode::ReplayedRequest
+        );
+
+        let second_session = open_session(&config, &authority, &issued);
+        assert_eq!(
+            authority
+                .authorize_request(
+                    authorize_request(&issued, &second_session, "request-1"),
+                    now(),
+                )
                 .unwrap_err()
                 .code,
             DenialCode::ReplayedRequest
