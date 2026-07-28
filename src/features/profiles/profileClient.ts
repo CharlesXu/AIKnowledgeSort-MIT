@@ -23,6 +23,11 @@ export function createTauriProfileClient(
         "import_local_profile_candidate",
       );
     },
+    importUrlCandidate(url: string) {
+      return invoke<ProfileCandidateRecord>("import_url_profile_candidate", {
+        request: { url },
+      });
+    },
     decideCandidate(request: DecideProfileCandidateRequest) {
       return invoke<ProfileStateSummary>("decide_profile_candidate", {
         request,
@@ -41,6 +46,7 @@ export function createBrowserProfileClient(): ProfileClient {
   return {
     inspect: desktopRuntimeRequired,
     importLocalCandidate: desktopRuntimeRequired,
+    importUrlCandidate: desktopRuntimeRequired,
     decideCandidate: desktopRuntimeRequired,
   };
 }

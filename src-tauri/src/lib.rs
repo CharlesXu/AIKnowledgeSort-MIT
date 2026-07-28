@@ -108,6 +108,7 @@ pub fn run() {
             model_runtime::run_model_comparison,
             profiles::inspect_profile_state,
             profiles::import_local_profile_candidate,
+            profiles::import_url_profile_candidate,
             profiles::decide_profile_candidate
         ])
         .run(tauri::generate_context!())

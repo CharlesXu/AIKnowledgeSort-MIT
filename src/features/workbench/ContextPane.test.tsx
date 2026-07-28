@@ -37,6 +37,7 @@ describe("ContextPane", () => {
         candidates: [],
       }),
       importLocalCandidate: vi.fn(),
+      importUrlCandidate: vi.fn(),
       decideCandidate: vi.fn(),
     };
     const graphClient: GraphClient = {

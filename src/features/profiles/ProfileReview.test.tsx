@@ -20,6 +20,7 @@ const state: ProfileStateSummary = {
     importedAtUnixMs: 1_785_245_600_000,
     sourceKind: "localFile",
     sourceBasename: "classification-profile.json",
+    sourceByteSize: 1_024,
     locatorIdentity: {
       algorithm: "SHA-256",
       digest: "b".repeat(64),
@@ -45,6 +46,7 @@ function client(): ProfileClient {
   return {
     inspect: vi.fn().mockResolvedValue(state),
     importLocalCandidate: vi.fn().mockResolvedValue(state.candidates[0]),
+    importUrlCandidate: vi.fn().mockResolvedValue(state.candidates[0]),
     decideCandidate: vi.fn().mockResolvedValue({
       ...state,
       active: {
@@ -97,6 +99,7 @@ describe("ProfileReview", () => {
         new Error("Desktop runtime is required for profile operations."),
       ),
       importLocalCandidate: vi.fn(),
+      importUrlCandidate: vi.fn(),
       decideCandidate: vi.fn(),
     };
     render(<ProfileReview client={unavailable} />);

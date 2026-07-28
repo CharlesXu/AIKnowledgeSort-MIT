@@ -2,7 +2,7 @@ import type { ContentIdentity } from "../drop/types";
 
 export type ProfileStatus = "draft" | "candidate" | "approved" | "rejected";
 export type ProfileDecision = "approve" | "reject";
-export type ProfileSourceKind = "localFile";
+export type ProfileSourceKind = "localFile" | "remoteUrl";
 export type CandidateStatus = "unapproved" | "approved" | "rejected";
 
 export interface ProfileVersionRef {
@@ -36,6 +36,7 @@ export interface ProfileCandidateRecord {
   readonly importedAtUnixMs: number;
   readonly sourceKind: ProfileSourceKind;
   readonly sourceBasename: string;
+  readonly sourceByteSize: number;
   readonly locatorIdentity: ContentIdentity;
   readonly sourceIdentity: ContentIdentity;
   readonly profileId: string;
@@ -61,6 +62,7 @@ export interface DecideProfileCandidateRequest {
 export interface ProfileClient {
   inspect(): Promise<ProfileStateSummary>;
   importLocalCandidate(): Promise<ProfileCandidateRecord | null>;
+  importUrlCandidate(url: string): Promise<ProfileCandidateRecord>;
   decideCandidate(
     request: DecideProfileCandidateRequest,
   ): Promise<ProfileStateSummary>;

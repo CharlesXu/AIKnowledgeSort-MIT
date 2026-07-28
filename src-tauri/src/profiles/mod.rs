@@ -24,6 +24,12 @@ pub struct DecideProfileCandidateRequest {
     decision: ProfileDecision,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImportUrlProfileCandidateRequest {
+    url: String,
+}
+
 fn current_vault(registry: &VaultAuthorityRegistry) -> Result<crate::vault::VaultLease, String> {
     let summary = registry.current_summary()?;
     registry.lease(&summary.authority_id)
@@ -90,6 +96,23 @@ pub fn import_local_profile_candidate(
             SystemTime::now(),
         )
         .map(Some)
+}
+
+#[tauri::command]
+pub async fn import_url_profile_candidate(
+    request: ImportUrlProfileCandidateRequest,
+    vaults: tauri::State<'_, VaultAuthorityRegistry>,
+    profiles: tauri::State<'_, ProfileAuthority>,
+) -> Result<ProfileCandidateRecord, String> {
+    let fetched = remote::fetch_profile_url(&request.url).await?;
+    let vault = current_vault(vaults.inner())?;
+    profiles.import_remote_bytes(
+        &vault,
+        &fetched.source_basename,
+        &fetched.minimized_locator,
+        &fetched.bytes,
+        SystemTime::now(),
+    )
 }
 
 #[tauri::command]
