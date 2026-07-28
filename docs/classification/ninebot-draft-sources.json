@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "authorizationId": "AUTH-2026-07-29-NINEBOT-DRAFT",
+  "authorizedBy": "Charles Xu",
+  "authorizedFor": "clean-room reuse or rewriting under MIT",
+  "corporateApprovalStatus": "discussionDraftNotEmtApproved",
+  "artifacts": [
+    {
+      "artifactId": "ninebot-electronic-archive-html",
+      "displayName": "九号公司文档与电子档案管理规范_讨论稿_V0.9.0-rc.3.html",
+      "sha256": "30d636b9fa7618a86907889ac929a46c256df6be51f70ba86937411526839488",
+      "role": "discussion status, governance, taxonomy and conflict-policy reference"
+    },
+    {
+      "artifactId": "nimble-kb-org-package",
+      "displayName": "nimble-kb-org-0.9.0-rc.3.zip",
+      "sha256": "2e34b4b75fc39194a9c609e6df6552a2602563f670c9d23666eb5ca6520e823c",
+      "role": "container for normalized classification reference members",
+      "members": [
+        {
+          "path": "references/classification_tree.md",
+          "sha256": "d6da06749d71bea2e48693528c1c8fb1a7ffb9337294bd25a04f3d7a2295e23d",
+          "role": "canonical four-level taxonomy"
+        },
+        {
+          "path": "references/sn_classification_dictionary.md",
+          "sha256": "da7747844cb7134084c183c5f0f8c552edd8a850aa04669c74b166c66f60b496",
+          "role": "candidate-recall vocabulary, not deterministic placement rules"
+        },
+        {
+          "path": "references/sn_classification_rules.md",
+          "sha256": "7ceba7fda3b1ae5586b794dc169cf47445fc77b6ea27408778d2a918b601cd23",
+          "role": "classification evidence and conflict-handling guidance"
+        },
+        {
+          "path": "references/sn_electronic_archive_draft.md",
+          "sha256": "b91987a1c6f7d6bef6a756779322ff506fd5e53c72293da2439ddfea61a582db",
+          "role": "electronic-archive discussion draft"
+        }
+      ]
+    },
+    {
+      "artifactId": "nimble-kb-org-manual",
+      "displayName": "nimble-kb-org-使用手册_V0.1.1.md",
+      "sha256": "e166b533213ec42d8c9a58ea05935305235c34ee7adbe998a2b409f73f3525cd",
+      "role": "non-mutating default workflow and terminology reference"
+    },
+    {
+      "artifactId": "cross-domain-conflict-analysis",
+      "displayName": "关于Cid提出跨界知识的归属分析.md",
+      "sha256": "3434374e7fb8aaa352f61efa7d81ab0dc42aed937d4a90a314203f327ea4cf9e",
+      "role": "unique archive placement and cross-domain knowledge-link policy"
+    }
+  ],
+  "normalizationDecisions": [
+    {
+      "subject": "SN-02 label",
+      "canonical": "SN-02 IPMS 集成营销服",
+      "aliases": [
+        "SN-02 IPMS 管理营销闭环"
+      ],
+      "reason": "canonical tree and discussion HTML agree; the manual wording is retained as an explicit alias"
+    },
+    {
+      "subject": "classification dictionary",
+      "decision": "candidateRecallOnly",
+      "reason": "terms narrow model candidates but do not establish formal semantic placement"
+    },
+    {
+      "subject": "archive and knowledge projection",
+      "decision": "onePrimaryArchiveCategoryWithCrossDomainKnowledgeLinks",
+      "reason": "organize the source archive first, then create governed knowledge links or selected independent nodes"
+    }
+  ]
+}

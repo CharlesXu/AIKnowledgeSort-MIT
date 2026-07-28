@@ -33,21 +33,21 @@ an alias, while the canonical tree and HTML wording remains
 - Create: `docs/classification/ninebot-draft-sources.json`
 - Test: repository digest and leakage checks
 
-- [ ] **Step 1: Write the source manifest**
+- [x] **Step 1: Write the source manifest**
 
 Record the four supplied artifacts with their exact SHA-256 digests, role,
 owner authorization, and draft/non-effective status. Record the ZIP-contained
 classification tree, rules, dictionary, and electronic-archive draft as
 derived source members without copying unrelated Skill content.
 
-- [ ] **Step 2: Extend authorization provenance**
+- [x] **Step 2: Extend authorization provenance**
 
 Add `AUTH-2026-07-29-NINEBOT-DRAFT`, limited to owned classification and
 knowledge-organization material. Explicitly exclude embedded third-party
 content and state that authorization to reuse under MIT is not corporate
 approval of the draft.
 
-- [ ] **Step 3: Verify source identity and record integrity**
+- [x] **Step 3: Verify source identity and record integrity**
 
 Run:
 
@@ -60,7 +60,7 @@ git diff --check
 Expected: all four hashes match the manifest, JSON parses, and the diff has no
 whitespace errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add docs/AUTHORIZATIONS.md docs/REQUIREMENT_SOURCES.csv docs/classification

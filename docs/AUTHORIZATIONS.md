@@ -55,3 +55,21 @@ decision:
 - `AUTH-2026-07-27-UI`: owner authorization to reuse or rewrite owned KL-Man
   UI code, design tokens, and components under MIT; applies to UI-001.
   Embedded third-party material remains excluded pending separate review.
+
+## Authorization provenance — 2026-07-29
+
+- `AUTH-2026-07-29-NINEBOT-DRAFT`: Charles Xu supplied and authorized reuse or
+  clean-room rewriting under MIT of the owned Ninebot classification and
+  knowledge-organization material listed in
+  `classification/ninebot-draft-sources.json`; applies to RULE-002 and
+  RULE-005. This authorization covers the classification tree, classification
+  rules and dictionary, electronic-archive discussion draft, usage guidance,
+  and cross-domain conflict analysis.
+- This authorization does not convert a discussion draft into effective
+  Segway-Ninebot policy and does not represent EMT approval. The bundled
+  profile must remain visibly `draft`, inactive, and non-committable until a
+  separately reviewed formal candidate is approved.
+- Third-party material embedded in the supplied package remains excluded from
+  the MIT handoff unless separately cleared. The implementation derives only
+  the owned classification and governance data identified in the source
+  manifest.
