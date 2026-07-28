@@ -75,8 +75,25 @@ pane; it does not replace the Markdown, Mermaid, and code workspace. Browser
 preview clients fail visibly and never simulate naming, Vault selection, archive
 planning, or archive commits.
 
+## Archive-gated authoritative Markdown
+
+Each successfully committed archive item can now become an explicit knowledge
+target in the central editor. The trusted Rust boundary accepts only the opaque
+Vault authority and archive operation identities, independently re-verifies the
+committed registration and archived original SHA-256, and then opens a
+deterministic starter note or the latest committed revision. Unconfirmed,
+missing, replaced, or byte-changed originals cannot create knowledge.
+
+Authoritative UTF-8 Markdown is stored as immutable, append-only revisions under
+the single Vault. Each revision has a separate immutable commit record binding
+the Markdown SHA-256 to the archived-original SHA-256. Optimistic revision
+checks reject stale saves without discarding the editor text, and an
+uncommitted Markdown orphan can be safely retried without affecting the archive.
+The browser preview retains a local unsaved draft and never claims a Vault save.
+
 Model-generated naming facts, local/OpenAI-compatible model execution, Agent
 comparison and adjudication, physical source renaming, user-controlled original
-cleanup, classified destination paths, MCP exposure, and URL profile import
-remain unimplemented. Those future integrations must use the same cited-fact,
+cleanup, classified destination paths, evidence-backed graph relation review and
+timeline playback, model-generated knowledge, MCP exposure, and URL profile
+import remain unimplemented. Those future integrations must use the same cited-fact,
 single-use batch, exact identity, and explicit archive-confirmation boundaries.
