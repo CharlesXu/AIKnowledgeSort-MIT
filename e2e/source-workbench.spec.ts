@@ -136,8 +136,18 @@ test("keeps profile import and activation honest in the browser fixture", async 
 }) => {
   await page.getByRole("tab", { name: "Import Review" }).click();
 
-  await expect(page.getByText("Ninebot electronic archive")).toBeVisible();
+  await expect(
+    page.getByText("Ninebot document and electronic archive classification"),
+  ).toBeVisible();
   await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+  await expect(page.getByText("466 categories · 14 / 94 / 179 / 179"))
+    .toBeVisible();
+  await expect(
+    page.getByText("0 executable rules — semantic review required"),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Discussion draft — not approved or active"),
+  ).toBeVisible();
   const url = page.getByRole("textbox", { name: "Profile URL" });
   await url.fill(
     "https://profiles.example.com/ninebot.json?signature=synthetic-secret#review",

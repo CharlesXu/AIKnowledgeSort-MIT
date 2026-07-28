@@ -9,11 +9,21 @@ import type {
 
 const bundledDraft: ProfileSummary = {
   profileId: "ninebot-electronic-archive",
-  version: "0.1.0-draft",
-  title: "Ninebot electronic archive",
+  version: "0.3.0-draft",
+  title: "Ninebot document and electronic archive classification",
   status: "draft",
   ruleCount: 0,
-  provenanceTitle: "AI Knowledge Sort clean implementation handoff",
+  categoryCount: 466,
+  taxonomyCounts: {
+    level1: 14,
+    level2: 94,
+    level3: 179,
+    level4: 179,
+  },
+  semanticEvidenceRequired: true,
+  uniquePrimaryArchiveCategory: true,
+  crossDomainKnowledgeLinks: true,
+  provenanceTitle: "九号公司文档与电子档案管理规范（讨论稿 V0.9.0-rc.3）",
 };
 
 function errorMessage(error: unknown): string {
@@ -23,23 +33,29 @@ function errorMessage(error: unknown): string {
 function CandidateDiff({ candidate }: {
   readonly candidate: ProfileCandidateRecord;
 }) {
-  const changes = [
+  const ruleChanges = [
     ...candidate.diff.addedRuleIds.map((ruleId) => ["+", ruleId] as const),
     ...candidate.diff.changedRuleIds.map((ruleId) => ["~", ruleId] as const),
     ...candidate.diff.removedRuleIds.map((ruleId) => ["−", ruleId] as const),
   ];
+  const categorySummary = `Taxonomy +${candidate.diff.addedCategoryIds.length}`
+    + ` · ~${candidate.diff.changedCategoryIds.length}`
+    + ` · −${candidate.diff.removedCategoryIds.length}`;
 
   return (
-    <ul aria-label="Candidate rule changes" className="profile-diff">
-      {changes.length === 0 ? (
+    <>
+      <p className="profile-taxonomy-diff">{categorySummary}</p>
+      <ul aria-label="Candidate rule changes" className="profile-diff">
+      {ruleChanges.length === 0 ? (
         <li><span>·</span>No rule changes</li>
-      ) : changes.map(([marker, ruleId]) => (
+      ) : ruleChanges.map(([marker, ruleId]) => (
         <li key={`${marker}-${ruleId}`}>
           <span aria-hidden="true">{marker}</span>
           {ruleId}
         </li>
       ))}
-    </ul>
+      </ul>
+    </>
   );
 }
 
@@ -132,17 +148,36 @@ export function ProfileReview({ client }: {
         </div>
         <strong className="profile-title">{installed.title}</strong>
         <p className="profile-meta">
-          {installed.version} · {installed.ruleCount === 0
-            ? "0 rules — classification disabled"
-            : `${installed.ruleCount} rules`}
+          {installed.version}
         </p>
+        <p className="profile-meta">
+          {installed.categoryCount} categories ·{" "}
+          {installed.taxonomyCounts.level1} / {installed.taxonomyCounts.level2}
+          {" / "}
+          {installed.taxonomyCounts.level3} / {installed.taxonomyCounts.level4}
+        </p>
+        <p className="profile-meta">
+          {installed.ruleCount === 0
+            ? "0 executable rules — semantic review required"
+            : `${installed.ruleCount} executable rules`}
+        </p>
+        <ul aria-label="Profile governance" className="profile-policy">
+          {installed.uniquePrimaryArchiveCategory ? (
+            <li>One primary archive category</li>
+          ) : null}
+          {installed.crossDomainKnowledgeLinks ? (
+            <li>Cross-domain knowledge links</li>
+          ) : null}
+        </ul>
         <p className="profile-provenance">{installed.provenanceTitle}</p>
         {state?.active ? (
           <span className="profile-active">
             Approved and active · {state.active.version}
           </span>
         ) : (
-          <span className="profile-inactive">No approved profile active</span>
+          <span className="profile-inactive">
+            Discussion draft — not approved or active
+          </span>
         )}
       </section>
 

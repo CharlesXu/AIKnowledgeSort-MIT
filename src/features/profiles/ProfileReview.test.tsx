@@ -7,11 +7,21 @@ const digest = "a".repeat(64);
 const state: ProfileStateSummary = {
   installed: [{
     profileId: "ninebot-electronic-archive",
-    version: "0.1.0-draft",
-    title: "Ninebot electronic archive",
+    version: "0.3.0-draft",
+    title: "Ninebot document and electronic archive classification",
     status: "draft",
     ruleCount: 0,
-    provenanceTitle: "AI Knowledge Sort clean implementation handoff",
+    categoryCount: 466,
+    taxonomyCounts: {
+      level1: 14,
+      level2: 94,
+      level3: 179,
+      level4: 179,
+    },
+    semanticEvidenceRequired: true,
+    uniquePrimaryArchiveCategory: true,
+    crossDomainKnowledgeLinks: true,
+    provenanceTitle: "九号公司文档与电子档案管理规范（讨论稿 V0.9.0-rc.3）",
   }],
   active: null,
   candidates: [{
@@ -37,6 +47,12 @@ const state: ProfileStateSummary = {
       addedRuleIds: ["rule-9"],
       removedRuleIds: [],
       changedRuleIds: [],
+      addedCategoryIds: Array.from(
+        { length: 466 },
+        (_, index) => `category-${index + 1}`,
+      ),
+      removedCategoryIds: [],
+      changedCategoryIds: [],
     },
     approval: null,
   }],
@@ -67,11 +83,23 @@ describe("ProfileReview", () => {
     render(<ProfileReview client={profileClient} />);
 
     expect(
-      await screen.findByText("Ninebot electronic archive"),
+      await screen.findByText(
+        "Ninebot document and electronic archive classification",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("DRAFT")).toBeInTheDocument();
     expect(screen.getByText("rule-9")).toBeInTheDocument();
-    expect(screen.getByText(/0 rules — classification disabled/))
+    expect(screen.getByText("0 executable rules — semantic review required"))
+      .toBeInTheDocument();
+    expect(screen.getByText("466 categories · 14 / 94 / 179 / 179"))
+      .toBeInTheDocument();
+    expect(screen.getByText("One primary archive category"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Cross-domain knowledge links"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Discussion draft — not approved or active"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Taxonomy +466 · ~0 · −0"))
       .toBeInTheDocument();
 
     const approve = screen.getByRole("button", { name: "Approve profile" });
@@ -171,7 +199,11 @@ describe("ProfileReview", () => {
     };
     render(<ProfileReview client={unavailable} />);
 
-    expect(screen.getByText("Ninebot electronic archive")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ninebot document and electronic archive classification",
+      ),
+    ).toBeInTheDocument();
     expect(
       await screen.findByText(
         "Desktop runtime is required for profile operations.",

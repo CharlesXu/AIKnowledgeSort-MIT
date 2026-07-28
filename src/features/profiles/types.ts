@@ -14,6 +14,16 @@ export interface ProfileSummary extends ProfileVersionRef {
   readonly title: string;
   readonly status: ProfileStatus;
   readonly ruleCount: number;
+  readonly categoryCount: number;
+  readonly taxonomyCounts: {
+    readonly level1: number;
+    readonly level2: number;
+    readonly level3: number;
+    readonly level4: number;
+  };
+  readonly semanticEvidenceRequired: boolean;
+  readonly uniquePrimaryArchiveCategory: boolean;
+  readonly crossDomainKnowledgeLinks: boolean;
   readonly provenanceTitle: string;
 }
 
@@ -21,6 +31,9 @@ export interface ProfileDiff {
   readonly addedRuleIds: readonly string[];
   readonly removedRuleIds: readonly string[];
   readonly changedRuleIds: readonly string[];
+  readonly addedCategoryIds: readonly string[];
+  readonly removedCategoryIds: readonly string[];
+  readonly changedCategoryIds: readonly string[];
 }
 
 export interface ProfileDecisionSummary {

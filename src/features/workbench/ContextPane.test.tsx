@@ -66,8 +66,11 @@ describe("ContextPane", () => {
     expect(screen.getByRole("tab", { name: "Knowledge Graph" }))
       .toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Import Review" }));
-    expect(await screen.findByText("Ninebot electronic archive"))
-      .toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Ninebot document and electronic archive classification",
+      ),
+    ).toBeInTheDocument();
     expect(screen.getByText("No candidate awaiting review"))
       .toBeInTheDocument();
     fireEvent.click(screen.getByRole("tab", { name: "Agent Review" }));

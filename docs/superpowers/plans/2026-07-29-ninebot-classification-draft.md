@@ -240,7 +240,7 @@ git commit -m "feat: install complete inactive Ninebot draft"
 - Modify: `src/styles.css`
 - Modify: `e2e/source-workbench.spec.ts`
 
-- [ ] **Step 1: Write failing component and E2E assertions**
+- [x] **Step 1: Write failing component and E2E assertions**
 
 Require Import Review to display:
 
@@ -253,7 +253,7 @@ Require Import Review to display:
 
 Keep the candidate digest acknowledgement and approval flow unchanged.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 NODE_OPTIONS=--no-experimental-webstorage npm test -- --run src/features/profiles/ProfileReview.test.tsx
@@ -262,14 +262,14 @@ NODE_OPTIONS=--no-experimental-webstorage npm test -- --run src/features/profile
 Expected: assertions fail because the UI still shows only zero-rule shell
 metadata.
 
-- [ ] **Step 3: Extend typed rendering**
+- [x] **Step 3: Extend typed rendering**
 
 Add exact readonly summary fields and compact policy rows. Update the browser
 fallback to the same honest bundled metadata; it may display the shipped
 manifest but must still reject persistence, import, and decisions outside the
 desktop runtime.
 
-- [ ] **Step 4: Verify frontend**
+- [x] **Step 4: Verify frontend**
 
 ```bash
 NODE_OPTIONS=--no-experimental-webstorage npm test -- --run
@@ -279,7 +279,7 @@ npm run e2e
 
 Expected: all unit, build, and critical browser flows pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src e2e
