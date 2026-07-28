@@ -162,7 +162,7 @@ Also assert at most 32 grants, 16 pending selections, a five-minute selection TT
 
 - [ ] **Step 2: Run focused tests and verify RED**
 
-Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access::authority agent_access::store --lib`
+Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access --lib`
 
 Expected: FAIL because persistence and authority behavior are missing.
 

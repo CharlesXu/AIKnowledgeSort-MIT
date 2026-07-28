@@ -87,6 +87,66 @@ pub struct CreateAgentGrantRequest {
     pub limits: AgentResourceLimits,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AgentScopeSummary {
+    pub scope_id: String,
+    pub display_path: String,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AgentGrantStatus {
+    Active,
+    Inactive,
+    Revoked,
+    Expired,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentGrantSummary {
+    pub grant_id: String,
+    pub agent_id: String,
+    pub label: String,
+    pub tool_ids: Vec<String>,
+    pub scopes: Vec<AgentScopeSummary>,
+    pub created_at_unix_ms: u64,
+    pub expires_at_unix_ms: u64,
+    pub revoked_at_unix_ms: Option<u64>,
+    pub status: AgentGrantStatus,
+    pub limits: AgentResourceLimits,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NativeScopeSelection {
+    pub selection_id: String,
+    pub scopes: Vec<AgentScopeSummary>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssuedAgentGrant {
+    pub grant: AgentGrantSummary,
+    pub grant_token: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RevokeAgentGrantRequest {
+    pub grant_id: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentAccessState {
+    pub schema_version: u32,
+    pub tool_catalog_version: String,
+    pub tools: Vec<AgentToolDescriptor>,
+    pub grants: Vec<AgentGrantSummary>,
+}
+
 impl CreateAgentGrantRequest {
     pub fn validate(&self) -> Result<(), String> {
         validate_safe_id("selection id", &self.selection_id)?;

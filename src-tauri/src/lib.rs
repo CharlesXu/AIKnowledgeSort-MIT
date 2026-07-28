@@ -18,6 +18,7 @@ mod vault;
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .manage(agent_access::authority::AgentAccessAuthority::default())
         .manage(discovery::DropGrantRegistry::default())
         .manage(discovery::ReviewedSourceRegistry::default())
         .manage(discovery::DropWorkLimiter::default())
@@ -82,6 +83,10 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            agent_access::select_agent_grant_directories,
+            agent_access::inspect_agent_access,
+            agent_access::create_agent_grant,
+            agent_access::revoke_agent_grant,
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
