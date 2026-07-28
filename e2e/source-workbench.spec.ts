@@ -87,6 +87,36 @@ test("keeps archive operations honest in the browser fixture", async ({
   await expect(archive).not.toContainText("Archive committed");
 });
 
+test("keeps canonical naming non-mutating in the browser fixture", async ({
+  page,
+}) => {
+  const archive = page.getByRole("region", { name: "Archive preview" });
+  await archive
+    .getByRole("checkbox", { name: "Include meeting-notes.md" })
+    .check();
+  await archive
+    .getByRole("textbox", { name: "Subject for meeting-notes.md" })
+    .fill("Meeting notes");
+  await archive
+    .getByRole("textbox", {
+      name: "Evidence location for meeting-notes.md",
+    })
+    .fill("section:summary");
+
+  await archive
+    .getByRole("button", { name: "Review canonical names" })
+    .click();
+
+  await expect(archive.getByRole("alert")).toContainText(
+    "Desktop runtime is required for naming operations.",
+  );
+  await expect(archive).toContainText("meeting-notes.md");
+  await expect(
+    archive.getByRole("region", { name: "Exact archive plan" }),
+  ).toHaveCount(0);
+  await expect(page.getByText("3 eligible · 0 changes")).toBeVisible();
+});
+
 test("keeps profile import and activation honest in the browser fixture", async ({
   page,
 }) => {

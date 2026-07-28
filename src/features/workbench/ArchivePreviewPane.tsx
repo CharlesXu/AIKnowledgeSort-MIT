@@ -163,7 +163,7 @@ export function ArchivePreviewPane({
   }
 
   async function reviewNames(): Promise<void> {
-    if (vault === null || !evidenceComplete) {
+    if (!evidenceComplete) {
       return;
     }
     const activeProposal = proposal.proposalId;
@@ -390,10 +390,7 @@ export function ArchivePreviewPane({
       <div className="archive-preview__actions">
         <button
           disabled={
-            vault === null ||
-            !evidenceComplete ||
-            pending !== null ||
-            committed
+            !evidenceComplete || pending !== null || committed
           }
           onClick={() => void reviewNames()}
           type="button"

@@ -48,7 +48,35 @@ activation.
 
 The bundled `Ninebot electronic archive` entry is intentionally a zero-rule
 draft shell. It documents the clean implementation boundary but cannot classify
-or become active. The full Ninebot taxonomy, URL import, model-assisted
-conversion of future notices and drafts, canonical file naming, and application
-of classified paths to archive transactions are not yet implemented or
-claimed.
+or become active. The full Ninebot taxonomy, URL import, and model-assisted
+conversion of future notices and drafts are not yet implemented or claimed.
+
+## Canonical naming and source-preserving archive
+
+The desktop runtime now accepts bounded, cited naming facts for Project, Model,
+Regulation, Version, and Subject. A code-owned Rust policy normalizes those
+facts to Unicode NFC, preserves the original extension, checks the actual
+authorized Vault namespace for case-insensitive collisions, and either returns
+a deterministic canonical filename or routes the item to `namingReview`.
+Missing or conflicting evidence never produces an invented name.
+
+Naming proposals are held in bounded, five-minute, single-use batches bound to
+the exact reviewed discovery item and SHA-256 identity. Archive planning cannot
+accept a filename from the frontend: it must consume that naming batch, and any
+review outcome blocks the plan. A confirmed transaction copies the verified
+source into `Originals/<sha256>/<canonical-name>` without renaming or deleting
+the source. Its operation journal and original registration record the original
+and canonical names, paths, policy/version, applied rule, cited facts, evidence
+locations, confirmation binding, identity, and outcome. Existing v1 archive
+journals remain readable during recovery.
+
+The compact local-evidence and canonical-name review lives in the archive side
+pane; it does not replace the Markdown, Mermaid, and code workspace. Browser
+preview clients fail visibly and never simulate naming, Vault selection, archive
+planning, or archive commits.
+
+Model-generated naming facts, local/OpenAI-compatible model execution, Agent
+comparison and adjudication, physical source renaming, user-controlled original
+cleanup, classified destination paths, MCP exposure, and URL profile import
+remain unimplemented. Those future integrations must use the same cited-fact,
+single-use batch, exact identity, and explicit archive-confirmation boundaries.
