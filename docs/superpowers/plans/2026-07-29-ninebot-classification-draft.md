@@ -190,7 +190,7 @@ git commit -m "feat: bundle complete Ninebot draft taxonomy"
 - Modify: `src-tauri/src/profiles/store.rs`
 - Test: inline unit tests in `src-tauri/src/profiles/store.rs`
 
-- [ ] **Step 1: Write failing store tests**
+- [x] **Step 1: Write failing store tests**
 
 Update the existing installed-draft test to require version `0.3.0-draft`,
 schema version 2, 466 categories, the four level counts, zero executable rules,
@@ -198,7 +198,7 @@ and no active profile. Add a migration assertion that an existing immutable
 `0.1.0-draft` installation remains readable while the new bundled version is
 added without overwriting prior bytes.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::store --lib
@@ -207,14 +207,14 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::store --lib
 Expected: installed draft still reports `0.1.0-draft` and lacks taxonomy
 summary fields.
 
-- [ ] **Step 3: Install the bundled bytes**
+- [x] **Step 3: Install the bundled bytes**
 
 Replace the hand-built zero-rule shell with the validated bundled resource.
 Extend `ProfileSummary` with total category count, per-level counts, semantic
 evidence requirement, unique-primary-archive policy, and cross-domain knowledge
 link policy. Keep activation empty because status is `draft`.
 
-- [ ] **Step 4: Verify migration and authority invariants**
+- [x] **Step 4: Verify migration and authority invariants**
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::store --lib
@@ -224,7 +224,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib
 Expected: store and complete Rust suites pass without replacing immutable
 records or activating the draft.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/src/profiles/store.rs

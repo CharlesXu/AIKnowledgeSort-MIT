@@ -14,7 +14,7 @@ use std::time::SystemTime;
 pub use store::{
     CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
     ProfileDecisionSummary, ProfileDiff, ProfileSourceKind, ProfileStateSummary, ProfileSummary,
-    ProfileVersionRef,
+    ProfileTaxonomyCounts, ProfileVersionRef,
 };
 
 #[derive(Debug, Deserialize)]

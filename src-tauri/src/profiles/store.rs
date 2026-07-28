@@ -1,6 +1,7 @@
+use super::ninebot;
 use super::schema::{
-    parse_candidate_profile, ClassificationRule, DeclarativeProfile, ProfileOwnership,
-    ProfileProvenance, ProfileStatus, MAX_PROFILE_BYTES,
+    parse_candidate_profile, ClassificationRule, DeclarativeProfile, ProfileStatus,
+    MAX_PROFILE_BYTES,
 };
 use crate::identity::ContentIdentity;
 use crate::vault::records::{read_bytes_bounded, read_json, write_new_bytes, write_new_json};
@@ -14,8 +15,6 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 const MAX_PROFILE_RECORDS: usize = 1_000;
 const PROFILE_RECORD_SCHEMA_VERSION: u32 = 1;
-const NINEBOT_PROFILE_ID: &str = "ninebot-electronic-archive";
-const NINEBOT_DRAFT_VERSION: &str = "0.1.0-draft";
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -54,15 +53,38 @@ pub struct ProfileSummary {
     pub title: String,
     pub status: ProfileStatus,
     pub rule_count: usize,
+    pub category_count: usize,
+    pub taxonomy_counts: ProfileTaxonomyCounts,
+    pub semantic_evidence_required: bool,
+    pub unique_primary_archive_category: bool,
+    pub cross_domain_knowledge_links: bool,
     pub provenance_title: String,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProfileTaxonomyCounts {
+    pub level1: usize,
+    pub level2: usize,
+    pub level3: usize,
+    pub level4: usize,
 }
 
 #[derive(Clone, Debug, Deserialize, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ProfileDiff {
+    #[serde(default)]
     pub added_rule_ids: Vec<String>,
+    #[serde(default)]
     pub removed_rule_ids: Vec<String>,
+    #[serde(default)]
     pub changed_rule_ids: Vec<String>,
+    #[serde(default)]
+    pub added_category_ids: Vec<String>,
+    #[serde(default)]
+    pub removed_category_ids: Vec<String>,
+    #[serde(default)]
+    pub changed_category_ids: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -359,27 +381,8 @@ fn same_candidate_import(
         && existing.approval.is_none()
 }
 
-fn bundled_ninebot_draft() -> DeclarativeProfile {
-    DeclarativeProfile {
-        schema_version: 1,
-        profile_id: NINEBOT_PROFILE_ID.to_owned(),
-        version: NINEBOT_DRAFT_VERSION.to_owned(),
-        title: "Ninebot electronic archive".to_owned(),
-        status: ProfileStatus::Draft,
-        provenance: ProfileProvenance {
-            source_title: "AI Knowledge Sort clean implementation handoff".to_owned(),
-            ownership: ProfileOwnership::FirstPartyAuthorized,
-            evidence: vec!["RULE-005".to_owned()],
-        },
-        categories: Vec::new(),
-        governance: None,
-        rules: Vec::new(),
-    }
-}
-
 fn ensure_bundled_ninebot_draft(vault: &VaultLease) -> Result<(), String> {
-    let profile = bundled_ninebot_draft();
-    profile.validate()?;
+    let profile = ninebot::bundled_profile()?;
     write_or_verify_profile(vault, &profile)
 }
 
@@ -486,12 +489,31 @@ fn load_state(vault: &VaultLease) -> Result<ProfileStateSummary, String> {
     for path in list_json_records(vault, ".aiks/profiles/installed")? {
         let profile: DeclarativeProfile = read_json(&vault.directory, &path)?;
         profile.validate()?;
+        let mut taxonomy_counts = ProfileTaxonomyCounts::default();
+        for category in &profile.categories {
+            match category.depth {
+                1 => taxonomy_counts.level1 += 1,
+                2 => taxonomy_counts.level2 += 1,
+                3 => taxonomy_counts.level3 += 1,
+                4 => taxonomy_counts.level4 += 1,
+                _ => {}
+            }
+        }
+        let governance = profile.governance.as_ref();
         installed.push(ProfileSummary {
             profile_id: profile.profile_id,
             version: profile.version,
             title: profile.title,
             status: profile.status,
             rule_count: profile.rules.len(),
+            category_count: profile.categories.len(),
+            taxonomy_counts,
+            semantic_evidence_required: governance
+                .is_some_and(|value| value.semantic_evidence_required),
+            unique_primary_archive_category: governance
+                .is_some_and(|value| value.unique_primary_archive_category),
+            cross_domain_knowledge_links: governance
+                .is_some_and(|value| value.cross_domain_knowledge_links),
             provenance_title: profile.provenance.source_title,
         });
     }
@@ -604,10 +626,37 @@ fn profile_diff(base: Option<&DeclarativeProfile>, candidate: &DeclarativeProfil
     added_rule_ids.sort();
     removed_rule_ids.sort();
     changed_rule_ids.sort();
+
+    let base_categories = base.map(category_map).unwrap_or_default();
+    let candidate_categories = category_map(candidate);
+    let base_category_ids = base_categories.keys().cloned().collect::<HashSet<_>>();
+    let candidate_category_ids = candidate_categories.keys().cloned().collect::<HashSet<_>>();
+    let mut added_category_ids = candidate_category_ids
+        .difference(&base_category_ids)
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    let mut removed_category_ids = base_category_ids
+        .difference(&candidate_category_ids)
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    let mut changed_category_ids = base_category_ids
+        .intersection(&candidate_category_ids)
+        .filter(|category_id| {
+            base_categories.get(**category_id) != candidate_categories.get(**category_id)
+        })
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    added_category_ids.sort();
+    removed_category_ids.sort();
+    changed_category_ids.sort();
+
     ProfileDiff {
         added_rule_ids,
         removed_rule_ids,
         changed_rule_ids,
+        added_category_ids,
+        removed_category_ids,
+        changed_category_ids,
     }
 }
 
@@ -616,6 +665,16 @@ fn rule_map(profile: &DeclarativeProfile) -> BTreeMap<&str, &ClassificationRule>
         .rules
         .iter()
         .map(|rule| (rule.rule_id.as_str(), rule))
+        .collect()
+}
+
+fn category_map(
+    profile: &DeclarativeProfile,
+) -> BTreeMap<&str, &super::schema::ClassificationCategory> {
+    profile
+        .categories
+        .iter()
+        .map(|category| (category.category_id.as_str(), category))
         .collect()
 }
 
@@ -711,6 +770,7 @@ mod tests {
         CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
         ProfileSourceKind,
     };
+    use crate::profiles::ninebot;
     use crate::profiles::schema::ProfileStatus;
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
@@ -791,8 +851,15 @@ mod tests {
             .is_none()
     }
 
+    fn taxonomy_candidate_bytes() -> Vec<u8> {
+        let mut profile = ninebot::bundled_profile().expect("load Ninebot draft fixture");
+        profile.status = ProfileStatus::Candidate;
+        profile.version = "0.3.0-rc.4".to_owned();
+        serde_json::to_vec_pretty(&profile).expect("serialize taxonomy candidate")
+    }
+
     #[test]
-    fn installs_a_non_active_manifest_only_ninebot_draft() {
+    fn installs_the_complete_non_active_ninebot_discussion_draft() {
         let vault = TestVault::new();
         let authority = ProfileAuthority::default();
 
@@ -801,10 +868,57 @@ mod tests {
         let ninebot = state
             .installed
             .iter()
-            .find(|profile| profile.profile_id == "ninebot-electronic-archive")
-            .expect("Ninebot draft shell");
+            .find(|profile| {
+                profile.profile_id == "ninebot-electronic-archive"
+                    && profile.version == "0.3.0-draft"
+            })
+            .expect("complete Ninebot discussion draft");
         assert_eq!(ninebot.status, ProfileStatus::Draft);
         assert_eq!(ninebot.rule_count, 0);
+        assert_eq!(ninebot.category_count, 466);
+        assert_eq!(ninebot.taxonomy_counts.level1, 14);
+        assert_eq!(ninebot.taxonomy_counts.level2, 94);
+        assert_eq!(ninebot.taxonomy_counts.level3, 179);
+        assert_eq!(ninebot.taxonomy_counts.level4, 179);
+        assert!(ninebot.semantic_evidence_required);
+        assert!(ninebot.unique_primary_archive_category);
+        assert!(ninebot.cross_domain_knowledge_links);
+        assert!(state.active.is_none());
+    }
+
+    #[test]
+    fn preserves_an_existing_manifest_shell_while_installing_the_complete_draft() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let old_path = vault
+            .root
+            .join(".aiks/profiles/installed")
+            .join("ninebot-electronic-archive--0.1.0-draft.json");
+        let old_bytes = serde_json::to_vec_pretty(&serde_json::json!({
+            "schemaVersion": 1,
+            "profileId": "ninebot-electronic-archive",
+            "version": "0.1.0-draft",
+            "title": "Ninebot electronic archive",
+            "status": "draft",
+            "provenance": {
+                "sourceTitle": "AI Knowledge Sort clean implementation handoff",
+                "ownership": "firstPartyAuthorized",
+                "evidence": ["RULE-005"]
+            },
+            "rules": []
+        }))
+        .expect("serialize old draft shell");
+        fs::write(&old_path, &old_bytes).expect("seed immutable old draft shell");
+
+        let state = authority.inspect(&vault.lease()).expect("inspect profiles");
+
+        assert_eq!(fs::read(old_path).expect("read old draft shell"), old_bytes);
+        assert!(state.installed.iter().any(|profile| {
+            profile.profile_id == "ninebot-electronic-archive" && profile.version == "0.1.0-draft"
+        }));
+        assert!(state.installed.iter().any(|profile| {
+            profile.profile_id == "ninebot-electronic-archive" && profile.version == "0.3.0-draft"
+        }));
         assert!(state.active.is_none());
     }
 
@@ -859,6 +973,26 @@ mod tests {
         .expect("read candidate record");
         assert!(!persisted.contains(locator));
         assert!(persisted.contains("owned-profile.json"));
+    }
+
+    #[test]
+    fn imports_taxonomy_changes_as_reviewable_category_diffs() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let candidate = authority
+            .import_local_bytes(
+                &vault.lease(),
+                "ninebot-0.3.0-rc.4.json",
+                "/private/ninebot-0.3.0-rc.4.json",
+                &taxonomy_candidate_bytes(),
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("import taxonomy candidate");
+
+        assert!(candidate.diff.added_rule_ids.is_empty());
+        assert_eq!(candidate.diff.added_category_ids.len(), 466);
+        assert!(candidate.diff.removed_category_ids.is_empty());
+        assert!(candidate.diff.changed_category_ids.is_empty());
     }
 
     #[test]
