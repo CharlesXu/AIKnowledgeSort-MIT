@@ -28,6 +28,7 @@ pub enum ProfileDecision {
 #[serde(rename_all = "camelCase")]
 pub enum ProfileSourceKind {
     LocalFile,
+    RemoteUrl,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -81,6 +82,8 @@ pub struct ProfileCandidateRecord {
     pub imported_at_unix_ms: u64,
     pub source_kind: ProfileSourceKind,
     pub source_basename: String,
+    #[serde(default)]
+    pub source_byte_size: u64,
     pub locator_identity: ContentIdentity,
     pub source_identity: ContentIdentity,
     pub profile_id: String,
@@ -149,6 +152,43 @@ impl ProfileAuthority {
         bytes: &[u8],
         imported_at: SystemTime,
     ) -> Result<ProfileCandidateRecord, String> {
+        self.import_bytes(
+            vault,
+            ProfileSourceKind::LocalFile,
+            source_basename,
+            source_locator,
+            bytes,
+            imported_at,
+        )
+    }
+
+    pub(crate) fn import_remote_bytes(
+        &self,
+        vault: &VaultLease,
+        source_basename: &str,
+        source_locator: &str,
+        bytes: &[u8],
+        imported_at: SystemTime,
+    ) -> Result<ProfileCandidateRecord, String> {
+        self.import_bytes(
+            vault,
+            ProfileSourceKind::RemoteUrl,
+            source_basename,
+            source_locator,
+            bytes,
+            imported_at,
+        )
+    }
+
+    fn import_bytes(
+        &self,
+        vault: &VaultLease,
+        source_kind: ProfileSourceKind,
+        source_basename: &str,
+        source_locator: &str,
+        bytes: &[u8],
+        imported_at: SystemTime,
+    ) -> Result<ProfileCandidateRecord, String> {
         let profile = parse_candidate_profile(bytes)?;
         validate_basename(source_basename)?;
         if source_locator.is_empty() || source_locator.len() > 32 * 1024 {
@@ -173,10 +213,19 @@ impl ProfileAuthority {
             version: active.version.clone(),
         });
         let diff = profile_diff(base_profile.as_ref(), &profile);
-        let candidate_binding = format!(
-            "{}:{}:{}",
-            source_identity.digest, profile.profile_id, profile.version
-        );
+        let candidate_binding = match source_kind {
+            ProfileSourceKind::LocalFile => format!(
+                "{}:{}:{}",
+                source_identity.digest, profile.profile_id, profile.version
+            ),
+            ProfileSourceKind::RemoteUrl => format!(
+                "remoteUrl:{}:{}:{}:{}",
+                source_identity.digest,
+                profile.profile_id,
+                profile.version,
+                locator_identity.digest
+            ),
+        };
         let candidate_id = ContentIdentity::from_reader(Cursor::new(candidate_binding.as_bytes()))
             .map_err(|error| format!("Profile candidate id cannot be generated: {error}"))?
             .digest;
@@ -184,8 +233,9 @@ impl ProfileAuthority {
             schema_version: PROFILE_RECORD_SCHEMA_VERSION,
             candidate_id: candidate_id.clone(),
             imported_at_unix_ms,
-            source_kind: ProfileSourceKind::LocalFile,
+            source_kind,
             source_basename: source_basename.to_owned(),
+            source_byte_size: bytes.len() as u64,
             locator_identity,
             source_identity: source_identity.clone(),
             profile_id: profile.profile_id,
@@ -297,6 +347,8 @@ fn same_candidate_import(
         && existing.candidate_id == requested.candidate_id
         && existing.source_kind == requested.source_kind
         && existing.source_basename == requested.source_basename
+        && (existing.source_byte_size == 0
+            || existing.source_byte_size == requested.source_byte_size)
         && existing.locator_identity == requested.locator_identity
         && existing.source_identity == requested.source_identity
         && existing.profile_id == requested.profile_id
@@ -653,7 +705,10 @@ fn installed_profile_path(profile_id: &str, version: &str) -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{ProfileAuthority, ProfileDecision};
+    use super::{
+        CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
+        ProfileSourceKind,
+    };
     use crate::profiles::schema::ProfileStatus;
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
@@ -802,6 +857,73 @@ mod tests {
         .expect("read candidate record");
         assert!(!persisted.contains(locator));
         assert!(persisted.contains("owned-profile.json"));
+    }
+
+    #[test]
+    fn imports_remote_bytes_as_a_separate_unapproved_candidate_without_locator_secrets() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let bytes = candidate_bytes("remote-profile", "1.0.0", "remote.rule");
+        let remote = authority
+            .import_remote_bytes(
+                &vault.lease(),
+                "remote-profile.json",
+                "https://profiles.example.com/remote-profile.json?signature=synthetic-secret",
+                &bytes,
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("import remote profile candidate");
+        let local = authority
+            .import_local_bytes(
+                &vault.lease(),
+                "remote-profile.json",
+                "/private/remote-profile.json",
+                &bytes,
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("import local profile candidate");
+
+        assert_eq!(remote.source_kind, ProfileSourceKind::RemoteUrl);
+        assert_eq!(remote.source_byte_size, bytes.len() as u64);
+        assert_eq!(remote.status, CandidateStatus::Unapproved);
+        assert_ne!(remote.candidate_id, local.candidate_id);
+        assert!(authority.inspect(&vault.lease()).unwrap().active.is_none());
+
+        let persisted = fs::read_to_string(
+            vault
+                .root
+                .join(".aiks/profiles/candidates")
+                .join(format!("{}.json", remote.candidate_id)),
+        )
+        .expect("read remote candidate record");
+        assert!(!persisted.contains("profiles.example.com"));
+        assert!(!persisted.contains("synthetic-secret"));
+    }
+
+    #[test]
+    fn decodes_candidate_records_written_before_source_size_was_added() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let bytes = candidate_bytes("legacy-profile", "1.0.0", "legacy.rule");
+        let candidate = authority
+            .import_local_bytes(
+                &vault.lease(),
+                "legacy-profile.json",
+                "/private/legacy-profile.json",
+                &bytes,
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("import candidate fixture");
+        let mut legacy = serde_json::to_value(candidate).expect("serialize candidate fixture");
+        legacy
+            .as_object_mut()
+            .expect("candidate object")
+            .remove("sourceByteSize");
+
+        let decoded: ProfileCandidateRecord =
+            serde_json::from_value(legacy).expect("decode legacy candidate record");
+
+        assert_eq!(decoded.source_byte_size, 0);
     }
 
     #[test]
