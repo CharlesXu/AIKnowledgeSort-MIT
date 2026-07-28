@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { demoDiscoveryProposal, demoSources } from "../data/demoSources";
 import type { DiscoveryClient } from "../features/drop/discoveryClient";
 import {
@@ -17,6 +17,8 @@ import type { NamingClient } from "../features/naming/types";
 import type { KnowledgeClient, KnowledgeTarget } from "../features/knowledge/types";
 import type { KnowledgeDocument } from "../features/knowledge/types";
 import type { GraphClient } from "../features/graph/types";
+import type { ModelRuntimeClient } from "../features/models/types";
+import { ModelSettingsDialog } from "../features/models/ModelSettingsDialog";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -82,6 +84,7 @@ interface AppShellProps {
   readonly knowledgeClient: KnowledgeClient;
   readonly graphClient: GraphClient;
   readonly profileClient: ProfileClient;
+  readonly modelRuntimeClient: ModelRuntimeClient;
 }
 
 export function AppShell({
@@ -92,10 +95,13 @@ export function AppShell({
   knowledgeClient,
   graphClient,
   profileClient,
+  modelRuntimeClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
   const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const drop = useNativeDrop({
     bridge: dropBridge,
     discoveryClient,
@@ -126,7 +132,10 @@ export function AppShell({
       style={layoutStyle}
     >
       <AppHeader />
-      <ToolRail />
+      <ToolRail
+        onOpenSettings={() => setSettingsOpen(true)}
+        settingsButtonRef={settingsButtonRef}
+      />
       <section
         aria-label="Sources"
         className={`source-panel${layout.navigationCollapsed ? " source-panel--collapsed" : ""}`}
@@ -231,6 +240,13 @@ export function AppShell({
         profileClient={profileClient}
         proposal={proposal}
       />
+      {settingsOpen ? (
+        <ModelSettingsDialog
+          client={modelRuntimeClient}
+          onClose={() => setSettingsOpen(false)}
+          triggerRef={settingsButtonRef}
+        />
+      ) : null}
       {drop.status === "hovering" ? (
         <div
           aria-label="Native drop target"

@@ -15,7 +15,12 @@ const primaryTools: readonly Tool[] = [
   { label: "Archive — coming later", icon: "archive", deferred: true },
 ];
 
-export function ToolRail() {
+interface ToolRailProps {
+  readonly onOpenSettings: () => void;
+  readonly settingsButtonRef: React.RefObject<HTMLButtonElement | null>;
+}
+
+export function ToolRail({ onOpenSettings, settingsButtonRef }: ToolRailProps) {
   return (
     <nav
       aria-label="Workbench tools"
@@ -39,10 +44,11 @@ export function ToolRail() {
         ))}
       </div>
       <button
-        aria-label="Settings — coming later"
+        aria-label="Settings"
         className="tool-rail__button tool-rail__settings"
-        disabled
-        title="Settings — coming later"
+        onClick={onOpenSettings}
+        ref={settingsButtonRef}
+        title="Settings"
         type="button"
       >
         <Icon name="settings" size={17} />

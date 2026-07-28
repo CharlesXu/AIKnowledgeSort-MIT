@@ -32,6 +32,11 @@ import {
   createTauriProfileClient,
 } from "./features/profiles/profileClient";
 import type { ProfileClient } from "./features/profiles/types";
+import {
+  createBrowserModelRuntimeClient,
+  createTauriModelRuntimeClient,
+} from "./features/models/modelRuntimeClient";
+import type { ModelRuntimeClient } from "./features/models/types";
 
 interface AppProps {
   readonly archiveClient?: ArchiveClient;
@@ -41,6 +46,7 @@ interface AppProps {
   readonly knowledgeClient?: KnowledgeClient;
   readonly graphClient?: GraphClient;
   readonly profileClient?: ProfileClient;
+  readonly modelRuntimeClient?: ModelRuntimeClient;
 }
 
 const browserDropBridge = createBrowserNativeDropBridge();
@@ -52,6 +58,7 @@ const browserNamingClient = createBrowserNamingClient();
 const browserKnowledgeClient = createBrowserKnowledgeClient();
 const browserGraphClient = createBrowserGraphClient();
 const browserProfileClient = createBrowserProfileClient();
+const browserModelRuntimeClient = createBrowserModelRuntimeClient();
 
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -65,6 +72,7 @@ export default function App({
   knowledgeClient,
   graphClient,
   profileClient,
+  modelRuntimeClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
 
@@ -97,6 +105,12 @@ export default function App({
       profileClient={
         profileClient ??
         (nativeRuntime ? createTauriProfileClient() : browserProfileClient)
+      }
+      modelRuntimeClient={
+        modelRuntimeClient ??
+        (nativeRuntime
+          ? createTauriModelRuntimeClient()
+          : browserModelRuntimeClient)
       }
     />
   );

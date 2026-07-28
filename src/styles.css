@@ -2269,6 +2269,230 @@ input:focus-visible,
   font-size: 11px;
 }
 
+.settings-overlay {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  background: rgb(28 29 33 / 42%);
+  backdrop-filter: blur(2px);
+}
+
+.model-settings {
+  display: grid;
+  width: min(880px, calc(100vw - 56px));
+  max-height: min(720px, calc(100vh - 56px));
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  overflow: hidden;
+  border: 1px solid #bbbcc2;
+  border-radius: 7px;
+  color: #292b31;
+  background: #f7f7f8;
+  box-shadow: 0 24px 70px rgb(24 25 29 / 28%);
+}
+
+.model-settings__header {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--divider);
+  background: #f1f1f3;
+}
+
+.model-settings__header h2,
+.model-settings__body h3 {
+  margin: 0;
+}
+
+.model-settings__header h2 {
+  margin-top: 2px;
+  font-size: 15px;
+}
+
+.model-settings__header button {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 4px;
+  color: #656872;
+  background: transparent;
+  font-size: 19px;
+}
+
+.model-settings__body {
+  display: grid;
+  min-height: 0;
+  grid-template-columns: minmax(300px, 1fr) minmax(300px, 0.9fr);
+}
+
+.model-settings__list,
+.model-settings__form {
+  min-width: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.model-settings__list {
+  border-right: 1px solid var(--divider);
+}
+
+.model-settings__body h3 {
+  margin-bottom: 12px;
+  color: #4f525b;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.model-config-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  padding: 11px;
+  border: 1px solid #dbdce0;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.model-config-row + .model-config-row {
+  margin-top: 8px;
+}
+
+.model-config-row strong,
+.model-config-row span,
+.model-config-row code,
+.model-config-row p {
+  display: block;
+  min-width: 0;
+}
+
+.model-config-row strong {
+  font-size: 12px;
+}
+
+.model-config-row span,
+.model-config-row p {
+  margin: 3px 0 0;
+  color: #747780;
+  font-size: 9.5px;
+}
+
+.model-config-row code {
+  margin-top: 5px;
+  overflow: hidden;
+  color: #555966;
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-config-row__actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+}
+
+.model-config-row__actions button,
+.model-settings__save {
+  min-height: 27px;
+  border: 1px solid #c9cad0;
+  border-radius: 4px;
+  color: #4e515a;
+  background: #f7f7f8;
+  font-size: 9px;
+}
+
+.model-config-row__actions button {
+  max-width: 72px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.model-settings__form {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  background: #fafafa;
+}
+
+.model-settings__form label {
+  display: grid;
+  gap: 4px;
+  color: #565962;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.model-settings__form input,
+.model-settings__form select {
+  width: 100%;
+  min-height: 29px;
+  box-sizing: border-box;
+  border: 1px solid #cbccd1;
+  border-radius: 4px;
+  padding: 4px 7px;
+  color: #30323a;
+  background: #fff;
+  font: inherit;
+  font-weight: 450;
+}
+
+.model-settings__form .model-settings__checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  line-height: 1.45;
+}
+
+.model-settings__checkbox input {
+  width: 13px;
+  min-height: 13px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+.model-settings__credential,
+.model-settings__empty {
+  margin: 0;
+  color: #737680;
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.model-settings__save {
+  align-self: flex-end;
+  padding: 0 12px;
+  border-color: #6e6296;
+  color: #fff;
+  background: var(--accent);
+}
+
+.model-settings__error {
+  margin: 0;
+  padding: 9px 16px;
+  border-top: 1px solid #e2c9c9;
+  color: #874c4c;
+  background: #fbf1f1;
+  font-size: 10px;
+}
+
+@media (max-width: 720px) {
+  .model-settings__body {
+    grid-template-columns: minmax(0, 1fr);
+    overflow: auto;
+  }
+
+  .model-settings__list {
+    border-right: 0;
+    border-bottom: 1px solid var(--divider);
+  }
+}
+
 @media (max-width: 1439px) {
   .workbench {
     grid-template-columns:
