@@ -344,7 +344,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo clippy --all-targets --all-features -
 git diff --check
 ```
 
-- [ ] **Step 4: Commit and merge after the gate**
+- [x] **Step 4: Commit and merge after the gate**
 
 ```bash
 git add README.md e2e/source-workbench.spec.ts docs/superpowers/plans/2026-07-28-model-comparison-kernel.md
