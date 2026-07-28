@@ -188,7 +188,17 @@ test("keeps Agent access local, unissued, and non-mutating in the browser fixtur
   );
   await expect(dialog.getByText("No Agent grants.")).toBeVisible();
   await expect(dialog.getByText(/one-time grant token/i)).toHaveCount(0);
-  await expect(dialog.getByText(/MCP connected/i)).toHaveCount(0);
+  await expect(dialog.getByText("STOPPED", { exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Start local MCP" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Desktop runtime is required for Agent access operations.",
+  );
+  await expect(
+    dialog.getByRole("region", { name: "Local MCP broker" })
+      .getByText(/http:\/\/127\.0\.0\.1:/),
+  ).toHaveCount(0);
+  await expect(dialog.getByLabel("Direct HTTP configuration")).toHaveCount(0);
+  await expect(dialog.getByLabel("stdio relay configuration")).toHaveCount(0);
   await expect(dialog.getByRole("button", {
     name: /cleanup execution|move|rename|delete|archive commit/i,
   })).toHaveCount(0);

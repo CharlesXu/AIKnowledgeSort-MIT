@@ -5,7 +5,7 @@ use cap_std::fs::{Dir, OpenOptions};
 use rmcp::model::{JsonObject, Tool, ToolAnnotations};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::io::Read;
 use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
@@ -161,8 +161,12 @@ fn cleanup_suggestions(request: CleanupRequest) -> Result<Value, String> {
         return Err("Cleanup facts must contain between 1 and 1000 entries".to_owned());
     }
     let mut groups = BTreeMap::<(String, u64), Vec<CleanupFact>>::new();
+    let mut names = HashSet::new();
     for fact in request.facts {
         validate_name(&fact.name)?;
+        if !names.insert(fact.name.clone()) {
+            return Err("Cleanup fact names must be unique".to_owned());
+        }
         if fact.sha256.len() != 64
             || !fact
                 .sha256

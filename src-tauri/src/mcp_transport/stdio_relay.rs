@@ -284,7 +284,11 @@ fn extract_sse_response(body: &[u8]) -> Result<Vec<u8>, String> {
         let Some(data) = line.strip_prefix("data:") else {
             continue;
         };
-        let data = data.strip_prefix(' ').unwrap_or(data).as_bytes().to_vec();
+        let data = data.strip_prefix(' ').unwrap_or(data);
+        if data.is_empty() {
+            continue;
+        }
+        let data = data.as_bytes().to_vec();
         validate_protocol_response(&data)?;
         if found.replace(data).is_some() {
             return Err("MCP broker returned multiple response events".to_owned());
@@ -382,7 +386,7 @@ mod tests {
     #[test]
     fn extracts_exactly_one_bounded_sse_protocol_message() {
         let message = extract_sse_response(
-            b"event: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
+            b"id: 0\nretry: 3000\ndata:\n\nevent: message\ndata: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{}}\n\n",
         )
         .unwrap();
         assert_eq!(message, br#"{"jsonrpc":"2.0","id":1,"result":{}}"#);

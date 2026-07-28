@@ -51,6 +51,18 @@ impl GovernedMcpService {
         headers: &HeaderMap,
         now: SystemTime,
     ) -> Result<AgentGrantSummary, Denial> {
+        let mut session = self.session.lock().map_err(|_| {
+            denial(
+                DenialCode::AuthorityUnavailable,
+                "MCP session state is unavailable",
+            )
+        })?;
+        if session.is_some() {
+            return Err(denial(
+                DenialCode::SessionMismatch,
+                "MCP session is already initialized",
+            ));
+        }
         let credentials = parse_credentials(headers)?;
         let grant = self.authority.verify_transport_credentials(
             &self.config_root,
@@ -70,18 +82,6 @@ impl GovernedMcpService {
             },
             now,
         )?;
-        let mut session = self.session.lock().map_err(|_| {
-            denial(
-                DenialCode::AuthorityUnavailable,
-                "MCP session state is unavailable",
-            )
-        })?;
-        if session.is_some() {
-            return Err(denial(
-                DenialCode::SessionMismatch,
-                "MCP session is already initialized",
-            ));
-        }
         *session = Some(AuthenticatedSession {
             grant: grant.clone(),
             issued,
@@ -93,10 +93,32 @@ impl GovernedMcpService {
     pub fn list_tools_from_headers(
         &self,
         headers: &HeaderMap,
+        mcp_request_id: &str,
         now: SystemTime,
     ) -> Result<Vec<Tool>, Denial> {
         let (credentials, session) = self.verify_request(headers, now)?;
         ensure_session_identity(&credentials, &session)?;
+        let authorization_tool = session
+            .grant
+            .tool_ids
+            .first()
+            .ok_or_else(|| denial(DenialCode::ToolDenied, "Agent grant has no tools"))?
+            .clone();
+        self.authority.authorize_request(
+            AuthorizeRequest {
+                grant_id: credentials.grant_id,
+                agent_id: credentials.agent_id,
+                session_id: session.issued.session_id.clone(),
+                session_token: session.issued.session_token,
+                request_id: replay_identity(&session.issued.session_id, mcp_request_id),
+                tool_id: authorization_tool,
+                scope_id: None,
+                request_bytes: 1,
+                response_budget_bytes: session.grant.limits.max_response_bytes,
+                transport_origin: credentials.origin,
+            },
+            now,
+        )?;
         Ok(session
             .grant
             .tool_ids
@@ -237,8 +259,10 @@ impl ServerHandler for GovernedMcpService {
         context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         let headers = request_headers(&context)?;
+        let request_id = serde_json::to_string(&context.id)
+            .map_err(|_| McpError::internal_error("MCP request id is invalid", None))?;
         let tools = self
-            .list_tools_from_headers(headers, SystemTime::now())
+            .list_tools_from_headers(headers, &request_id, SystemTime::now())
             .map_err(denial_as_protocol_error)?;
         Ok(ListToolsResult {
             tools,
@@ -435,7 +459,9 @@ mod tests {
             .initialize_from_headers(&HeaderMap::new(), now())
             .is_err());
         service.initialize_from_headers(&headers, now()).unwrap();
-        let tools = service.list_tools_from_headers(&headers, now()).unwrap();
+        let tools = service
+            .list_tools_from_headers(&headers, "list-1", now())
+            .unwrap();
         let names = tools
             .iter()
             .map(|tool| tool.name.as_ref())
@@ -525,6 +551,33 @@ mod tests {
         assert_eq!(cleanup["executionAvailable"], false);
         assert_eq!(cleanup["suggestions"][0]["retain"], "source.pdf");
         assert_eq!(cleanup["suggestions"][0]["reviewCandidates"][0], "copy.pdf");
+
+        let ambiguous_cleanup = service.call_tool_from_headers(
+            &headers,
+            "request-4",
+            CallToolRequestParams::new("cleanup.suggest").with_arguments(args(json!({
+                "facts": [
+                    {
+                        "name": "duplicate.pdf",
+                        "sha256": "b".repeat(64),
+                        "sizeBytes": 42,
+                        "sourceFormat": true
+                    },
+                    {
+                        "name": "duplicate.pdf",
+                        "sha256": "b".repeat(64),
+                        "sizeBytes": 42,
+                        "sourceFormat": false
+                    }
+                ]
+            }))),
+            now(),
+        );
+        assert!(matches!(
+            ambiguous_cleanup,
+            Err(CallFailure::Invalid(ref message))
+                if message == "Cleanup fact names must be unique"
+        ));
     }
 
     #[test]
@@ -535,14 +588,32 @@ mod tests {
 
         let mut spoofed = headers.clone();
         spoofed.insert("x-aiks-agent-id", HeaderValue::from_static("spoofed-agent"));
-        assert!(service.list_tools_from_headers(&spoofed, now()).is_err());
+        assert!(service
+            .list_tools_from_headers(&spoofed, "list-spoofed", now())
+            .is_err());
 
         authority
             .revoke(&config.0, &issued.grant.grant_id, now())
             .unwrap();
         let denied = service
-            .list_tools_from_headers(&headers, now())
+            .list_tools_from_headers(&headers, "list-revoked", now())
             .unwrap_err();
         assert_eq!(denied.code, DenialCode::RevokedGrant);
+    }
+
+    #[test]
+    fn rejects_replayed_tool_listing_requests() {
+        let (config, _scope, authority, _issued, headers) = setup();
+        let service = GovernedMcpService::new(authority, config.0.clone());
+        service.initialize_from_headers(&headers, now()).unwrap();
+
+        service
+            .list_tools_from_headers(&headers, "list-replay", now())
+            .unwrap();
+        let denied = service
+            .list_tools_from_headers(&headers, "list-replay", now())
+            .unwrap_err();
+
+        assert_eq!(denied.code, DenialCode::ReplayedRequest);
     }
 }

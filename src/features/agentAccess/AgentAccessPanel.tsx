@@ -194,7 +194,7 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
           </div>
           <code>{state?.toolCatalogVersion ?? "agent-tools-v1"}</code>
         </div>
-        <div className="agent-transport">
+        <section aria-label="Local MCP broker" className="agent-transport">
           <div>
             <strong>Local MCP broker</strong>
             <span>{transport?.running ? "RUNNING · loopback only" : "STOPPED"}</span>
@@ -209,7 +209,7 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
               Start local MCP
             </button>
           )}
-        </div>
+        </section>
         {state?.grants.length ? state.grants.map((grant) => (
           <article className="agent-grant-row" key={grant.grantId}>
             <div className="agent-grant-row__title">

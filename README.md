@@ -165,13 +165,56 @@ Authorized session/request events and desktop grant changes create immutable,
 token-free local audit records. The browser preview rejects every Agent-access
 operation and never fabricates a grant or token.
 
+## Governed local MCP transports
+
+The desktop can explicitly start and stop one stateful MCP Streamable HTTP
+broker at `http://127.0.0.1:<assigned-port>/mcp`. It binds only the literal IPv4
+loopback interface, validates the exact bound `Host`, rejects `OPTIONS`, applies
+a 1 MiB global body limit plus the grant request limit, emits no permissive CORS
+policy, and requires all of these headers on every direct request:
+
+- `Authorization: Bearer <one-time-grant-token>`
+- `X-AIKS-Agent-Id: <agent-id>`
+- `X-AIKS-Grant-Id: <grant-id>`
+- `Mcp-Session-Id: <broker-issued-session>` after initialization
+
+Non-browser clients may omit `Origin`. If an `Origin` header is present, it must
+be one of at most eight canonical literal-loopback HTTP origins explicitly
+stored in the grant and remain identical for the authenticated session. DNS
+names such as `localhost`, wildcard/null origins, credentials, paths, queries,
+fragments, implicit ports, HTTPS, LAN addresses, and origin drift are rejected.
+
+The same application executable supports a standard line-delimited stdio relay:
+
+```text
+ai-knowledge-sort --mcp-stdio-relay --broker-url http://127.0.0.1:<port>/mcp
+```
+
+The relay requires `AIKS_MCP_AGENT_ID`, `AIKS_MCP_GRANT_ID`, and
+`AIKS_MCP_GRANT_TOKEN` in its environment. It accepts no token CLI argument,
+disables proxy inheritance and redirects, bounds request/response frames, and
+holds only HTTP/session state. It never opens a scope or creates an alternate
+permission authority. Settings shows reviewable direct-HTTP and stdio templates
+only while the one-time token remains in component memory; dismissing the token
+removes them, and no third-party runtime configuration is modified automatically.
+
+The official Rust MCP SDK owns protocol negotiation, JSON-RPC framing, SSE, and
+stateful session routing. Every tool call still crosses the same Rust grant,
+session, scope, replay, expiry, revocation, request-count, and byte-budget
+authorization boundary. `capabilities.read`, bounded no-follow `knowledge.read`,
+parsed bounded `graph.read`, and exact-SHA-256 review-only `cleanup.suggest` are
+implemented. `comparison.run` and `classification.propose` return a structured
+`notReady` result until dedicated governed adapters exist; no semantic output is
+fabricated. There is no MCP move, rename, delete, archive commit, cleanup
+execution, arbitrary command, ambient path, or automatic grant reactivation.
+
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
 automatic classification or naming, physical source renaming, user-controlled
 original cleanup, classified destination paths, automatic graph inference,
-model-generated knowledge, MCP stdio/Streamable HTTP transports, MCP JSON-RPC
-dispatch, automatic grant reactivation, external Agent-runtime smoke tests,
-GraphRAG indexing/retrieval, a 3D graph, secure keychain integration, and URL
-profile import remain unimplemented.
+model-generated knowledge, automatic grant reactivation, write-capable MCP
+tools, third-party runtime installation/configuration, GraphRAG
+indexing/retrieval, a 3D graph, secure keychain integration, and URL profile
+import remain unimplemented.
 Those future integrations must use the same cited-fact, single-use batch, exact
 identity, explicit archive-confirmation, and Agent-grant boundaries.

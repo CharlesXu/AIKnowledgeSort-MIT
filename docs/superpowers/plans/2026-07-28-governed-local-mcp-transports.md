@@ -47,21 +47,21 @@
 - Modify: `src-tauri/src/agent_access/authority.rs`
 - Modify: `src/features/agentAccess/types.ts`
 
-- [ ] **Step 1: Write failing schema and authority tests**
+- [x] **Step 1: Write failing schema and authority tests**
 
 Add vectors proving an empty origin list is valid; at most eight exact `http://127.0.0.1:<port>` or `http://[::1]:<port>` origins are accepted; duplicates, wildcard, `null`, `localhost`, credentials, path/query/fragment, missing explicit port, non-HTTP, non-loopback, control characters, and unknown JSON fields are rejected. Open one Agent session with an allowed origin and prove every authorization request must carry that identical origin; spoofed, missing, or changed origin is denied. Prove no-Origin stdio/CLI sessions remain allowed but cannot later acquire an Origin.
 
-- [ ] **Step 2: Run the focused tests and verify RED**
+- [x] **Step 2: Run the focused tests and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib agent_access`
 
 Expected: FAIL because grant requests/records and sessions do not contain origin policy or binding.
 
-- [ ] **Step 3: Implement the minimal policy**
+- [x] **Step 3: Implement the minimal policy**
 
 Add `allowed_http_origins: Vec<String>` to grant requests, persisted records, summaries, and TypeScript DTOs. Add `transport_origin: Option<String>` to `OpenSessionRequest` and `AuthorizeRequest`; validate with one shared strict parser. Retain the normalized origin in `AgentSession`. Add `verify_transport_credentials(config_root, grant_id, agent_id, grant_token, origin, now)` for subsequent HTTP requests; it must re-read current persisted grant state under the authority lock, verify the token digest and active state, and reject origin drift without returning secrets or capabilities.
 
-- [ ] **Step 4: Run focused/full tests and commit**
+- [x] **Step 4: Run focused/full tests and commit**
 
 Run:
 
@@ -85,7 +85,7 @@ Commit: `feat: bind agent grants to explicit HTTP origins`
 - Create: `src-tauri/src/mcp_transport/mod.rs`
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Pin dependencies and write failing handler tests**
+- [x] **Step 1: Pin dependencies and write failing handler tests**
 
 Pin `rmcp = "=2.2.0"` with only `server`, `transport-io`, `transport-streamable-http-server`, `transport-streamable-http-server-session`, and `tower`; add Axum 0.8 and the minimum HTTP/body utilities required by the official service. Tests create an active grant and assert:
 
@@ -97,23 +97,23 @@ Pin `rmcp = "=2.2.0"` with only `server`, `transport-io`, `transport-streamable-
 6. revocation and expiry take effect without restarting the MCP session;
 7. input/output/request-count limits are enforced.
 
-- [ ] **Step 2: Run handler tests and verify RED**
+- [x] **Step 2: Run handler tests and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib mcp_transport::service`
 
 Expected: FAIL because `mcp_transport` does not exist.
 
-- [ ] **Step 3: Implement the authenticated ServerHandler**
+- [x] **Step 3: Implement the authenticated ServerHandler**
 
 Override `initialize`, `list_tools`, and `call_tool`. Read HTTP request parts from `RequestContext.extensions`, parse exact headers without logging values, and store only the issued Agent session token inside the per-MCP-session handler. Derive a safe grant-wide replay identity as lowercase SHA-256 over a length-prefixed tuple of MCP session ID and JSON-RPC request ID. Every list/call first re-verifies transport credentials and then calls `AgentAccessAuthority::authorize_request`; there is no alternate tool path.
 
 Return MCP protocol errors only for malformed/unknown methods. Authorization and tool failures use visible `CallToolResult::error` content containing stable denial codes but no paths beyond already granted display metadata and no secret values.
 
-- [ ] **Step 4: Implement bounded real tools**
+- [x] **Step 4: Implement bounded real tools**
 
 `capabilities.read` returns the exact granted tool IDs, scope IDs/display labels, status, expiry, and limits. `knowledge.read` accepts `{scopeId, relativePath}` with a normalized relative path, `.md` extension, no parent/absolute/prefix component, no symlink at any opened component, regular-file requirement, and an output cap bounded by the grant. `graph.read` applies the same policy to `.json` and returns parsed JSON only after full bounded validation. `cleanup.suggest` accepts at most 1,000 digest/name/size facts, validates literal SHA-256, groups exact duplicate identities, and returns review-only suggestions with `executionAvailable: false`; it performs no filesystem access. `comparison.run` and `classification.propose` return a visible `notReady` semantic-advice result with zero mutation.
 
-- [ ] **Step 5: Run tests, strict lints, and commit**
+- [x] **Step 5: Run tests, strict lints, and commit**
 
 Run:
 
@@ -134,21 +134,21 @@ Commit: `feat: dispatch governed MCP tools`
 - Modify: `src-tauri/src/mcp_transport/mod.rs`
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Write failing listener and HTTP tests**
+- [x] **Step 1: Write failing listener and HTTP tests**
 
 Cover literal loopback acceptance and denial of wildcard/LAN/DNS bind inputs; fixed `/mcp` routing; exact bound Host authority; POST content type/Accept requirements; stateful initialize with `Mcp-Session-Id`; subsequent POST/GET/DELETE routing; a global 1 MiB body cap plus smaller grant-specific cap; disabled CORS/preflight; untrusted Origin and CSRF-style requests; one explicitly grant-allowed authenticated origin; port collision; idempotent stop; and revocation while connected.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib mcp_transport::http`
 
 Expected: FAIL because no broker exists.
 
-- [ ] **Step 3: Implement listener lifecycle**
+- [x] **Step 3: Implement listener lifecycle**
 
 `McpTransportAuthority` binds `127.0.0.1:<requested-port>` where port `0` requests an OS-assigned port, constructs `StreamableHttpService` with `LocalSessionManager`, stateful mode, exact bound Host, no external session restoration, and a cancellation token. An outer bounded-auth service buffers at most 1 MiB, authenticates credentials before passing bytes onward, applies the grant-specific input limit, rejects `OPTIONS`, and never emits permissive CORS headers. Start/stop/inspect commands expose only status, loopback URL, current executable path, and errors; they expose no grant token.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib mcp_transport::http`
 
@@ -161,21 +161,21 @@ Commit: `feat: host loopback streamable HTTP MCP`
 - Modify: `src-tauri/src/main.rs`
 - Modify: `src-tauri/Cargo.toml`
 
-- [ ] **Step 1: Write failing relay unit tests**
+- [x] **Step 1: Write failing relay unit tests**
 
 Prove strict literal-loopback broker URLs, required environment credentials, no token CLI argument, one JSON object per newline, a 1 MiB line cap, invalid/batch JSON rejection, no stdout logs, stateful session-header retention, 202 notification handling, JSON and bounded SSE response extraction, redirect denial, proxy-disabled client construction, timeout behavior, and token redaction from every error.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib mcp_transport::stdio_relay`
 
 Expected: FAIL because the relay does not exist.
 
-- [ ] **Step 3: Implement headless relay mode**
+- [x] **Step 3: Implement headless relay mode**
 
 Before Tauri startup, `main` recognizes exactly `--mcp-stdio-relay --broker-url <literal-loopback-http-url>`. It builds a redirect-free, proxy-free, bounded Reqwest client, copies static credential headers from the three environment variables, retains the broker-issued `Mcp-Session-Id`, forwards protocol-version headers after negotiation, and translates request/notification responses back to newline-delimited stdout. stderr may contain bounded operational diagnostics but never credential/header values or request bodies.
 
-- [ ] **Step 4: Run tests and commit**
+- [x] **Step 4: Run tests and commit**
 
 Run:
 
@@ -196,11 +196,11 @@ Commit: `feat: relay stdio MCP through desktop authority`
 - Modify: `src/features/agentAccess/AgentAccessPanel.test.tsx`
 - Modify: `src/styles.css`
 
-- [ ] **Step 1: Write failing client and accessible UI tests**
+- [x] **Step 1: Write failing client and accessible UI tests**
 
 Assert exact Tauri calls `inspect_mcp_transport`, `start_mcp_transport`, and `stop_mcp_transport`; browser adapters reject all three. UI tests prove explicit start/stop, literal loopback URL, no running claim in browser mode, optional allowed-origin entry with explanation, and direct HTTP plus stdio templates shown only while the one-time token remains in component memory. Dismissing the token removes every credential-bearing template. No token reaches localStorage, sessionStorage, logs, persistent grant summaries, clipboard, or query strings.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run:
 
@@ -208,11 +208,11 @@ Run:
 npm test -- --run src/features/agentAccess/agentAccessClient.test.ts src/features/agentAccess/AgentAccessPanel.test.tsx
 ```
 
-- [ ] **Step 3: Implement minimal controls and templates**
+- [x] **Step 3: Implement minimal controls and templates**
 
 The default start request uses port `0`. The direct HTTP template shows URL plus three required header names. The stdio template shows current executable, `--mcp-stdio-relay`, loopback broker URL, and the three environment variable names/values; it remains a visible user-reviewed template and is never written to third-party config automatically. Keep the existing one-time-token warning and dismiss action.
 
-- [ ] **Step 4: Run frontend tests/build and commit**
+- [x] **Step 4: Run frontend tests/build and commit**
 
 Run:
 
@@ -231,15 +231,15 @@ Commit: `feat: manage local MCP transports in settings`
 - Modify: `README.md`
 - Modify: `docs/superpowers/plans/2026-07-28-governed-local-mcp-transports.md`
 
-- [ ] **Step 1: Add direct HTTP and subprocess stdio smoke tests**
+- [x] **Step 1: Add direct HTTP and subprocess stdio smoke tests**
 
 Start a real broker on port `0` with an active temporary grant. Direct HTTP must complete initialize, initialized, tools/list, capabilities.read, replay denial, untrusted-Origin denial, and DELETE. Spawn `CARGO_BIN_EXE_ai-knowledge-sort` in relay mode with credentials in environment, exchange the same MCP lifecycle over stdin/stdout, and prove revoked access fails without restarting either transport. Capture stderr and assert it contains neither grant nor session token.
 
-- [ ] **Step 2: Update browser E2E and README honestly**
+- [x] **Step 2: Update browser E2E and README honestly**
 
 Browser E2E must see the desktop-runtime error and no running broker, URL, token, or config template. README documents the loopback broker, stdio relay, exact credential headers/env names, explicit Origin policy, start/stop lifecycle, four real/read-only tools, two `notReady` semantic adapters, and no cleanup execution. Automatic grant reactivation, model/classification MCP adapters, write-capable MCP tools, GraphRAG, 3D graph, secure keychain, URL profile import, and external third-party runtime installation remain unimplemented.
 
-- [ ] **Step 3: Run the full release gate**
+- [x] **Step 3: Run the full release gate**
 
 Run:
 
