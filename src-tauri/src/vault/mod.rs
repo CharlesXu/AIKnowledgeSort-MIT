@@ -50,6 +50,55 @@ pub(crate) struct VaultLease {
     pub directory: Dir,
 }
 
+impl VaultLease {
+    pub(crate) fn occupied_names_for_digest(
+        &self,
+        digest: &str,
+        max_names: usize,
+    ) -> Result<Vec<String>, String> {
+        if digest.len() != 64
+            || !digest
+                .bytes()
+                .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        {
+            return Err("Invalid digest namespace".to_owned());
+        }
+        let relative = Path::new("Originals").join(digest);
+        match self.directory.symlink_metadata(&relative) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                return Err("Vault digest namespace is not a trusted directory".to_owned())
+            }
+            Ok(_) => {}
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => {
+                return Err(format!(
+                    "Vault digest namespace cannot be inspected: {error}"
+                ))
+            }
+        }
+
+        let entries = self
+            .directory
+            .read_dir(&relative)
+            .map_err(|error| format!("Vault digest namespace cannot be read: {error}"))?;
+        let mut names = Vec::new();
+        for entry in entries {
+            let entry =
+                entry.map_err(|error| format!("Vault digest entry cannot be read: {error}"))?;
+            let name = entry
+                .file_name()
+                .into_string()
+                .map_err(|_| "Vault digest entry name is not valid UTF-8".to_owned())?;
+            names.push(name);
+            if names.len() > max_names {
+                return Err("Vault digest namespace exceeds the naming limit".to_owned());
+            }
+        }
+        names.sort();
+        Ok(names)
+    }
+}
+
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct VaultAuthorityRecord {
@@ -304,6 +353,37 @@ mod tests {
         assert_product_directories(&first);
         assert!(registry.authorize_path(&second).is_err());
         assert!(second.read_dir().expect("read second").next().is_none());
+    }
+
+    #[test]
+    fn reads_the_actual_bounded_digest_namespace_for_name_collisions() {
+        let tree = TempTree::new();
+        let vault = tree.directory("vault");
+        let registry = VaultAuthorityRegistry::default();
+        let summary = registry.authorize_path(&vault).expect("authorize Vault");
+        let digest = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let namespace = vault.join("Originals").join(digest);
+        fs::create_dir(&namespace).expect("create digest namespace");
+        fs::write(namespace.join("Report.pdf"), b"one").expect("write occupied name");
+        fs::write(namespace.join("Other.pdf"), b"two").expect("write second occupied name");
+
+        let lease = registry.lease(&summary.authority_id).expect("lease Vault");
+        assert_eq!(
+            lease
+                .occupied_names_for_digest(digest, 2)
+                .expect("read occupied names"),
+            vec!["Other.pdf".to_owned(), "Report.pdf".to_owned()]
+        );
+        assert!(lease.occupied_names_for_digest(digest, 1).is_err());
+        assert_eq!(
+            lease
+                .occupied_names_for_digest(
+                    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    2,
+                )
+                .expect("missing namespace"),
+            Vec::<String>::new()
+        );
     }
 
     #[cfg(unix)]

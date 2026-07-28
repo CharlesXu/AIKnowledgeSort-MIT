@@ -6,7 +6,7 @@ mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
-pub mod naming;
+mod naming;
 pub mod profiles;
 mod vault;
 
@@ -19,6 +19,7 @@ pub fn run() {
         .manage(discovery::DropWorkLimiter::default())
         .manage(vault::VaultAuthorityRegistry::default())
         .manage(archive::ArchivePlanRegistry::default())
+        .manage(naming::NamingBatchRegistry::default())
         .manage(profiles::ProfileAuthority::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};
@@ -78,6 +79,7 @@ pub fn run() {
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
             archive::confirm_archive_plan,
+            naming::create_naming_batch,
             profiles::inspect_profile_state,
             profiles::import_local_profile_candidate,
             profiles::decide_profile_candidate
