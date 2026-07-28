@@ -1,6 +1,6 @@
 use super::schema::{
-    tool_catalog, validate_safe_id, AgentResourceLimits, AgentScopeSummary, MAX_GRANT_TTL_SECONDS,
-    MAX_SCOPES, MIN_GRANT_TTL_SECONDS,
+    tool_catalog, validate_http_origin, validate_safe_id, AgentResourceLimits, AgentScopeSummary,
+    MAX_GRANT_TTL_SECONDS, MAX_HTTP_ORIGINS, MAX_SCOPES, MIN_GRANT_TTL_SECONDS,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -22,6 +22,8 @@ pub struct AgentGrantRecord {
     pub agent_id: String,
     pub label: String,
     pub tool_ids: Vec<String>,
+    #[serde(default)]
+    pub allowed_http_origins: Vec<String>,
     pub scopes: Vec<AgentScopeSummary>,
     pub created_at_unix_ms: u64,
     pub expires_at_unix_ms: u64,
@@ -233,6 +235,16 @@ fn validate_state(state: &PersistedAgentAccess) -> Result<(), String> {
         }
         if grant.tool_ids.is_empty() || grant.tool_ids.len() > catalog.len() {
             return Err("Persisted Agent tool set is invalid".to_owned());
+        }
+        if grant.allowed_http_origins.len() > MAX_HTTP_ORIGINS {
+            return Err("Persisted Agent HTTP origin set is invalid".to_owned());
+        }
+        let mut origins = HashSet::with_capacity(grant.allowed_http_origins.len());
+        for origin in &grant.allowed_http_origins {
+            let normalized = validate_http_origin(origin)?;
+            if !origins.insert(normalized) {
+                return Err("Persisted Agent HTTP origin set is invalid".to_owned());
+            }
         }
         let mut tools = HashSet::with_capacity(grant.tool_ids.len());
         if grant

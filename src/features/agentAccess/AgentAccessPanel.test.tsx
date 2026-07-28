@@ -13,6 +13,7 @@ const grant: AgentGrantSummary = {
   agentId: "codex-desktop",
   label: "Codex Desktop",
   toolIds: ["capabilities.read"],
+  allowedHttpOrigins: [],
   scopes: [scope],
   createdAtUnixMs: 2_000_000_000_000,
   expiresAtUnixMs: 2_000_003_600_000,
@@ -72,6 +73,7 @@ describe("AgentAccessPanel", () => {
       agentId: "codex-desktop",
       label: "Codex Desktop",
       toolIds: ["capabilities.read"],
+      allowedHttpOrigins: [],
       expiresInSeconds: 3_600,
       limits: {
         maxRequestsPerSession: 1_000,

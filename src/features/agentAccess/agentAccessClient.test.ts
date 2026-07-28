@@ -10,6 +10,7 @@ const request: CreateAgentGrantRequest = {
   agentId: "codex-desktop",
   label: "Codex Desktop",
   toolIds: ["capabilities.read", "graph.read"],
+  allowedHttpOrigins: [],
   expiresInSeconds: 3_600,
   limits: {
     maxRequestsPerSession: 1_000,

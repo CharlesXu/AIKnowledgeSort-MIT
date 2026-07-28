@@ -28,6 +28,7 @@ export interface CreateAgentGrantRequest {
   readonly agentId: string;
   readonly label: string;
   readonly toolIds: readonly string[];
+  readonly allowedHttpOrigins: readonly string[];
   readonly expiresInSeconds: number;
   readonly limits: AgentResourceLimits;
 }
@@ -37,6 +38,7 @@ export interface AgentGrantSummary {
   readonly agentId: string;
   readonly label: string;
   readonly toolIds: readonly string[];
+  readonly allowedHttpOrigins: readonly string[];
   readonly scopes: readonly AgentScopeSummary[];
   readonly createdAtUnixMs: number;
   readonly expiresAtUnixMs: number;

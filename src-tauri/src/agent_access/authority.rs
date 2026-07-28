@@ -1,7 +1,7 @@
 use super::schema::{
-    issue_token, tool_catalog, validate_safe_id, verify_token, AgentAccessState, AgentGrantStatus,
-    AgentGrantSummary, AgentScopeSummary, AgentToolDescriptor, AuthorizeRequest,
-    CreateAgentGrantRequest, Denial, DenialCode, IssuedAgentGrant, IssuedSession,
+    issue_token, tool_catalog, validate_http_origin, validate_safe_id, verify_token,
+    AgentAccessState, AgentGrantStatus, AgentGrantSummary, AgentScopeSummary, AgentToolDescriptor,
+    AuthorizeRequest, CreateAgentGrantRequest, Denial, DenialCode, IssuedAgentGrant, IssuedSession,
     NativeScopeSelection, OpenSessionRequest, MAX_SCOPES, TOOL_CATALOG_VERSION,
 };
 use super::store::{AgentAccessStore, AgentGrantRecord, PersistedAgentAccess};
@@ -38,6 +38,7 @@ struct AgentSession {
     session_token_sha256: String,
     expires_at: SystemTime,
     request_count: u32,
+    transport_origin: Option<String>,
 }
 
 #[derive(Debug)]
@@ -62,6 +63,64 @@ pub struct AgentAccessAuthority {
 }
 
 impl AgentAccessAuthority {
+    pub fn verify_transport_credentials(
+        &self,
+        config_root: &Path,
+        grant_id: &str,
+        agent_id: &str,
+        grant_token: &str,
+        transport_origin: Option<&str>,
+        now: SystemTime,
+    ) -> Result<AgentGrantSummary, Denial> {
+        validate_safe_id("Agent grant id", grant_id)
+            .and_then(|_| validate_safe_id("Agent id", agent_id))
+            .map_err(|message| denial(DenialCode::InvalidRequest, message))?;
+        if !valid_bearer_shape(grant_token) {
+            return Err(denial(
+                DenialCode::Unauthenticated,
+                "Agent authentication failed",
+            ));
+        }
+        let normalized_origin = transport_origin
+            .map(validate_http_origin)
+            .transpose()
+            .map_err(|message| denial(DenialCode::OriginDenied, message))?;
+        let now_ms =
+            unix_ms(now).map_err(|message| denial(DenialCode::AuthorityUnavailable, message))?;
+        let mut state = self.state.lock().map_err(|_| {
+            denial(
+                DenialCode::AuthorityUnavailable,
+                "Agent access authority is unavailable",
+            )
+        })?;
+        ensure_loaded(&mut state, config_root)
+            .map_err(|message| denial(DenialCode::AuthorityUnavailable, message))?;
+        let record = state
+            .persisted
+            .grants
+            .iter()
+            .find(|grant| grant.grant_id == grant_id)
+            .cloned()
+            .ok_or_else(|| denial(DenialCode::UnknownGrant, "Agent grant does not exist"))?;
+        ensure_grant_usable(&state, &record, now_ms)?;
+        if record.agent_id != agent_id || !verify_token(grant_token, &record.grant_token_sha256) {
+            return Err(denial(
+                DenialCode::Unauthenticated,
+                "Agent authentication failed",
+            ));
+        }
+        if normalized_origin
+            .as_ref()
+            .is_some_and(|origin| !record.allowed_http_origins.contains(origin))
+        {
+            return Err(denial(
+                DenialCode::OriginDenied,
+                "Agent HTTP origin is not granted",
+            ));
+        }
+        Ok(summary(&record, true, now_ms))
+    }
+
     pub fn open_session(
         &self,
         config_root: &Path,
@@ -104,6 +163,20 @@ impl AgentAccessAuthority {
                 "Agent authentication failed",
             ));
         }
+        let transport_origin = match request.transport_origin.as_deref() {
+            Some(origin) => {
+                let normalized = validate_http_origin(origin)
+                    .map_err(|message| denial(DenialCode::OriginDenied, message))?;
+                if !record.allowed_http_origins.contains(&normalized) {
+                    return Err(denial(
+                        DenialCode::OriginDenied,
+                        "Agent HTTP origin is not granted",
+                    ));
+                }
+                Some(normalized)
+            }
+            None => None,
+        };
         let session_id = Uuid::new_v4().simple().to_string();
         let (session_token, session_token_sha256) =
             issue_token().map_err(|message| denial(DenialCode::AuthorityUnavailable, message))?;
@@ -130,6 +203,7 @@ impl AgentAccessAuthority {
                 session_token_sha256,
                 expires_at,
                 request_count: 0,
+                transport_origin,
             },
         );
         Ok(IssuedSession {
@@ -183,6 +257,18 @@ impl AgentAccessAuthority {
             return Err(denial(
                 DenialCode::Unauthenticated,
                 "Agent authentication failed",
+            ));
+        }
+        let request_origin = request
+            .transport_origin
+            .as_deref()
+            .map(validate_http_origin)
+            .transpose()
+            .map_err(|message| denial(DenialCode::OriginDenied, message))?;
+        if session.transport_origin != request_origin {
+            return Err(denial(
+                DenialCode::OriginDenied,
+                "Agent HTTP origin does not match the authenticated session",
             ));
         }
         if state
@@ -382,6 +468,7 @@ impl AgentAccessAuthority {
             agent_id: request.agent_id,
             label: request.label,
             tool_ids: request.tool_ids,
+            allowed_http_origins: request.allowed_http_origins,
             scopes: selection
                 .roots
                 .iter()
@@ -612,6 +699,7 @@ fn summary(record: &AgentGrantRecord, active: bool, now_ms: u64) -> AgentGrantSu
         agent_id: record.agent_id.clone(),
         label: record.label.clone(),
         tool_ids: record.tool_ids.clone(),
+        allowed_http_origins: record.allowed_http_origins.clone(),
         scopes: record.scopes.clone(),
         created_at_unix_ms: record.created_at_unix_ms,
         expires_at_unix_ms: record.expires_at_unix_ms,
@@ -683,6 +771,7 @@ mod tests {
             agent_id: "codex-desktop".to_owned(),
             label: "Codex Desktop".to_owned(),
             tool_ids: vec!["capabilities.read".to_owned(), "graph.read".to_owned()],
+            allowed_http_origins: Vec::new(),
             expires_in_seconds: 3_600,
             limits: AgentResourceLimits {
                 max_requests_per_session: 1_000,
@@ -710,6 +799,26 @@ mod tests {
         (config, scope, authority, issued)
     }
 
+    fn active_http_grant() -> (
+        TempTree,
+        TempTree,
+        AgentAccessAuthority,
+        crate::agent_access::schema::IssuedAgentGrant,
+    ) {
+        let config = TempTree::new("http-config");
+        let scope = TempTree::new("http-scope");
+        let authority = AgentAccessAuthority::default();
+        let selection = authority
+            .select_paths(vec![scope.root.clone()], now())
+            .unwrap();
+        let mut grant_request = request(selection.selection_id);
+        grant_request.allowed_http_origins = vec!["http://127.0.0.1:43123".to_owned()];
+        let issued = authority
+            .create_grant(&config.root, grant_request, now())
+            .unwrap();
+        (config, scope, authority, issued)
+    }
+
     fn open_session(
         config: &TempTree,
         authority: &AgentAccessAuthority,
@@ -722,6 +831,7 @@ mod tests {
                     grant_id: issued.grant.grant_id.clone(),
                     agent_id: issued.grant.agent_id.clone(),
                     grant_token: issued.grant_token.clone(),
+                    transport_origin: None,
                 },
                 now(),
             )
@@ -743,6 +853,7 @@ mod tests {
             scope_id: Some(issued.grant.scopes[0].scope_id.clone()),
             request_bytes: 4 * 1024,
             response_budget_bytes: 8 * 1024,
+            transport_origin: None,
         }
     }
 
@@ -867,11 +978,13 @@ mod tests {
                 grant_id: issued.grant.grant_id.clone(),
                 agent_id: "spoofed-agent".to_owned(),
                 grant_token: issued.grant_token.clone(),
+                transport_origin: None,
             },
             OpenSessionRequest {
                 grant_id: issued.grant.grant_id.clone(),
                 agent_id: issued.grant.agent_id.clone(),
                 grant_token: "0".repeat(64),
+                transport_origin: None,
             },
         ] {
             assert!(authority
@@ -886,6 +999,131 @@ mod tests {
                 .unwrap_err()
                 .code,
             DenialCode::UnknownSession
+        );
+    }
+
+    #[test]
+    fn binds_one_granted_http_origin_to_the_authenticated_session() {
+        let (config, _scope, authority, issued) = active_http_grant();
+        assert_eq!(
+            issued.grant.allowed_http_origins,
+            vec!["http://127.0.0.1:43123"]
+        );
+
+        let denied = authority
+            .open_session(
+                &config.root,
+                OpenSessionRequest {
+                    grant_id: issued.grant.grant_id.clone(),
+                    agent_id: issued.grant.agent_id.clone(),
+                    grant_token: issued.grant_token.clone(),
+                    transport_origin: Some("http://127.0.0.1:43124".to_owned()),
+                },
+                now(),
+            )
+            .err()
+            .expect("reject ungranted origin");
+        assert_eq!(denied.code, DenialCode::OriginDenied);
+
+        let session = authority
+            .open_session(
+                &config.root,
+                OpenSessionRequest {
+                    grant_id: issued.grant.grant_id.clone(),
+                    agent_id: issued.grant.agent_id.clone(),
+                    grant_token: issued.grant_token.clone(),
+                    transport_origin: Some("http://127.0.0.1:43123".to_owned()),
+                },
+                now(),
+            )
+            .unwrap();
+        let mut allowed = authorize_request(&issued, &session, "http-request-1");
+        allowed.transport_origin = Some("http://127.0.0.1:43123".to_owned());
+        authority.authorize_request(allowed, now()).unwrap();
+
+        for (request_id, origin) in [
+            ("http-request-2", None),
+            ("http-request-3", Some("http://127.0.0.1:43124".to_owned())),
+        ] {
+            let mut denied_request = authorize_request(&issued, &session, request_id);
+            denied_request.transport_origin = origin;
+            assert_eq!(
+                authority
+                    .authorize_request(denied_request, now())
+                    .unwrap_err()
+                    .code,
+                DenialCode::OriginDenied
+            );
+        }
+    }
+
+    #[test]
+    fn verifies_transport_credentials_against_current_grant_state() {
+        let (config, _scope, authority, issued) = active_http_grant();
+        let verified = authority
+            .verify_transport_credentials(
+                &config.root,
+                &issued.grant.grant_id,
+                &issued.grant.agent_id,
+                &issued.grant_token,
+                Some("http://127.0.0.1:43123"),
+                now(),
+            )
+            .unwrap();
+        assert_eq!(verified.grant_id, issued.grant.grant_id);
+
+        for (agent_id, token, origin, expected) in [
+            (
+                "spoofed-agent",
+                issued.grant_token.as_str(),
+                Some("http://127.0.0.1:43123"),
+                DenialCode::Unauthenticated,
+            ),
+            (
+                issued.grant.agent_id.as_str(),
+                "0000000000000000000000000000000000000000000000000000000000000000",
+                Some("http://127.0.0.1:43123"),
+                DenialCode::Unauthenticated,
+            ),
+            (
+                issued.grant.agent_id.as_str(),
+                issued.grant_token.as_str(),
+                Some("http://127.0.0.1:43124"),
+                DenialCode::OriginDenied,
+            ),
+        ] {
+            assert_eq!(
+                authority
+                    .verify_transport_credentials(
+                        &config.root,
+                        &issued.grant.grant_id,
+                        agent_id,
+                        token,
+                        origin,
+                        now(),
+                    )
+                    .unwrap_err()
+                    .code,
+                expected
+            );
+        }
+
+        authority
+            .revoke(&config.root, &issued.grant.grant_id, now())
+            .unwrap();
+        assert_eq!(
+            authority
+                .verify_transport_credentials(
+                    &config.root,
+                    &issued.grant.grant_id,
+                    &issued.grant.agent_id,
+                    &issued.grant_token,
+                    Some("http://127.0.0.1:43123"),
+                    now(),
+                )
+                .unwrap_err()
+                .code,
+            DenialCode::RevokedGrant
         );
     }
 

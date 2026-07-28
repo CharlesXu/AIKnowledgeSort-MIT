@@ -7,6 +7,7 @@ pub const MAX_ID_BYTES: usize = 128;
 pub const MAX_LABEL_CHARS: usize = 256;
 pub const MAX_SCOPES: usize = 16;
 pub const MAX_TOOLS: usize = 16;
+pub const MAX_HTTP_ORIGINS: usize = 8;
 pub const MIN_GRANT_TTL_SECONDS: u64 = 60;
 pub const MAX_GRANT_TTL_SECONDS: u64 = 30 * 24 * 60 * 60;
 pub const MIN_REQUEST_BYTES: u64 = 1024;
@@ -83,6 +84,8 @@ pub struct CreateAgentGrantRequest {
     pub agent_id: String,
     pub label: String,
     pub tool_ids: Vec<String>,
+    #[serde(default)]
+    pub allowed_http_origins: Vec<String>,
     pub expires_in_seconds: u64,
     pub limits: AgentResourceLimits,
 }
@@ -110,6 +113,7 @@ pub struct AgentGrantSummary {
     pub agent_id: String,
     pub label: String,
     pub tool_ids: Vec<String>,
+    pub allowed_http_origins: Vec<String>,
     pub scopes: Vec<AgentScopeSummary>,
     pub created_at_unix_ms: u64,
     pub expires_at_unix_ms: u64,
@@ -153,6 +157,8 @@ pub struct OpenSessionRequest {
     pub grant_id: String,
     pub agent_id: String,
     pub grant_token: String,
+    #[serde(default)]
+    pub transport_origin: Option<String>,
 }
 
 #[derive(Clone, PartialEq, Eq, Serialize)]
@@ -175,6 +181,8 @@ pub struct AuthorizeRequest {
     pub scope_id: Option<String>,
     pub request_bytes: u64,
     pub response_budget_bytes: u64,
+    #[serde(default)]
+    pub transport_origin: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -188,6 +196,7 @@ pub enum DenialCode {
     ExpiredGrant,
     UnknownSession,
     SessionMismatch,
+    OriginDenied,
     ReplayedRequest,
     ToolDenied,
     ScopeDenied,
@@ -225,11 +234,57 @@ impl CreateAgentGrantRequest {
                 return Err(format!("Duplicate Agent tool: {tool_id}"));
             }
         }
+        if self.allowed_http_origins.len() > MAX_HTTP_ORIGINS {
+            return Err("Agent grant may allow at most 8 HTTP origins".to_owned());
+        }
+        let mut origins = HashSet::with_capacity(self.allowed_http_origins.len());
+        for origin in &self.allowed_http_origins {
+            let normalized = validate_http_origin(origin)?;
+            if !origins.insert(normalized) {
+                return Err(format!("Duplicate Agent HTTP origin: {origin}"));
+            }
+        }
         if !(MIN_GRANT_TTL_SECONDS..=MAX_GRANT_TTL_SECONDS).contains(&self.expires_in_seconds) {
             return Err("Agent grant expiry must be between 60 seconds and 30 days".to_owned());
         }
         self.limits.validate()
     }
+}
+
+pub fn validate_http_origin(value: &str) -> Result<String, String> {
+    if value.is_empty()
+        || value
+            .chars()
+            .any(|character| character.is_whitespace() || character.is_control())
+    {
+        return Err("Agent HTTP origin contains unsafe characters".to_owned());
+    }
+    let parsed = url::Url::parse(value).map_err(|_| "Agent HTTP origin is invalid".to_owned())?;
+    if parsed.scheme() != "http"
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.port().is_none()
+        || parsed.path() != "/"
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+    {
+        return Err(
+            "Agent HTTP origin must be a literal loopback HTTP origin with an explicit port"
+                .to_owned(),
+        );
+    }
+    let is_loopback = match parsed.host() {
+        Some(url::Host::Ipv4(address)) => address.is_loopback(),
+        Some(url::Host::Ipv6(address)) => address.is_loopback(),
+        _ => false,
+    };
+    let normalized = parsed.origin().ascii_serialization();
+    if !is_loopback || normalized != value {
+        return Err(
+            "Agent HTTP origin must be a canonical literal loopback HTTP origin".to_owned(),
+        );
+    }
+    Ok(normalized)
 }
 
 impl AgentResourceLimits {
@@ -331,6 +386,7 @@ mod tests {
             agent_id: "codex-desktop".to_owned(),
             label: "Codex Desktop".to_owned(),
             tool_ids: vec!["capabilities.read".to_owned(), "graph.read".to_owned()],
+            allowed_http_origins: Vec::new(),
             expires_in_seconds: 3_600,
             limits: AgentResourceLimits {
                 max_requests_per_session: 1_000,
@@ -377,6 +433,7 @@ mod tests {
             "agentId": "codex-desktop",
             "label": "Codex Desktop",
             "toolIds": ["capabilities.read"],
+            "allowedHttpOrigins": [],
             "expiresInSeconds": 3600,
             "limits": {
                 "maxRequestsPerSession": 1000,
@@ -436,6 +493,40 @@ mod tests {
             invalid.limits = limits;
             assert!(invalid.validate().is_err());
         }
+    }
+
+    #[test]
+    fn accepts_only_bounded_literal_loopback_http_origins() {
+        let mut request = valid_request();
+        request.allowed_http_origins = vec![
+            "http://127.0.0.1:43123".to_owned(),
+            "http://[::1]:43123".to_owned(),
+        ];
+        assert_eq!(request.validate(), Ok(()));
+
+        for origins in [
+            vec!["http://127.0.0.1:43123", "http://127.0.0.1:43123"],
+            vec!["http://0.0.0.0:43123"],
+            vec!["http://localhost:43123"],
+            vec!["http://user@127.0.0.1:43123"],
+            vec!["http://127.0.0.1:43123/path"],
+            vec!["http://127.0.0.1:43123?query=1"],
+            vec!["http://127.0.0.1:43123#fragment"],
+            vec!["http://127.0.0.1"],
+            vec!["https://127.0.0.1:43123"],
+            vec!["http://192.168.1.10:43123"],
+            vec!["http://127.0.0.1:43123\n"],
+        ] {
+            let mut invalid = valid_request();
+            invalid.allowed_http_origins = origins.into_iter().map(str::to_owned).collect();
+            assert!(invalid.validate().is_err(), "accepted invalid origins");
+        }
+
+        let mut too_many = valid_request();
+        too_many.allowed_http_origins = (0..9)
+            .map(|offset| format!("http://127.0.0.1:{}", 43123 + offset))
+            .collect();
+        assert!(too_many.validate().is_err());
     }
 
     #[test]

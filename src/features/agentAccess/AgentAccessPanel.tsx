@@ -75,6 +75,7 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
         agentId,
         label,
         toolIds,
+        allowedHttpOrigins: [],
         expiresInSeconds: Math.round(Number(expiryHours) * 3_600),
         limits,
       });
