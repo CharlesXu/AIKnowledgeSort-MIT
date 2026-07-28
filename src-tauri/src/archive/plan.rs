@@ -1,5 +1,7 @@
 use crate::discovery::ReviewedSource;
 use crate::identity::ContentIdentity;
+use crate::naming::schema::{canonical_policy, NamingDecisionEvidence, NamingStatus};
+use crate::naming::NamingBatch;
 use crate::vault::VaultSummary;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -8,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-const PLAN_VERSION: u32 = 1;
+const PLAN_VERSION: u32 = 2;
 const MAX_OPAQUE_ID_BYTES: usize = 128;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -17,6 +19,9 @@ pub struct ArchivePlanItem {
     pub item_id: String,
     pub source_path: String,
     pub destination_path: String,
+    pub original_name: String,
+    pub canonical_name: String,
+    pub naming: NamingDecisionEvidence,
     pub byte_size: u64,
     pub identity: ContentIdentity,
 }
@@ -27,6 +32,7 @@ pub struct ArchivePlan {
     pub plan_id: String,
     pub plan_version: u32,
     pub proposal_id: String,
+    pub naming_batch_id: String,
     pub authority_id: String,
     pub vault_path: String,
     pub expires_at_unix_ms: u64,
@@ -77,19 +83,42 @@ impl ArchivePlanRegistry {
         }
     }
 
-    pub(crate) fn create_at(
+    pub(crate) fn create_named_at(
         &self,
         proposal_id: &str,
         sources: Vec<ReviewedSource>,
+        naming_batch: NamingBatch,
         vault: VaultSummary,
         now: Instant,
         wall_time: SystemTime,
     ) -> Result<ArchivePlan, String> {
         validate_opaque_id(proposal_id, "discovery proposal")?;
-        if sources.is_empty() || sources.len() > self.limits.max_items {
-            return Err("Archive plan selection is empty or too large".to_owned());
+        validate_opaque_id(&naming_batch.batch_id, "naming batch")?;
+        let policy = canonical_policy();
+        if naming_batch.discovery_proposal_id != proposal_id {
+            return Err("Naming batch does not match the discovery proposal".to_owned());
+        }
+        if naming_batch.policy_id != policy.policy_id
+            || naming_batch.policy_version != policy.version
+        {
+            return Err("Naming batch policy is not supported".to_owned());
+        }
+        if sources.is_empty()
+            || sources.len() > self.limits.max_items
+            || sources.len() != naming_batch.proposals.len()
+        {
+            return Err("Named archive selection is empty, mismatched, or too large".to_owned());
         }
         validate_opaque_id(&vault.authority_id, "Vault authority")?;
+
+        let mut proposals = naming_batch
+            .proposals
+            .into_iter()
+            .map(|proposal| (proposal.item_id.clone(), proposal))
+            .collect::<HashMap<_, _>>();
+        if proposals.len() != sources.len() {
+            return Err("Naming batch contains duplicate items".to_owned());
+        }
 
         let mut seen_item_ids = HashSet::with_capacity(sources.len());
         let mut seen_destinations = HashSet::with_capacity(sources.len());
@@ -100,17 +129,48 @@ impl ArchivePlanRegistry {
                 return Err("Archive plan contains duplicate reviewed items".to_owned());
             }
             source.identity.validate()?;
-            validate_original_name(&source.name)?;
+            let proposal = proposals
+                .remove(&source.item_id)
+                .ok_or_else(|| "Naming batch is missing a reviewed item".to_owned())?;
+            if proposal.status != NamingStatus::Proposed
+                || proposal.review_reason.is_some()
+                || proposal.original_name != source.name
+                || proposal.identity != source.identity
+                || proposal.policy_id != naming_batch.policy_id
+                || proposal.policy_version != naming_batch.policy_version
+            {
+                return Err(
+                    "Naming proposal is not approved or does not match the reviewed source"
+                        .to_owned(),
+                );
+            }
+            let canonical_name = proposal
+                .canonical_name
+                .clone()
+                .ok_or_else(|| "Naming proposal requires review".to_owned())?;
+            validate_original_name(&canonical_name)?;
             let destination = Path::new("Originals")
                 .join(&source.identity.digest)
-                .join(&source.name);
+                .join(&canonical_name);
             if !seen_destinations.insert(destination.clone()) {
                 return Err("Archive plan contains duplicate destinations".to_owned());
             }
+            let naming = NamingDecisionEvidence {
+                naming_proposal_id: proposal.proposal_id,
+                original_name: source.name.clone(),
+                canonical_name: canonical_name.clone(),
+                policy_id: proposal.policy_id,
+                policy_version: proposal.policy_version,
+                applied_rule: proposal.applied_rule,
+                facts: proposal.facts,
+            };
             items.push(ArchivePlanItem {
                 item_id: source.item_id,
                 source_path: source.path.to_string_lossy().into_owned(),
                 destination_path: destination.to_string_lossy().into_owned(),
+                original_name: source.name,
+                canonical_name,
+                naming,
                 byte_size: source.byte_size,
                 identity: source.identity,
             });
@@ -138,6 +198,7 @@ impl ArchivePlanRegistry {
             plan_id: plan_id.clone(),
             plan_version: PLAN_VERSION,
             proposal_id: proposal_id.to_owned(),
+            naming_batch_id: naming_batch.batch_id,
             authority_id: vault.authority_id,
             vault_path: vault.display_path,
             expires_at_unix_ms,
@@ -236,6 +297,10 @@ mod tests {
     use super::{ArchivePlanRegistry, PlanRegistryLimits};
     use crate::discovery::ReviewedSource;
     use crate::identity::ContentIdentity;
+    use crate::naming::schema::{
+        NamingFact, NamingFactKind, NamingProposal, NamingReviewReason, NamingStatus,
+    };
+    use crate::naming::NamingBatch;
     use crate::vault::{VaultStatus, VaultSummary};
     use std::path::PathBuf;
     use std::time::{Duration, Instant, SystemTime};
@@ -262,21 +327,81 @@ mod tests {
         }
     }
 
+    fn naming_batch(item_id: &str, original_name: &str, canonical_name: &str) -> NamingBatch {
+        naming_batch_many(&[(item_id, original_name, canonical_name)])
+    }
+
+    fn naming_batch_many(entries: &[(&str, &str, &str)]) -> NamingBatch {
+        NamingBatch {
+            batch_id: "naming-batch".to_owned(),
+            discovery_proposal_id: "reviewed-proposal".to_owned(),
+            policy_id: "canonical-v1".to_owned(),
+            policy_version: "1.0.0".to_owned(),
+            expires_at_unix_ms: u64::MAX,
+            proposals: entries
+                .iter()
+                .map(|(item_id, original_name, canonical_name)| NamingProposal {
+                    proposal_id: format!("naming-proposal-{item_id}"),
+                    item_id: (*item_id).to_owned(),
+                    original_name: (*original_name).to_owned(),
+                    canonical_name: Some((*canonical_name).to_owned()),
+                    identity: source(item_id, original_name).identity,
+                    policy_id: "canonical-v1".to_owned(),
+                    policy_version: "1.0.0".to_owned(),
+                    applied_rule: "ordered-cited-facts-v1".to_owned(),
+                    status: NamingStatus::Proposed,
+                    review_reason: None,
+                    facts: vec![NamingFact {
+                        kind: NamingFactKind::Subject,
+                        value: "Reset reliability".to_owned(),
+                        evidence_location: "page:1".to_owned(),
+                    }],
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn binds_the_canonical_name_from_one_exact_naming_batch() {
+        let now = Instant::now();
+        let registry = ArchivePlanRegistry::default();
+        let plan = registry
+            .create_named_at(
+                "reviewed-proposal",
+                vec![source("item-one", "000123.md")],
+                naming_batch("item-one", "000123.md", "Reset-reliability.md"),
+                vault(),
+                now,
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("create named archive plan");
+
+        assert_eq!(plan.naming_batch_id, "naming-batch");
+        assert_eq!(plan.items[0].original_name, "000123.md");
+        assert_eq!(plan.items[0].canonical_name, "Reset-reliability.md");
+        assert_eq!(
+            plan.items[0].destination_path,
+            "Originals/0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0/Reset-reliability.md"
+        );
+        assert_eq!(plan.items[0].naming.policy_id, "canonical-v1");
+    }
+
     #[test]
     fn creates_an_exact_source_preserving_plan() {
         let now = Instant::now();
         let registry = ArchivePlanRegistry::default();
         let plan = registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![source("item-one", "report.md")],
+                naming_batch("item-one", "report.md", "report.md"),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH + Duration::from_secs(1_000),
             )
             .expect("create archive plan");
 
-        assert_eq!(plan.plan_version, 1);
+        assert_eq!(plan.plan_version, 2);
         assert_eq!(plan.proposal_id, "reviewed-proposal");
         assert_eq!(plan.authority_id, "vault-authority");
         assert!(plan.source_preserved);
@@ -299,9 +424,10 @@ mod tests {
             ttl: Duration::from_secs(5),
         });
         let plan = registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![source("item-one", "report.md")],
+                naming_batch("item-one", "report.md", "report.md"),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
@@ -320,9 +446,10 @@ mod tests {
             .is_err());
 
         let fresh = registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![source("item-two", "fresh.md")],
+                naming_batch("item-two", "fresh.md", "fresh.md"),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
@@ -343,30 +470,36 @@ mod tests {
         let now = Instant::now();
         let duplicate = source("same", "one.md");
         assert!(registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![duplicate.clone(), duplicate],
+                naming_batch_many(&[("same", "one.md", "one.md"), ("same", "one.md", "one.md")]),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
             )
             .is_err());
         assert!(registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![
                     source("same-destination-one", "same.md"),
                     source("same-destination-two", "same.md"),
                 ],
+                naming_batch_many(&[
+                    ("same-destination-one", "same.md", "same.md"),
+                    ("same-destination-two", "same.md", "same.md"),
+                ]),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
             )
             .is_err());
         assert!(registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
                 vec![source("unsafe", "CON.txt")],
+                naming_batch("unsafe", "CON.txt", "CON.txt"),
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,
@@ -375,9 +508,51 @@ mod tests {
         let mut invalid = source("invalid", "valid.md");
         invalid.identity.algorithm = "sha256".to_owned();
         assert!(registry
-            .create_at(
+            .create_named_at(
                 "reviewed-proposal",
-                vec![invalid],
+                vec![invalid.clone()],
+                NamingBatch {
+                    proposals: vec![NamingProposal {
+                        identity: invalid.identity.clone(),
+                        ..naming_batch("invalid", "valid.md", "valid.md").proposals[0].clone()
+                    }],
+                    ..naming_batch("invalid", "valid.md", "valid.md")
+                },
+                vault(),
+                now,
+                SystemTime::UNIX_EPOCH,
+            )
+            .is_err());
+    }
+
+    #[test]
+    fn rejects_review_and_mismatched_naming_proposals() {
+        let registry = ArchivePlanRegistry::default();
+        let now = Instant::now();
+        let reviewed_source = source("item-one", "000123.pdf");
+
+        let mut review = naming_batch("item-one", "000123.pdf", "Report.pdf");
+        review.proposals[0].status = NamingStatus::NamingReview;
+        review.proposals[0].review_reason = Some(NamingReviewReason::MissingEvidence);
+        review.proposals[0].canonical_name = None;
+        assert!(registry
+            .create_named_at(
+                "reviewed-proposal",
+                vec![reviewed_source.clone()],
+                review,
+                vault(),
+                now,
+                SystemTime::UNIX_EPOCH,
+            )
+            .is_err());
+
+        let mut mismatched = naming_batch("item-one", "different.pdf", "Report.pdf");
+        mismatched.proposals[0].identity = reviewed_source.identity.clone();
+        assert!(registry
+            .create_named_at(
+                "reviewed-proposal",
+                vec![reviewed_source],
+                mismatched,
                 vault(),
                 now,
                 SystemTime::UNIX_EPOCH,

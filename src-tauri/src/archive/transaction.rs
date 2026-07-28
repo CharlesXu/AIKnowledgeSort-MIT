@@ -1,20 +1,22 @@
 use super::plan::{ArchivePlan, ArchivePlanItem};
 use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
 use crate::identity::ContentIdentity;
+use crate::naming::schema::NamingDecisionEvidence;
 use crate::vault::records::{read_json, validate_relative_path, write_new_json};
 use crate::vault::VaultLease;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::OpenOptions;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
-use std::io::{self, Cursor, Seek, SeekFrom, Write};
+use std::io::{self, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 const MAX_OPERATION_RECORDS: usize = 10_000;
-const OPERATION_SCHEMA_VERSION: u32 = 1;
-const REGISTRATION_SCHEMA_VERSION: u32 = 1;
+const LEGACY_OPERATION_SCHEMA_VERSION: u32 = 1;
+const OPERATION_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,6 +100,14 @@ struct OperationRecord {
     item_id: String,
     source_path: String,
     destination_path: String,
+    #[serde(default)]
+    naming_batch_id: Option<String>,
+    #[serde(default)]
+    original_name: Option<String>,
+    #[serde(default)]
+    canonical_name: Option<String>,
+    #[serde(default)]
+    naming: Option<NamingDecisionEvidence>,
     byte_size: u64,
     identity: ContentIdentity,
     invariant_result: String,
@@ -113,6 +123,14 @@ struct OriginalRegistration {
     authority_id: String,
     relative_path: String,
     source_path: String,
+    #[serde(default)]
+    naming_batch_id: Option<String>,
+    #[serde(default)]
+    original_name: Option<String>,
+    #[serde(default)]
+    canonical_name: Option<String>,
+    #[serde(default)]
+    naming: Option<NamingDecisionEvidence>,
     original_format: String,
     byte_size: u64,
     identity: ContentIdentity,
@@ -249,9 +267,6 @@ fn commit_one(
 
 impl OperationContext {
     fn new(plan: &ArchivePlan, item: &ArchivePlanItem, operation_id: String) -> Self {
-        let confirmation_binding =
-            ContentIdentity::from_reader(Cursor::new(plan.confirmation_nonce.as_bytes()))
-                .expect("in-memory confirmation hashing cannot fail");
         let destination_path = PathBuf::from(&item.destination_path);
         Self {
             staging_path: Path::new(".aiks/staging").join(format!("{operation_id}.part")),
@@ -269,11 +284,15 @@ impl OperationContext {
                 actor: "desktop-user".to_owned(),
                 recorded_at_unix_ms: unix_time_ms(),
                 plan_id: plan.plan_id.clone(),
-                confirmation_binding_sha256: confirmation_binding.digest,
+                confirmation_binding_sha256: confirmation_binding_sha256(plan, item),
                 authority_id: plan.authority_id.clone(),
                 item_id: item.item_id.clone(),
                 source_path: item.source_path.clone(),
                 destination_path: item.destination_path.clone(),
+                naming_batch_id: Some(plan.naming_batch_id.clone()),
+                original_name: Some(item.original_name.clone()),
+                canonical_name: Some(item.canonical_name.clone()),
+                naming: Some(item.naming.clone()),
                 byte_size: item.byte_size,
                 identity: item.identity.clone(),
                 invariant_result: "pending".to_owned(),
@@ -282,6 +301,32 @@ impl OperationContext {
             },
         }
     }
+}
+
+fn confirmation_binding_sha256(plan: &ArchivePlan, item: &ArchivePlanItem) -> String {
+    let mut hasher = Sha256::new();
+    for value in [
+        plan.confirmation_nonce.as_str(),
+        plan.plan_id.as_str(),
+        plan.proposal_id.as_str(),
+        plan.naming_batch_id.as_str(),
+        plan.authority_id.as_str(),
+        item.item_id.as_str(),
+        item.source_path.as_str(),
+        item.destination_path.as_str(),
+        item.original_name.as_str(),
+        item.canonical_name.as_str(),
+        item.identity.algorithm.as_str(),
+        item.identity.digest.as_str(),
+    ] {
+        hasher.update(value.as_bytes());
+        hasher.update([0]);
+    }
+    hasher.update(
+        serde_json::to_vec(&item.naming)
+            .expect("in-memory naming evidence serialization cannot fail"),
+    );
+    format!("{:x}", hasher.finalize())
 }
 
 fn execute_operation(
@@ -558,16 +603,25 @@ fn transition(
 }
 
 fn registration_from_record(record: &OperationRecord) -> OriginalRegistration {
-    let original_format = Path::new(&record.source_path)
-        .extension()
-        .map(|extension| extension.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    let original_format = Path::new(
+        record
+            .original_name
+            .as_deref()
+            .unwrap_or(record.source_path.as_str()),
+    )
+    .extension()
+    .map(|extension| extension.to_string_lossy().into_owned())
+    .unwrap_or_default();
     OriginalRegistration {
-        schema_version: REGISTRATION_SCHEMA_VERSION,
+        schema_version: record.schema_version,
         operation_id: record.operation_id.clone(),
         authority_id: record.authority_id.clone(),
         relative_path: record.destination_path.clone(),
         source_path: record.source_path.clone(),
+        naming_batch_id: record.naming_batch_id.clone(),
+        original_name: record.original_name.clone(),
+        canonical_name: record.canonical_name.clone(),
+        naming: record.naming.clone(),
         original_format,
         byte_size: record.byte_size,
         identity: record.identity.clone(),
@@ -618,6 +672,7 @@ pub(crate) fn reconcile_vault(vault: &VaultLease) -> Result<ReconciliationReport
     for mut record in latest.into_values() {
         record.identity.validate()?;
         validate_destination(Path::new(&record.destination_path), &record.identity)?;
+        validate_naming_record(&record)?;
         let context = context_from_record(record.clone());
         match record.state {
             OperationState::Committed => {
@@ -734,7 +789,10 @@ fn latest_operation_records(
         }
         let relative = Path::new(".aiks/operations").join(name);
         let record: OperationRecord = read_json(&vault.directory, &relative)?;
-        if record.schema_version != OPERATION_SCHEMA_VERSION {
+        if !matches!(
+            record.schema_version,
+            LEGACY_OPERATION_SCHEMA_VERSION | OPERATION_SCHEMA_VERSION
+        ) {
             return Err("Archive operation record schema is unsupported".to_owned());
         }
         match latest.get(&record.operation_id) {
@@ -745,6 +803,39 @@ fn latest_operation_records(
         }
     }
     Ok(latest)
+}
+
+fn validate_naming_record(record: &OperationRecord) -> Result<(), String> {
+    if record.schema_version == LEGACY_OPERATION_SCHEMA_VERSION {
+        return Ok(());
+    }
+    let naming_batch_id = record
+        .naming_batch_id
+        .as_deref()
+        .ok_or_else(|| "Archive operation naming batch is missing".to_owned())?;
+    let original_name = record
+        .original_name
+        .as_deref()
+        .ok_or_else(|| "Archive operation original name is missing".to_owned())?;
+    let canonical_name = record
+        .canonical_name
+        .as_deref()
+        .ok_or_else(|| "Archive operation canonical name is missing".to_owned())?;
+    let naming = record
+        .naming
+        .as_ref()
+        .ok_or_else(|| "Archive operation naming evidence is missing".to_owned())?;
+    if naming_batch_id.is_empty()
+        || original_name != naming.original_name
+        || canonical_name != naming.canonical_name
+        || Path::new(&record.destination_path)
+            .file_name()
+            .and_then(|value| value.to_str())
+            != Some(canonical_name)
+    {
+        return Err("Archive operation naming evidence does not match its destination".to_owned());
+    }
+    Ok(())
 }
 
 fn recover_registration(
@@ -807,9 +898,13 @@ fn transaction_failure_text(failure: TransactionFailure) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{commit_plan_with_faults, reconcile_vault, ArchiveItemStatus, TransactionFaults};
+    use super::{
+        commit_plan_with_faults, reconcile_vault, ArchiveItemStatus, OperationContext,
+        TransactionFaults,
+    };
     use crate::archive::plan::{ArchivePlan, ArchivePlanItem};
     use crate::identity::ContentIdentity;
+    use crate::naming::schema::{NamingDecisionEvidence, NamingFact, NamingFactKind};
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
     use std::io::Cursor;
@@ -869,8 +964,9 @@ mod tests {
         let identity = identity();
         ArchivePlan {
             plan_id: "reviewed-plan".to_owned(),
-            plan_version: 1,
+            plan_version: 2,
             proposal_id: "reviewed-proposal".to_owned(),
+            naming_batch_id: "naming-batch".to_owned(),
             authority_id: authority_id.to_owned(),
             vault_path: "trusted-vault".to_owned(),
             expires_at_unix_ms: u64::MAX,
@@ -879,7 +975,22 @@ mod tests {
             items: vec![ArchivePlanItem {
                 item_id: "reviewed-item".to_owned(),
                 source_path: source.to_string_lossy().into_owned(),
-                destination_path: format!("Originals/{}/source.txt", identity.digest),
+                destination_path: format!("Originals/{}/Canonical-source.txt", identity.digest),
+                original_name: "source.txt".to_owned(),
+                canonical_name: "Canonical-source.txt".to_owned(),
+                naming: NamingDecisionEvidence {
+                    naming_proposal_id: "naming-proposal".to_owned(),
+                    original_name: "source.txt".to_owned(),
+                    canonical_name: "Canonical-source.txt".to_owned(),
+                    policy_id: "canonical-v1".to_owned(),
+                    policy_version: "1.0.0".to_owned(),
+                    applied_rule: "ordered-cited-facts-v1".to_owned(),
+                    facts: vec![NamingFact {
+                        kind: NamingFactKind::Subject,
+                        value: "Canonical source".to_owned(),
+                        evidence_location: "page:1".to_owned(),
+                    }],
+                },
                 byte_size: SOURCE_BYTES.len() as u64,
                 identity,
             }],
@@ -891,6 +1002,17 @@ mod tests {
             .expect("read generated directory")
             .next()
             .is_none()
+    }
+
+    fn read_only_json(path: &Path) -> serde_json::Value {
+        let entry = path
+            .read_dir()
+            .expect("read generated JSON directory")
+            .next()
+            .expect("one generated JSON record")
+            .expect("read generated JSON entry");
+        serde_json::from_slice(&fs::read(entry.path()).expect("read generated JSON"))
+            .expect("parse generated JSON")
     }
 
     #[test]
@@ -917,6 +1039,57 @@ mod tests {
             SOURCE_BYTES
         );
         assert!(!directory_is_empty(&vault_path.join(".aiks/registrations")));
+
+        let registration = read_only_json(&vault_path.join(".aiks/registrations"));
+        assert_eq!(registration["namingBatchId"], "naming-batch");
+        assert_eq!(registration["originalName"], "source.txt");
+        assert_eq!(registration["canonicalName"], "Canonical-source.txt");
+        assert_eq!(registration["originalFormat"], "txt");
+        assert_eq!(registration["naming"]["policyId"], "canonical-v1");
+        assert_eq!(registration["naming"]["policyVersion"], "1.0.0");
+        assert_eq!(
+            registration["naming"]["facts"][0]["evidenceLocation"],
+            "page:1"
+        );
+
+        let operations = vault_path.join(".aiks/operations");
+        let committed_path = operations
+            .read_dir()
+            .expect("read operation journal")
+            .filter_map(Result::ok)
+            .find(|entry| entry.file_name().to_string_lossy().contains("committed"))
+            .expect("committed operation record")
+            .path();
+        let operation: serde_json::Value =
+            serde_json::from_slice(&fs::read(committed_path).expect("read operation"))
+                .expect("parse operation");
+        assert_eq!(operation["namingBatchId"], "naming-batch");
+        assert_eq!(operation["naming"]["appliedRule"], "ordered-cited-facts-v1");
+        let nonce_only = ContentIdentity::from_reader(Cursor::new(b"single-use-confirmation"))
+            .expect("hash nonce");
+        assert_ne!(
+            operation["confirmationBindingSha256"],
+            nonce_only.digest.as_str()
+        );
+    }
+
+    #[test]
+    fn confirmation_binding_changes_with_exact_naming_evidence() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let first = plan(&source, "authority");
+        let mut second = first.clone();
+        second.items[0].naming.facts[0].evidence_location = "page:2".to_owned();
+
+        let first_context =
+            OperationContext::new(&first, &first.items[0], "operation-1".to_owned());
+        let second_context =
+            OperationContext::new(&second, &second.items[0], "operation-2".to_owned());
+
+        assert_ne!(
+            first_context.record.confirmation_binding_sha256,
+            second_context.record.confirmation_binding_sha256
+        );
     }
 
     #[test]

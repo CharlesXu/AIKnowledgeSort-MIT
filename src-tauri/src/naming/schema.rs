@@ -78,6 +78,18 @@ pub struct NamingProposal {
     pub facts: Vec<NamingFact>,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NamingDecisionEvidence {
+    pub naming_proposal_id: String,
+    pub original_name: String,
+    pub canonical_name: String,
+    pub policy_id: String,
+    pub policy_version: String,
+    pub applied_rule: String,
+    pub facts: Vec<NamingFact>,
+}
+
 pub fn canonical_policy() -> NamingPolicy {
     NamingPolicy {
         policy_id: "canonical-v1",
