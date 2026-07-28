@@ -1,4 +1,5 @@
 pub mod proposal;
+mod remote;
 pub mod schema;
 mod store;
 

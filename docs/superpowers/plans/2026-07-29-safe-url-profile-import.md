@@ -158,16 +158,18 @@ reqwest::Client::builder()
 
 Return only constant bounded errors such as `Remote profile target is not allowed`, `Remote profile redirect is invalid`, `Remote profile response type is not JSON`, `Remote profile exceeds 1 MiB`, `Remote profile request timed out`, and `Remote profile could not be fetched`.
 
-- [ ] **Step 7: Run focused tests, lint, and commit**
+- [ ] **Step 7: Run focused tests and commit**
 
 Run:
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib profiles::remote
-PATH=/opt/homebrew/bin:/usr/bin:/bin cargo clippy --all-targets --all-features -- -D warnings
 ```
 
-Expected: all focused tests pass and strict Clippy reports no warnings.
+Expected: all focused tests pass. Strict all-target Clippy runs in Task 3 after
+the production Tauri command references the fetch entry point; before that
+connection the intentionally staged production module is dead code outside its
+unit-test target.
 
 Commit:
 
