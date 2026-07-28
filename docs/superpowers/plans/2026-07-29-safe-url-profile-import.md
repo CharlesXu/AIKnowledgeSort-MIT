@@ -38,7 +38,7 @@
 - Create: `src-tauri/src/profiles/remote.rs`
 - Modify: `src-tauri/src/profiles/mod.rs`
 
-- [ ] **Step 1: Write address and URL policy tests**
+- [x] **Step 1: Write address and URL policy tests**
 
 Add table-driven tests for:
 
@@ -68,7 +68,7 @@ assert!(validate_initial_url(
 
 Also test the address classifier directly for boundary addresses around every prohibited IPv4 and IPv6 range. Assert mixed public/private DNS results reject the entire target instead of selecting only a public address.
 
-- [ ] **Step 2: Run policy tests and verify RED**
+- [x] **Step 2: Run policy tests and verify RED**
 
 Run:
 
@@ -78,7 +78,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib profiles::remote::tests::r
 
 Expected: FAIL because `profiles::remote` does not exist.
 
-- [ ] **Step 3: Implement canonical URL and public-address validation**
+- [x] **Step 3: Implement canonical URL and public-address validation**
 
 Create these focused internal types:
 
@@ -113,7 +113,7 @@ impl NetworkPolicy {
 
 `validate_initial_url` must reject whitespace/control characters, non-canonical parse failures, embedded username/password, missing host, non-HTTPS production schemes, and fragments only after accepting them for later redaction. `resolve_target` must use `tokio::net::lookup_host`, require at least one address, validate every result, deduplicate deterministically, and return `SocketAddr` values using the explicit or scheme-default port.
 
-- [ ] **Step 4: Write real redirect, credential, bound, and provenance tests**
+- [x] **Step 4: Write real redirect, credential, bound, and provenance tests**
 
 Use Axum listeners on literal loopback only under `NetworkPolicy::test_loopback()` to prove actual Reqwest behavior:
 
@@ -125,7 +125,7 @@ Use Axum listeners on literal loopback only under `NetworkPolicy::test_loopback(
 6. `text/plain`, a declared body above 1 MiB, a chunked body crossing 1 MiB, and a delayed response crossing the test deadline fail.
 7. `?signature=synthetic-secret#review-secret` is used for the request but neither secret appears in `minimized_locator` or any error.
 
-- [ ] **Step 5: Run fetch tests and verify RED**
+- [x] **Step 5: Run fetch tests and verify RED**
 
 Run:
 
@@ -135,7 +135,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib profiles::remote
 
 Expected: FAIL because the fetch loop is not implemented.
 
-- [ ] **Step 6: Implement pinned, redirect-free, bounded fetching**
+- [x] **Step 6: Implement pinned, redirect-free, bounded fetching**
 
 For each hop:
 
@@ -158,7 +158,7 @@ reqwest::Client::builder()
 
 Return only constant bounded errors such as `Remote profile target is not allowed`, `Remote profile redirect is invalid`, `Remote profile response type is not JSON`, `Remote profile exceeds 1 MiB`, `Remote profile request timed out`, and `Remote profile could not be fetched`.
 
-- [ ] **Step 7: Run focused tests and commit**
+- [x] **Step 7: Run focused tests and commit**
 
 Run:
 
@@ -184,7 +184,7 @@ git commit -m "feat: fetch remote profiles through a pinned network boundary"
 - Modify: `src-tauri/src/profiles/store.rs`
 - Test: `src-tauri/src/profiles/store.rs`
 
-- [ ] **Step 1: Write failing persistence tests**
+- [x] **Step 1: Write failing persistence tests**
 
 Add tests proving:
 
@@ -206,7 +206,7 @@ Verify the persisted candidate JSON contains `sourceKind: "remoteUrl"` and `sour
 
 Deserialize a version-1 local candidate fixture without `sourceByteSize` and assert it loads as zero/unknown without changing its candidate identity or approval state.
 
-- [ ] **Step 2: Run store tests and verify RED**
+- [x] **Step 2: Run store tests and verify RED**
 
 Run:
 
@@ -216,7 +216,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --lib profiles::store
 
 Expected: FAIL because `RemoteUrl`, `source_byte_size`, and `import_remote_bytes` do not exist.
 
-- [ ] **Step 3: Implement one shared byte-import core**
+- [x] **Step 3: Implement one shared byte-import core**
 
 Extend:
 
@@ -237,7 +237,7 @@ Keep `import_local_bytes` as a thin wrapper. Add `import_remote_bytes` and one p
 
 Keep the existing local candidate binding unchanged. Bind remote candidate identity to source kind, fetched-byte digest, profile id/version, and minimized-locator digest so the same bytes imported locally or from a distinct reviewed remote provenance cannot conflict.
 
-- [ ] **Step 4: Run store/full Rust tests and commit**
+- [x] **Step 4: Run store/full Rust tests and commit**
 
 Run:
 
@@ -264,7 +264,7 @@ git commit -m "feat: persist review-only remote profile candidates"
 - Modify: `src/features/profiles/profileClient.ts`
 - Modify: `src/features/profiles/profileClient.test.ts`
 
-- [ ] **Step 1: Write failing typed-client tests**
+- [x] **Step 1: Write failing typed-client tests**
 
 Extend the expected invocation sequence with:
 
@@ -282,7 +282,7 @@ expect(invoke).toHaveBeenCalledWith("import_url_profile_candidate", {
 
 Assert browser mode rejects `importUrlCandidate` with the same desktop-runtime error and returns no fabricated candidate.
 
-- [ ] **Step 2: Run client tests and verify RED**
+- [x] **Step 2: Run client tests and verify RED**
 
 Run:
 
@@ -292,7 +292,7 @@ npm test -- --run src/features/profiles/profileClient.test.ts
 
 Expected: FAIL because the client operation does not exist.
 
-- [ ] **Step 3: Implement the native command**
+- [x] **Step 3: Implement the native command**
 
 Add a strict request DTO:
 
@@ -313,7 +313,7 @@ pub struct ImportUrlProfileCandidateRequest {
 
 Register only this command in `lib.rs`. It must not approve, activate, classify, rename, archive, or expose a generic fetch API.
 
-- [ ] **Step 4: Implement exact TypeScript types and adapter**
+- [x] **Step 4: Implement exact TypeScript types and adapter**
 
 Change:
 
@@ -331,7 +331,7 @@ export interface ProfileClient {
 
 The Tauri adapter invokes `import_url_profile_candidate` with `{ request: { url } }`. The browser adapter rejects without network access.
 
-- [ ] **Step 5: Run focused/full tests and commit**
+- [x] **Step 5: Run focused/full tests and commit**
 
 Run:
 
@@ -358,7 +358,7 @@ git commit -m "feat: expose explicit URL profile import"
 - Modify: `src/styles.css`
 - Modify: `e2e/source-workbench.spec.ts`
 
-- [ ] **Step 1: Write failing component and browser tests**
+- [x] **Step 1: Write failing component and browser tests**
 
 Component tests must enter an HTTPS URL, click `Import URL`, and assert the exact client call. After success, assert the URL input is empty, the candidate shows `Remote URL`, fetched byte size, and exact SHA-256 review checkbox, while approval remains disabled until the checkbox is selected.
 
@@ -366,7 +366,7 @@ Error tests must assert the entered URL is cleared after an attempt and a synthe
 
 Browser E2E must click `Import URL`, see `Desktop runtime is required for profile operations.`, and confirm no candidate, digest, source size, or active-profile change is fabricated.
 
-- [ ] **Step 2: Run UI tests and verify RED**
+- [x] **Step 2: Run UI tests and verify RED**
 
 Run:
 
@@ -377,7 +377,7 @@ npx playwright test e2e/source-workbench.spec.ts --project=chromium
 
 Expected: FAIL because the URL form does not exist.
 
-- [ ] **Step 3: Implement the explicit in-memory form**
+- [x] **Step 3: Implement the explicit in-memory form**
 
 Add controlled `urlText` state with:
 
@@ -389,7 +389,7 @@ Disable both import actions while busy. Copy `urlText` into a local variable, cl
 
 Candidate review must display `Local file` or `Remote URL`, a bounded formatted byte count, profile identity/version, truncated fetched-byte SHA-256, diff, and the unchanged exact-digest approval checkbox.
 
-- [ ] **Step 4: Run frontend tests/build and commit**
+- [x] **Step 4: Run frontend tests/build and commit**
 
 Run:
 
@@ -414,11 +414,11 @@ git commit -m "feat: review remote profile imports in context"
 - Modify: `README.md`
 - Modify: `docs/superpowers/plans/2026-07-29-safe-url-profile-import.md`
 
-- [ ] **Step 1: Add a no-mutation failure regression**
+- [x] **Step 1: Add a no-mutation failure regression**
 
 In the remote/store test fixture, snapshot installed, candidate, decision, activation, and source record directories before invalid URL, redirect, timeout, content-type, oversized, malformed JSON, and executable-shape attempts. Assert every failure leaves the snapshot byte-for-byte identical. For a successful fetch followed by invalid profile parsing, assert no candidate/source record is written.
 
-- [ ] **Step 2: Update README honestly**
+- [x] **Step 2: Update README honestly**
 
 Document:
 
@@ -432,7 +432,7 @@ Document:
 
 Retain full Ninebot taxonomy, model-assisted notice/document conversion, automatic classification, and unapproved-profile activation as unimplemented.
 
-- [ ] **Step 3: Run security-sensitive source scan**
+- [x] **Step 3: Run security-sensitive source scan**
 
 Run:
 
@@ -444,7 +444,7 @@ git diff --check
 
 Review every match. No production path may forward credentials, format URLs into errors, use automatic redirects/proxies, persist query/fragment values, or create approval/activation during import.
 
-- [ ] **Step 4: Run the full release gate**
+- [x] **Step 4: Run the full release gate**
 
 Run:
 

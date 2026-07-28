@@ -33,11 +33,29 @@ limit.
 
 ## Declarative classification profiles
 
-The desktop runtime can import a local, declarative JSON classification profile
-as an unapproved candidate. The trusted Rust boundary rejects unknown and
-executable-shaped fields, limits input to 1 MiB, preserves the exact source
-bytes by SHA-256 in the authorized Vault, and records candidate provenance
-without persisting the source's absolute path.
+The desktop runtime can import a local file or an explicitly entered HTTPS URL
+as an unapproved declarative JSON classification-profile candidate. The trusted
+Rust boundary rejects unknown and executable-shaped fields, limits input to
+1 MiB, preserves the exact source bytes by SHA-256 in the authorized Vault, and
+records candidate provenance without persisting a local absolute path or a
+remote URL.
+
+Remote import validates every resolved address as public and pins those
+addresses for the connection. It disables ambient proxies and automatic
+redirects, manually revalidates at most five redirects, and permanently strips
+credentials after a cross-origin hop. Requests have a 5-second connection
+timeout, a 15-second total timeout, a 1 MiB streaming limit, and accept only
+`application/json` or `application/*+json`. Diagnostics are bounded constants;
+query and fragment values are cleared from the UI and excluded from persisted
+provenance.
+
+A successful remote fetch records only the fetched-byte SHA-256, bounded byte
+size, `remoteUrl` source kind, safe basename, and the SHA-256 of the final
+locator after query and fragment removal. The same diff and exact-digest review
+gate used by local import remains mandatory. Remote import never approves or
+activates a profile, and a network or validation failure leaves Vault state
+unchanged. Local discovery, archive, Markdown, graph, and local-profile
+operations remain usable without network access.
 
 Approval and rejection require the exact candidate digest and create immutable
 decision records. An approved version can produce exact-version classification
@@ -48,8 +66,9 @@ activation.
 
 The bundled `Ninebot electronic archive` entry is intentionally a zero-rule
 draft shell. It documents the clean implementation boundary but cannot classify
-or become active. The full Ninebot taxonomy, URL import, and model-assisted
-conversion of future notices and drafts are not yet implemented or claimed.
+or become active. The full Ninebot taxonomy, model-assisted conversion of
+future notices and drafts, automatic classification, and activation of an
+unapproved profile are not implemented or claimed.
 
 ## Canonical naming and source-preserving archive
 
@@ -215,6 +234,7 @@ original cleanup, classified destination paths, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG
 indexing/retrieval, a 3D graph, secure keychain integration, and URL profile
-import remain unimplemented.
+import through MCP remain unimplemented. Explicit review-only HTTPS profile
+import in the desktop UI is implemented as described above.
 Those future integrations must use the same cited-fact, single-use batch, exact
 identity, explicit archive-confirmation, and Agent-grant boundaries.
