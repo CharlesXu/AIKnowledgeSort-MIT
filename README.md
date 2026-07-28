@@ -107,10 +107,41 @@ evidence inspector, and compact 34 px timeline are projections of persisted
 relation events. The browser preview keeps showing proposal topology and cannot
 simulate relation persistence or acceptance.
 
-Model-generated naming facts, local/OpenAI-compatible model execution, Agent
-comparison and adjudication, physical source renaming, user-controlled original
-cleanup, classified destination paths, automatic graph inference, GraphRAG
-indexing/retrieval, a 3D graph, model-generated knowledge, MCP exposure, and URL
-profile import remain unimplemented. Those future integrations must use the same
-cited-fact, single-use batch, exact identity, and explicit archive-confirmation
-boundaries.
+## Configurable model comparison and Agent adjudication
+
+The desktop runtime can persist up to 32 secret-free local or OpenAI-compatible
+model configurations. Local endpoints must be literal loopback HTTP addresses;
+remote endpoints must use HTTPS and reject literal loopback/private addresses,
+embedded credentials, queries, fragments, and redirects. Configuration stores
+only endpoint, model, timeout, location, and authentication metadata. An
+authenticated configuration derives an `AIKS_MODEL_API_KEY_<CONFIG_ID>`
+environment-variable reference; the UI never accepts, reads, displays, or
+persists the credential value.
+
+Agent Review operates only on an authoritative saved Markdown revision. Rust
+reopens that exact revision, re-verifies both Markdown and archived-original
+SHA-256 identities, extracts the selected lines itself, and creates one bounded
+`knowledge-relations-v1` envelope. Two distinct stored configurations receive
+byte-identical envelope JSON on independent blocking workers. Only after both
+strict, evidence-bound proposals succeed does the Agent configuration receive
+the same envelope plus both recorded proposals for adjudication.
+
+The OpenAI-compatible transport disables redirects and proxy inheritance, uses
+bounded connection/total timeouts, caps responses at 256 KiB, and strictly
+validates proposal and adjudication JSON. Provider timeouts, non-success
+responses, malformed output, unknown semantic fields, invalid evidence IDs, and
+Agent adjudication failures become visible `review` or `failed` outcomes. Each
+valid comparison attempt is stored as one immutable Vault record; this workflow
+does not call archive, naming, knowledge-save, graph-write, cleanup, move,
+rename, or deletion operations. Settings and the right-pane Agent Review are
+available only as honest native boundaries; the browser preview rejects all
+model operations and fabricates no configurations, proposals, or decisions.
+
+Secure keychain credential entry, model discovery, provider-specific APIs,
+applying model suggestions to graph relations, model-generated naming facts,
+automatic classification or naming, physical source renaming, user-controlled
+original cleanup, classified destination paths, automatic graph inference,
+model-generated knowledge, MCP stdio/HTTP transports and Agent grants, GraphRAG
+indexing/retrieval, a 3D graph, and URL profile import remain unimplemented.
+Those future integrations must use the same cited-fact, single-use batch, exact
+identity, explicit archive-confirmation, and Agent-grant boundaries.

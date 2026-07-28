@@ -1,5 +1,3 @@
-import { Icon } from "../ui/Icon";
-
 export function AppHeader() {
   return (
     <header
@@ -26,15 +24,6 @@ export function AppHeader() {
           type="button"
         >
           +
-        </button>
-        <button
-          aria-label="Settings — coming later"
-          className="app-header__icon-button"
-          disabled
-          title="Settings — coming later"
-          type="button"
-        >
-          <Icon name="settings" size={15} />
         </button>
       </div>
     </header>

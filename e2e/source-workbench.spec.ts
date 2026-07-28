@@ -146,6 +146,48 @@ test("keeps profile import and activation honest in the browser fixture", async 
   await expect(page.getByText("3 eligible · 0 changes")).toBeVisible();
 });
 
+test("keeps model Settings secret-free and non-persistent in the browser fixture", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Model runtime settings" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Desktop runtime is required for model runtime operations.",
+  );
+  await expect(dialog.getByLabel(/api key|password|secret/i)).toHaveCount(0);
+
+  await dialog.getByLabel("Configuration ID").fill("browser-model");
+  await dialog.getByLabel("Label").fill("Browser Model");
+  await dialog.getByRole("textbox", { name: "Model", exact: true })
+    .fill("browser-only");
+  await dialog.getByRole("button", { name: "Save model config" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Desktop runtime is required for model runtime operations.",
+  );
+  await expect(dialog.getByText("No model configurations.")).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Edit Browser Model" }))
+    .toHaveCount(0);
+});
+
+test("never fabricates Agent comparison or mutation actions for a browser draft", async ({
+  page,
+}) => {
+  await page.getByRole("tab", { name: "Agent Review" }).click();
+  await expect(page.getByText(/saved Vault revision is required/i)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run comparison" })).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Model comparison result" }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/Semantic advice · no operation authorized/))
+    .toHaveCount(0);
+  await expect(
+    page.getByRole("button", {
+      name: /apply|move|rename|delete|cleanup|write graph/i,
+    }),
+  ).toHaveCount(0);
+});
+
 test("collapses and restores the adjustable side panes", async ({ page }) => {
   await expect(
     page.getByRole("separator", { name: "Resize Sources panel" }),

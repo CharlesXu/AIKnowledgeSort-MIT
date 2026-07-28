@@ -39,7 +39,7 @@ The two proposal calls receive byte-identical `ComparisonEnvelope` JSON. Provide
 - Create: `src-tauri/src/model_runtime/mod.rs`
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Write failing configuration tests**
+- [x] **Step 1: Write failing configuration tests**
 
 Define tests around a generated temporary app-config directory. A valid local record is:
 
@@ -57,13 +57,13 @@ ModelConfigInput {
 
 Assert upsert/read/remove round-trips, writes schema version 1 atomically, returns no secret value, and derives no credential reference for unauthenticated local endpoints. A valid authenticated remote record derives `AIKS_MODEL_API_KEY_REMOTE_REASONER` from `remote-reasoner`. Reject unknown JSON fields, duplicate IDs, invalid/control-character text, more than 32 configs, embedded URL credentials, query/fragment values, non-loopback local hosts, non-HTTP local schemes, non-HTTPS remote endpoints, localhost remote endpoints, timeouts outside 1–120 seconds, symlinked config files, and replacement conflicts without changing the prior config file.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime::config --lib`
 
 Expected: FAIL because `model_runtime` does not exist.
 
-- [ ] **Step 3: Add the strict schema and app-config store**
+- [x] **Step 3: Add the strict schema and app-config store**
 
 Add the URL parser used by the configuration trust boundary:
 
@@ -104,7 +104,7 @@ pub struct ModelRuntimeState {
 
 Use `serde(rename_all = "camelCase", deny_unknown_fields)`. Resolve `app.path().app_config_dir()` in Tauri commands and store `model-runtime-v1.json` beneath that directory. Use a same-directory unique temporary file, `sync_all`, atomic rename, and directory synchronization; reject links and non-regular records. Restrict config IDs to lowercase ASCII alphanumeric plus `-`, labels/models to 256 visible characters, endpoint URLs to 2 KiB, and config count to 32. Local URLs must be literal loopback HTTP; remote URLs must be HTTPS and must not use loopback or private literal IPs. Disallow usernames, passwords, query strings, and fragments. Derive the credential environment name from the validated ID; never accept it from the frontend.
 
-- [ ] **Step 4: Add inspect/upsert/remove commands**
+- [x] **Step 4: Add inspect/upsert/remove commands**
 
 Expose:
 
@@ -116,7 +116,7 @@ remove_model_config(request: { configId })
 
 Manage one `ModelRuntimeAuthority` mutex in `lib.rs`. Browser code is not part of this task.
 
-- [ ] **Step 5: Run GREEN and commit**
+- [x] **Step 5: Run GREEN and commit**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime::config --lib`
 
@@ -135,7 +135,7 @@ git commit -m "feat: persist secret-free model configurations"
 - Modify: `src-tauri/src/model_runtime/mod.rs`
 - Modify: `src-tauri/src/vault/mod.rs`
 
-- [ ] **Step 1: Write failing envelope and record tests**
+- [x] **Step 1: Write failing envelope and record tests**
 
 Create a verified archive fixture and two committed Markdown revisions. Request revision 1 with lines 2–3 and assert Rust reopens revision 1, independently re-verifies the archived original, extracts exact text, and constructs:
 
@@ -163,17 +163,17 @@ ComparisonEnvelope {
 
 Assert deterministic JSON bytes and SHA-256 identity across two calls. Reject revision 0, missing/tampered revisions, changed originals, zero/reversed/out-of-range/duplicate ranges, empty evidence, more than 16 ranges, and an envelope above 128 KiB without creating `.aiks/comparisons` records.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime::store --lib`
 
 Expected: FAIL because the envelope/store functions do not exist.
 
-- [ ] **Step 3: Implement strict protocol types**
+- [x] **Step 3: Implement strict protocol types**
 
 Add `ComparisonEnvelope`, `RuleSnapshot`, `EvidenceExcerpt`, `RelationSuggestion`, `ModelProposal`, `AgentAdjudication`, `ComparisonStatus`, `ProviderOutcome`, and `ComparisonRecord`, all with camelCase serialization. `RelationSuggestion` contains only bounded source/type/target strings and 1–16 evidence IDs. `ModelProposal` contains a bounded summary and 1–64 relations. `AgentAdjudication` contains `accept | revise | reject | review`, a non-empty reason, 1–16 evidence IDs, an optional selected side, and revised relations only for `revise`. Every evidence ID must exist in the envelope.
 
-- [ ] **Step 4: Implement immutable comparison storage**
+- [x] **Step 4: Implement immutable comparison storage**
 
 Initialize `.aiks/comparisons` in every Vault. Store one immutable record at:
 
@@ -183,7 +183,7 @@ Initialize `.aiks/comparisons` in every Vault. Store one immutable record at:
 
 Records include the envelope and its SHA-256, the distinct desktop/Agent config IDs, both provider outcomes, optional adjudication, status, actor `desktop-orchestrator`, and timestamps. Use a simple UUID relation-style ID, reject links/non-regular entries, and cap inspection to 10,000 comparisons. No method in this module calls archive, naming, graph, knowledge save, cleanup, or deletion.
 
-- [ ] **Step 5: Run GREEN and commit**
+- [x] **Step 5: Run GREEN and commit**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime::store --lib`
 
@@ -199,19 +199,19 @@ git commit -m "feat: bind model comparisons to exact evidence"
 - Create: `src-tauri/src/model_runtime/openai_compatible.rs`
 - Modify: `src-tauri/src/model_runtime/mod.rs`
 
-- [ ] **Step 1: Write failing transport and orchestration tests**
+- [x] **Step 1: Write failing transport and orchestration tests**
 
 Define an internal `ModelTransport` trait that receives a `ModelConfigSummary`, a request kind, and serialized body. A capture transport must prove the desktop and Agent proposal calls receive identical envelope bytes and begin independently before either result is consumed. Test distinct configs are required. Return two distinguishable strict proposals, then assert the Agent config alone receives the adjudication request containing the exact envelope plus both proposals.
 
 Add failure cases for one timeout, non-2xx response, response over 256 KiB, malformed JSON, Markdown-fenced JSON, unknown fields, missing choices/content, invalid evidence IDs, missing adjudication reason/evidence, and materially conflicting proposals followed by an Agent `review`. Every failure must persist a visible `review` or `failed` record and leave fixture source/archive/Markdown/graph bytes unchanged.
 
-- [ ] **Step 2: Run RED**
+- [x] **Step 2: Run RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime::openai_compatible model_runtime::tests --lib`
 
 Expected: FAIL because transport and orchestration are absent.
 
-- [ ] **Step 3: Add the bounded HTTP transport**
+- [x] **Step 3: Add the bounded HTTP transport**
 
 Add:
 
@@ -223,7 +223,7 @@ Build `reqwest::blocking::Client` with total/connect/read timeouts from the vali
 
 The proposal request contains one fixed system instruction and one user message containing the exact envelope JSON. The adjudication request uses a different fixed system instruction and one user message containing the exact envelope plus both already-recorded proposals. Set temperature 0 and request JSON output, but still strictly validate returned content rather than trusting provider mode flags.
 
-- [ ] **Step 4: Add the comparison command**
+- [x] **Step 4: Add the comparison command**
 
 Expose:
 
@@ -240,7 +240,7 @@ run_model_comparison({
 
 The frontend cannot supply evidence text, identities, rule JSON, provider outcomes, Agent decision, actor, timestamps, status, or comparison ID. The command leases the exact Vault, loads both stored configs, builds one envelope, runs the two proposal calls on separate blocking workers, validates them independently, invokes Agent adjudication only when both proposals are valid, writes the immutable record, and returns it.
 
-- [ ] **Step 5: Run GREEN and commit**
+- [x] **Step 5: Run GREEN and commit**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test model_runtime --lib`
 
@@ -266,19 +266,19 @@ git commit -m "feat: compare independent model proposals"
 - Modify: `src/App.tsx`
 - Modify: `src/styles.css`
 
-- [ ] **Step 1: Write failing client tests**
+- [x] **Step 1: Write failing client tests**
 
 Assert Tauri adapters invoke only `inspect_model_runtime`, `upsert_model_config`, `remove_model_config`, and `run_model_comparison`, each with a single `{ request }` object except no-argument inspect. Assert the browser adapter rejects every method with `Desktop runtime is required for model runtime operations.` and never returns fake configs or comparisons.
 
-- [ ] **Step 2: Write failing Settings tests**
+- [x] **Step 2: Write failing Settings tests**
 
 Open Settings from the lower-left tool rail. Assert the dialog lists configs, adds/edits/removes one exact config, distinguishes Local and Remote, shows the derived credential environment reference for authenticated remote configs, contains no password/API-key textbox, preserves entered values on native failure, closes with Escape, and restores focus to the Settings button.
 
-- [ ] **Step 3: Implement the typed client and Settings dialog**
+- [x] **Step 3: Implement the typed client and Settings dialog**
 
 Mirror Rust camelCase types exactly. Keep one `ModelRuntimeClient` injected from `App`. `AppShell` owns `settingsOpen`; `ToolRail` receives `onOpenSettings` and enables only the existing lower-left Settings button. Render an accessible modal dialog over the workbench with dense Obsidian-style rows. Submit only config input fields, never a credential value. Display: `Set the credential in AIKS_MODEL_API_KEY_<CONFIG_ID>` without reading it.
 
-- [ ] **Step 4: Run GREEN and commit**
+- [x] **Step 4: Run GREEN and commit**
 
 Run: `npm test -- --run src/features/models/modelRuntimeClient.test.ts src/features/models/ModelSettingsDialog.test.tsx src/App.test.tsx`
 
@@ -299,15 +299,15 @@ git commit -m "feat: configure model runtimes in settings"
 - Modify: `src/app/AppShell.tsx`
 - Modify: `src/styles.css`
 
-- [ ] **Step 1: Write failing Agent Review tests**
+- [x] **Step 1: Write failing Agent Review tests**
 
 With no authoritative saved document, assert Agent Review explains that a saved Vault revision is required and exposes no run action. With a saved document and two configs, select distinct desktop/Agent configs plus line ranges and assert the exact request fields. Render both provider outcomes with side/config/model labels, the shared envelope SHA-256, Agent decision, reason, evidence excerpts, failures, and `review` state. Assert no buttons named apply, move, rename, delete, cleanup, accept filesystem operation, or write graph exist.
 
-- [ ] **Step 2: Implement the separate Agent Review tab**
+- [x] **Step 2: Implement the separate Agent Review tab**
 
 Add `Agent Review` beside `Knowledge Graph` and `Import Review`. Load model state when the tab opens. The form contains desktop config, Agent config, start/end line, and `Run comparison`. It does not accept evidence text. Results are read-only cards; the Agent adjudication card is visually distinct and states `Semantic advice · no operation authorized`. Preserve the current result and form if refresh or execution fails.
 
-- [ ] **Step 3: Run GREEN and commit**
+- [x] **Step 3: Run GREEN and commit**
 
 Run: `npm test -- --run src/features/models/AgentReviewPane.test.tsx src/features/workbench/ContextPane.test.tsx src/App.test.tsx`
 
@@ -323,15 +323,15 @@ git commit -m "feat: review agent model comparisons"
 - Modify: `README.md`
 - Modify: `docs/superpowers/plans/2026-07-28-model-comparison-kernel.md`
 
-- [ ] **Step 1: Extend browser E2E**
+- [x] **Step 1: Extend browser E2E**
 
 Open Settings and assert the desktop-runtime error is visible, no config is persisted, and no API-key input exists. Open Agent Review and assert the unsaved browser draft cannot run comparison, no proposal/adjudication is fabricated, and no mutation action appears.
 
-- [ ] **Step 2: Document only delivered scope**
+- [x] **Step 2: Document only delivered scope**
 
 README shall claim secret-free local/OpenAI-compatible config persistence, exact identical evidence envelopes, independent two-provider proposals, Agent-side adjudication, immutable visible outcomes, timeouts/failures with zero mutation, Settings, and Agent Review. It shall explicitly keep secure keychain entry, model discovery, provider-specific APIs, applying graph suggestions, automatic classification/naming, cleanup, MCP stdio/HTTP/grants, GraphRAG, and 3D graph unimplemented.
 
-- [ ] **Step 3: Run the complete gate**
+- [x] **Step 3: Run the complete gate**
 
 ```bash
 npm test -- --run
