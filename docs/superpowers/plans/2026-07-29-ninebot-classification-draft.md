@@ -138,7 +138,7 @@ git commit -m "feat: add governed taxonomy profile schema"
 - Modify: `src-tauri/src/profiles/mod.rs`
 - Test: inline unit tests in `src-tauri/src/profiles/ninebot.rs`
 
-- [ ] **Step 1: Write failing bundled-profile tests**
+- [x] **Step 1: Write failing bundled-profile tests**
 
 Assert that the bundled resource:
 
@@ -150,7 +150,7 @@ Assert that the bundled resource:
 - declares the approved conflict and knowledge policy;
 - contains zero executable rules and therefore cannot classify or commit.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::ninebot --lib
@@ -158,7 +158,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::ninebot --lib
 
 Expected: compilation fails because the bundled module/resource is absent.
 
-- [ ] **Step 3: Implement the deterministic compiler**
+- [x] **Step 3: Implement the deterministic compiler**
 
 Parse only the authorized Markdown tree headings and indentation. Reject
 unexpected syntax, wrong level counts, missing parents, duplicate IDs,
@@ -166,7 +166,7 @@ non-four-level output, or an unexpected canonical SN-02 label. Emit stable,
 pretty JSON with source digests and governance values fixed by the reviewed
 materials. Do not emit keyword rules from the dictionary.
 
-- [ ] **Step 4: Generate and verify the resource**
+- [x] **Step 4: Generate and verify the resource**
 
 ```bash
 node scripts/compile-ninebot-classification.mjs \
@@ -177,7 +177,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::ninebot --lib
 
 Expected: deterministic resource generation and all bundled-profile tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts src-tauri/resources src-tauri/src/profiles
