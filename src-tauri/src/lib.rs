@@ -9,6 +9,7 @@ mod discovery;
 mod graph;
 pub mod identity;
 mod knowledge;
+pub mod mcp_transport;
 mod model_runtime;
 mod naming;
 pub mod profiles;
