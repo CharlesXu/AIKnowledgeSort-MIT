@@ -432,7 +432,7 @@ git add README.md e2e/source-workbench.spec.ts docs/superpowers/plans/2026-07-28
 git commit -m "docs: record governed agent grant milestone"
 ```
 
-- [ ] **Step 5: Fast-forward merge after verification**
+- [x] **Step 5: Fast-forward merge after verification**
 
 Confirm `main` and the worktree are clean and non-divergent. Because the user explicitly authorized tested feature branches to be merged unless interrupted, fast-forward `codex/mcp-grant-kernel` into `main`, rerun the full release gate on `main`, then remove only this worktree and delete only this merged branch.
 
