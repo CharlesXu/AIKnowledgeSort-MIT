@@ -234,6 +234,7 @@ export function AppShell({
         collapsed={layout.contextCollapsed}
         document={activeDocument}
         graphClient={graphClient}
+        modelRuntimeClient={modelRuntimeClient}
         onCollapsedChange={(contextCollapsed) =>
           updateLayout({ contextCollapsed })
         }

@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import type { DiscoveryProposal } from "../drop/types";
 import type { GraphClient } from "../graph/types";
 import type { ProfileClient } from "../profiles/types";
+import type { ModelRuntimeClient } from "../models/types";
 import { ContextPane } from "./ContextPane";
 
 const proposal: DiscoveryProposal = {
@@ -43,11 +44,18 @@ describe("ContextPane", () => {
       propose: vi.fn(),
       decide: vi.fn(),
     };
+    const modelRuntimeClient: ModelRuntimeClient = {
+      inspect: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
+      upsert: vi.fn(),
+      remove: vi.fn(),
+      runComparison: vi.fn(),
+    };
     render(
       <ContextPane
         collapsed={false}
         document={null}
         graphClient={graphClient}
+        modelRuntimeClient={modelRuntimeClient}
         onCollapsedChange={vi.fn()}
         profileClient={profileClient}
         proposal={proposal}
@@ -60,6 +68,9 @@ describe("ContextPane", () => {
     expect(await screen.findByText("Ninebot electronic archive"))
       .toBeInTheDocument();
     expect(screen.getByText("No candidate awaiting review"))
+      .toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Agent Review" }));
+    expect(await screen.findByText(/saved Vault revision is required/i))
       .toBeInTheDocument();
   });
 });

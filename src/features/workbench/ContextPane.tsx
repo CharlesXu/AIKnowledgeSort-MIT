@@ -7,6 +7,8 @@ import { ProposalTopology } from "./ProposalTopology";
 import { KnowledgeGraphPane } from "./KnowledgeGraphPane";
 import type { GraphClient } from "../graph/types";
 import type { KnowledgeDocument } from "../knowledge/types";
+import type { ModelRuntimeClient } from "../models/types";
+import { AgentReviewPane } from "../models/AgentReviewPane";
 
 interface ContextPaneProps {
   readonly collapsed: boolean;
@@ -15,6 +17,7 @@ interface ContextPaneProps {
   readonly graphClient: GraphClient;
   readonly document: KnowledgeDocument | null;
   readonly proposal: DiscoveryProposal;
+  readonly modelRuntimeClient: ModelRuntimeClient;
 }
 
 export function ContextPane({
@@ -24,8 +27,9 @@ export function ContextPane({
   graphClient,
   document,
   proposal,
+  modelRuntimeClient,
 }: ContextPaneProps) {
-  const [mode, setMode] = useState<"graph" | "review">("graph");
+  const [mode, setMode] = useState<"graph" | "review" | "agent">("graph");
 
   return (
     <aside
@@ -63,6 +67,14 @@ export function ContextPane({
               >
                 Import Review
               </button>
+              <button
+                aria-selected={mode === "agent"}
+                onClick={() => setMode("agent")}
+                role="tab"
+                type="button"
+              >
+                Agent Review
+              </button>
             </div>
             <button
               aria-label="Collapse Import review context"
@@ -81,8 +93,10 @@ export function ContextPane({
               ) : (
                 <KnowledgeGraphPane client={graphClient} document={document} />
               )
-            ) : (
+            ) : mode === "review" ? (
               <ProfileReview client={profileClient} />
+            ) : (
+              <AgentReviewPane client={modelRuntimeClient} document={document} />
             )}
           </div>
         </>
