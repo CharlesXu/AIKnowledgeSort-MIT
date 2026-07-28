@@ -150,8 +150,10 @@ test("keeps model Settings secret-free and non-persistent in the browser fixture
   page,
 }) => {
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Model runtime settings" });
+  const dialog = page.getByRole("dialog", { name: "Settings" });
   await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("tab", { name: "Model runtime" }))
+    .toHaveAttribute("aria-selected", "true");
   await expect(dialog.getByRole("alert")).toContainText(
     "Desktop runtime is required for model runtime operations.",
   );
@@ -168,6 +170,28 @@ test("keeps model Settings secret-free and non-persistent in the browser fixture
   await expect(dialog.getByText("No model configurations.")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Edit Browser Model" }))
     .toHaveCount(0);
+});
+
+test("keeps Agent access local, unissued, and non-mutating in the browser fixture", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  await dialog.getByRole("tab", { name: "Agent access" }).click();
+
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Desktop runtime is required for Agent access operations.",
+  );
+  await dialog.getByRole("button", { name: "Choose directories" }).click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Desktop runtime is required for Agent access operations.",
+  );
+  await expect(dialog.getByText("No Agent grants.")).toBeVisible();
+  await expect(dialog.getByText(/one-time grant token/i)).toHaveCount(0);
+  await expect(dialog.getByText(/MCP connected/i)).toHaveCount(0);
+  await expect(dialog.getByRole("button", {
+    name: /cleanup execution|move|rename|delete|archive commit/i,
+  })).toHaveCount(0);
 });
 
 test("never fabricates Agent comparison or mutation actions for a browser draft", async ({

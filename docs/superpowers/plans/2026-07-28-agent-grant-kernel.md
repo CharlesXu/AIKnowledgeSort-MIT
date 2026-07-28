@@ -46,7 +46,7 @@
 - Modify: `src-tauri/Cargo.toml`
 - Modify: `src-tauri/Cargo.lock`
 
-- [ ] **Step 1: Write failing Rust schema tests**
+- [x] **Step 1: Write failing Rust schema tests**
 
 Add tests covering:
 
@@ -75,13 +75,13 @@ fn grant_request_rejects_unknown_fields_tools_ids_and_limits() {
 
 Use these exact bounds: 128-byte IDs, 256-character labels, 16 scopes, 16 tools, TTL 60 seconds through 30 days, 1 through 100,000 requests, 1 KiB through 1 MiB request bodies, and 1 KiB through 4 MiB response budgets. All externally received structs use `#[serde(rename_all = "camelCase", deny_unknown_fields)]`.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access::schema --lib`
 
 Expected: FAIL because `agent_access` does not exist.
 
-- [ ] **Step 3: Implement the minimal schema and catalog**
+- [x] **Step 3: Implement the minimal schema and catalog**
 
 Define:
 
@@ -112,13 +112,13 @@ pub struct CreateAgentGrantRequest {
 
 Add `getrandom = "0.3"`. Generate 32 random bytes, encode them as lowercase hex, and store/compare only SHA-256 token digests with a constant-time byte comparison. Token helpers must never implement `Debug` or `Serialize` for plaintext token wrappers.
 
-- [ ] **Step 4: Run focused tests and verify GREEN**
+- [x] **Step 4: Run focused tests and verify GREEN**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access::schema --lib`
 
 Expected: all schema tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/src/agent_access src-tauri/src/lib.rs
@@ -133,7 +133,7 @@ git commit -m "feat: define bounded agent grant schema"
 - Modify: `src-tauri/src/agent_access/mod.rs`
 - Modify: `src-tauri/src/lib.rs`
 
-- [ ] **Step 1: Write failing authority/store tests**
+- [x] **Step 1: Write failing authority/store tests**
 
 Cover all of the following with temporary directories and an injected clock/config root:
 
@@ -160,13 +160,13 @@ fn config_and_audit_paths_reject_links_and_non_regular_entries() {}
 
 Also assert at most 32 grants, 16 pending selections, a five-minute selection TTL, exact atomic replacement of `agent-access-v1.json`, and immutable audit paths `agent-access-audit/<20-digit-sequence>-<event-id>.json`.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access --lib`
 
 Expected: FAIL because persistence and authority behavior are missing.
 
-- [ ] **Step 3: Implement selection, grant persistence, and audit**
+- [x] **Step 3: Implement selection, grant persistence, and audit**
 
 `AgentAccessAuthority` owns:
 
@@ -192,7 +192,7 @@ Open picker results through the existing no-follow `open_trusted_drop_root`; acc
 
 Public summaries expose `active`, `inactive`, `revoked`, or `expired`. Inspection prunes expired pending selections/sessions and derives time status without rewriting history. Revocation records `revokedAtUnixMs`, clears active roots and sessions, and is idempotent for the exact grant.
 
-- [ ] **Step 4: Add Tauri directory-picker and grant commands**
+- [x] **Step 4: Add Tauri directory-picker and grant commands**
 
 Register only:
 
@@ -205,7 +205,7 @@ revoke_agent_grant(app, authority, request)
 
 The picker command calls `blocking_pick_folders()`. `create_agent_grant` accepts the opaque selection ID but no path field. Resolve `app.path().app_config_dir()` in the command boundary and pass it to the store.
 
-- [ ] **Step 5: Run focused and full Rust tests**
+- [x] **Step 5: Run focused and full Rust tests**
 
 Run:
 
@@ -216,7 +216,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.
 
 Expected: all tests pass and existing 89 tests remain green.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src-tauri/src/agent_access src-tauri/src/lib.rs
@@ -230,7 +230,7 @@ git commit -m "feat: persist native agent grants"
 - Modify: `src-tauri/src/agent_access/mod.rs`
 - Modify: `src-tauri/src/agent_access/store.rs`
 
-- [ ] **Step 1: Write failing authorization tests**
+- [x] **Step 1: Write failing authorization tests**
 
 Create one active grant and prove:
 
@@ -251,15 +251,15 @@ fn denies_expired_revoked_and_resource_exhausted_requests() {}
 fn failed_authorization_never_consumes_or_mutates_a_filesystem_capability() {}
 ```
 
-An authorized request must identify `agentId`, `grantId`, `sessionId`, `sessionToken`, `requestId`, `toolId`, optional `scopeId`, `requestBytes`, and `responseBudgetBytes`. Request IDs are 1–128 safe ASCII bytes and are single-use within a session even when downstream dispatch later fails.
+An authorized request must identify `agentId`, `grantId`, `sessionId`, `sessionToken`, `requestId`, `toolId`, optional `scopeId`, `requestBytes`, and `responseBudgetBytes`. Request IDs are 1–128 safe ASCII bytes and are single-use across the active grant lifetime, including across replacement sessions, even when downstream dispatch later fails.
 
-- [ ] **Step 2: Run focused tests and verify RED**
+- [x] **Step 2: Run focused tests and verify RED**
 
 Run: `PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test --manifest-path src-tauri/Cargo.toml agent_access::authority::tests --lib`
 
 Expected: new authorization tests fail.
 
-- [ ] **Step 3: Implement one authorization choke point**
+- [x] **Step 3: Implement one authorization choke point**
 
 Expose Rust-only methods (not Tauri commands):
 
@@ -273,7 +273,7 @@ Session tokens are 32 random bytes returned once, with only their digest retaine
 
 Use stable denial codes: `invalidRequest`, `unauthenticated`, `unknownGrant`, `inactiveGrant`, `revokedGrant`, `expiredGrant`, `unknownSession`, `sessionMismatch`, `replayedRequest`, `toolDenied`, `scopeDenied`, `requestLimitExceeded`, `requestTooLarge`, `responseBudgetExceeded`, and `authorityUnavailable`.
 
-- [ ] **Step 4: Run focused and full Rust tests**
+- [x] **Step 4: Run focused and full Rust tests**
 
 Run:
 
@@ -286,7 +286,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo clippy --manifest-path src-tauri/Carg
 
 Expected: all pass with no warnings.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/src/agent_access
@@ -300,27 +300,27 @@ git commit -m "feat: authorize replay-safe agent sessions"
 - Create: `src/features/agentAccess/agentAccessClient.ts`
 - Create: `src/features/agentAccess/agentAccessClient.test.ts`
 
-- [ ] **Step 1: Write failing client contract tests**
+- [x] **Step 1: Write failing client contract tests**
 
 Assert Tauri adapters invoke exactly `select_agent_grant_directories`, `inspect_agent_access`, `create_agent_grant`, and `revoke_agent_grant`; mutation calls carry one `{ request }` object and selection/inspection have no invented parameters. Assert the browser adapter rejects every method with `Desktop runtime is required for Agent access operations.` and never returns a fake selection, grant, token, or audit state.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run: `npm test -- --run src/features/agentAccess/agentAccessClient.test.ts`
 
 Expected: FAIL because the files do not exist.
 
-- [ ] **Step 3: Implement exact TypeScript DTOs and adapters**
+- [x] **Step 3: Implement exact TypeScript DTOs and adapters**
 
 Mirror the Rust camelCase contract, including `AgentToolDescriptor`, `AgentScopeSummary`, `AgentGrantSummary`, `AgentAccessState`, `NativeScopeSelection`, `CreateAgentGrantRequest`, `IssuedAgentGrant`, and `RevokeAgentGrantRequest`. Plaintext `grantToken` appears only on `IssuedAgentGrant`, never on persistent summaries.
 
-- [ ] **Step 4: Run and verify GREEN**
+- [x] **Step 4: Run and verify GREEN**
 
 Run: `npm test -- --run src/features/agentAccess/agentAccessClient.test.ts`
 
 Expected: all client tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/features/agentAccess
@@ -340,7 +340,7 @@ git commit -m "feat: add honest agent access client"
 - Modify: `src/styles.css`
 - Modify: `src/App.test.tsx`
 
-- [ ] **Step 1: Write failing accessible UI tests**
+- [x] **Step 1: Write failing accessible UI tests**
 
 Prove:
 
@@ -353,7 +353,7 @@ Prove:
 7. Escape closes Settings and restores focus to the gear button.
 8. Browser mode displays the desktop-runtime error and never claims a grant was issued.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 Run:
 
@@ -363,15 +363,15 @@ npm test -- --run src/features/agentAccess/AgentAccessPanel.test.tsx src/feature
 
 Expected: FAIL because Agent access UI is absent.
 
-- [ ] **Step 3: Refactor model settings into a tab-safe panel**
+- [x] **Step 3: Refactor model settings into a tab-safe panel**
 
 Keep all existing labels, validation, state behavior, and tests. Move only the dialog shell/close handling to `SettingsDialog`; the model form/list becomes a child panel. Do not add provider discovery, key entry, or other model features.
 
-- [ ] **Step 4: Implement Agent Access panel and workbench wiring**
+- [x] **Step 4: Implement Agent Access panel and workbench wiring**
 
 Use immutable state updates. Default to a one-hour grant, 1,000 requests, 128 KiB request limit, and 256 KiB response budget. Require at least one native scope and one tool. The one-time token region must use `role="status"`, explain that it cannot be recovered, and offer only a dismiss action; do not persist it in localStorage/sessionStorage.
 
-- [ ] **Step 5: Run focused and full frontend tests**
+- [x] **Step 5: Run focused and full frontend tests**
 
 Run:
 
@@ -383,7 +383,7 @@ npm run build
 
 Expected: all tests pass and production build succeeds.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src
@@ -397,11 +397,11 @@ git commit -m "feat: manage agent grants in settings"
 - Modify: `README.md`
 - Modify: this plan
 
-- [ ] **Step 1: Add failing browser E2E assertions**
+- [x] **Step 1: Add failing browser E2E assertions**
 
 Open Settings, switch to Agent access, attempt directory selection, and assert the desktop-runtime error is visible. Assert there is no issued token, active grant, MCP connected claim, cleanup execution, move, rename, delete, or archive action. Preserve the existing model-settings browser checks.
 
-- [ ] **Step 2: Run E2E and verify RED, then complete UI/doc wording**
+- [x] **Step 2: Run E2E and verify RED, then complete UI/doc wording**
 
 Run: `npx playwright test --project=chromium`
 
@@ -409,7 +409,7 @@ Expected before final wiring: new assertions fail. Update only the necessary UI 
 
 README must claim native capability selection, persistent secret-digest-only grant metadata, active/inactive lifecycle, fixed safe tool catalog, authenticated in-memory sessions, request replay defense, resource limits, revocation, and immutable audit events. It must explicitly state that stdio/Streamable HTTP transports, MCP JSON-RPC dispatch, automatic grant reactivation, external Agent runtime smoke tests, cleanup execution, keychain integration, GraphRAG, and 3D remain unimplemented.
 
-- [ ] **Step 3: Run the full release gate**
+- [x] **Step 3: Run the full release gate**
 
 ```bash
 npm test -- --run
@@ -425,7 +425,7 @@ git status --short
 
 Also search changed files for high-entropy literals, bearer/token values, direct deletion/cleanup execution tools, unsafe path acceptance, listener startup, and ambient filesystem opening outside the native selection boundary. The search must find no secret values and no transport claim.
 
-- [ ] **Step 4: Mark the plan complete and commit**
+- [x] **Step 4: Mark the plan complete and commit**
 
 ```bash
 git add README.md e2e/source-workbench.spec.ts docs/superpowers/plans/2026-07-28-agent-grant-kernel.md

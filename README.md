@@ -137,11 +137,41 @@ rename, or deletion operations. Settings and the right-pane Agent Review are
 available only as honest native boundaries; the browser preview rejects all
 model operations and fabricates no configurations, proposals, or decisions.
 
+## Governed Agent access kernel
+
+Settings now includes an Agent access panel backed by a trusted Rust permission
+kernel. Directory authority can originate only from the native multiple-folder
+picker: Rust opens each selected directory as a no-follow capability and gives
+the frontend only an opaque, five-minute, single-use selection identity plus
+display labels. Grant creation consumes that selection and persists at most 32
+bounded records with Agent identity, opaque scope identities, an exact safe-tool
+set, expiry, revocation state, and request/input/output limits. It never accepts
+frontend-supplied paths.
+
+The code-owned `agent-tools-v1` catalog contains only capability/knowledge/graph
+reads and semantic comparison, classification, or cleanup suggestions. It has
+no cleanup execution, archive commit, move, rename, delete, arbitrary command,
+or ambient filesystem capability. Restarted grants remain visible for audit but
+become inactive; persisted display paths are never used to silently reopen
+filesystem authority.
+
+Grant and session bearer tokens use 32 bytes of operating-system randomness and
+are returned only at issuance. The runtime retains or persists only SHA-256
+verifiers. Each Agent request must pass one Rust authorization boundary that
+rechecks the exact Agent, grant, active session, bearer token, tool, optional
+scope, expiry, revocation, single-use request identity, request count, input
+size, and response budget before yielding a cloned directory capability.
+Authorized session/request events and desktop grant changes create immutable,
+token-free local audit records. The browser preview rejects every Agent-access
+operation and never fabricates a grant or token.
+
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
 automatic classification or naming, physical source renaming, user-controlled
 original cleanup, classified destination paths, automatic graph inference,
-model-generated knowledge, MCP stdio/HTTP transports and Agent grants, GraphRAG
-indexing/retrieval, a 3D graph, and URL profile import remain unimplemented.
+model-generated knowledge, MCP stdio/Streamable HTTP transports, MCP JSON-RPC
+dispatch, automatic grant reactivation, external Agent-runtime smoke tests,
+GraphRAG indexing/retrieval, a 3D graph, secure keychain integration, and URL
+profile import remain unimplemented.
 Those future integrations must use the same cited-fact, single-use batch, exact
 identity, explicit archive-confirmation, and Agent-grant boundaries.
