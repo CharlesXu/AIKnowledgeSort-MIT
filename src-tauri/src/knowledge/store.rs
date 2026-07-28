@@ -92,6 +92,7 @@ pub(crate) fn save_document(
     let revision_name = format!("{revision:08}");
     let markdown_path = markdown_directory.join(format!("{revision_name}.md"));
     let record_path = record_directory.join(format!("{revision_name}.json"));
+    remove_uncommitted_markdown(vault, &markdown_path, &record_path)?;
     let markdown_identity = ContentIdentity::from_reader(Cursor::new(markdown.as_bytes()))
         .map_err(|error| format!("Markdown identity cannot be computed: {error}"))?;
     write_new_bytes(&vault.directory, &markdown_path, markdown.as_bytes())?;
@@ -132,7 +133,11 @@ fn latest_revision(
         }
         Ok(_) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(error) => return Err(format!("Knowledge revision namespace is unreadable: {error}")),
+        Err(error) => {
+            return Err(format!(
+                "Knowledge revision namespace is unreadable: {error}"
+            ))
+        }
     }
 
     let mut latest: Option<KnowledgeRevisionRecord> = None;
@@ -145,7 +150,8 @@ fn latest_revision(
         if index >= MAX_REVISIONS as usize {
             return Err("Knowledge revision namespace exceeds its scan limit".to_owned());
         }
-        let entry = entry.map_err(|error| format!("Knowledge revision entry is unreadable: {error}"))?;
+        let entry =
+            entry.map_err(|error| format!("Knowledge revision entry is unreadable: {error}"))?;
         let file_type = entry
             .file_type()
             .map_err(|error| format!("Knowledge revision entry type is unreadable: {error}"))?;
@@ -153,7 +159,9 @@ fn latest_revision(
             return Err("Knowledge revision namespace contains a link".to_owned());
         }
         if !file_type.is_file()
-            || Path::new(&entry.file_name()).extension().and_then(|value| value.to_str())
+            || Path::new(&entry.file_name())
+                .extension()
+                .and_then(|value| value.to_str())
                 != Some("json")
         {
             continue;
@@ -163,7 +171,7 @@ fn latest_revision(
         validate_record(vault, operation_id, &record)?;
         if latest
             .as_ref()
-            .is_none_or(|current| record.revision > current.revision)
+            .map_or(true, |current| record.revision > current.revision)
         {
             latest = Some(record);
         }
@@ -236,7 +244,36 @@ fn ensure_trusted_directory(vault: &VaultLease, path: &Path) -> Result<(), Strin
             .directory
             .create_dir(path)
             .map_err(|error| format!("Knowledge storage directory cannot be created: {error}")),
-        Err(error) => Err(format!("Knowledge storage directory cannot be inspected: {error}")),
+        Err(error) => Err(format!(
+            "Knowledge storage directory cannot be inspected: {error}"
+        )),
+    }
+}
+
+fn remove_uncommitted_markdown(
+    vault: &VaultLease,
+    markdown_path: &Path,
+    record_path: &Path,
+) -> Result<(), String> {
+    match vault.directory.symlink_metadata(record_path) {
+        Ok(_) => return Err("Knowledge revision metadata already exists".to_owned()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(format!(
+                "Knowledge revision metadata cannot be inspected: {error}"
+            ))
+        }
+    }
+    match vault.directory.symlink_metadata(markdown_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err("Uncommitted Markdown path is not a regular file".to_owned())
+        }
+        Ok(_) => vault
+            .directory
+            .remove_file(markdown_path)
+            .map_err(|error| format!("Uncommitted Markdown cannot be recovered: {error}")),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!("Uncommitted Markdown cannot be inspected: {error}")),
     }
 }
 
@@ -246,8 +283,10 @@ fn starter_markdown(name: &str, original_path: &str, identity: &ContentIdentity)
         .map(|value| value.to_string_lossy())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| name.into());
+    let yaml_title = serde_json::to_string(title.as_ref())
+        .expect("a canonical filename stem always serializes as a JSON string");
     format!(
-        "---\ntitle: {title}\nsource_sha256: {}\nstatus: draft\n---\n\n# {title}\n\n> [!SOURCE]\n> Archived original: [[{original_path}]]\n",
+        "---\ntitle: {yaml_title}\nsource_sha256: {}\nstatus: draft\n---\n\n# {title}\n\n> [!SOURCE]\n> Archived original: [[{original_path}]]\n",
         identity.digest
     )
 }
@@ -283,7 +322,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!(
             "aiks-knowledge-{}-{}-{}",
             std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
             NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed),
         ));
         fs::create_dir(&root).expect("create fixture root");
@@ -295,7 +337,8 @@ mod tests {
         let vaults = VaultAuthorityRegistry::default();
         let summary = vaults.authorize_path(&vault_path).expect("authorize Vault");
         let lease = vaults.lease(&summary.authority_id).expect("lease Vault");
-        let identity = ContentIdentity::from_reader(Cursor::new(SOURCE_BYTES)).expect("hash source");
+        let identity =
+            ContentIdentity::from_reader(Cursor::new(SOURCE_BYTES)).expect("hash source");
         let plan = ArchivePlan {
             plan_id: "knowledge-plan".to_owned(),
             plan_version: 2,
@@ -343,12 +386,12 @@ mod tests {
         assert!(starter.markdown.contains("Knowledge-source"));
         assert!(starter.markdown_path.is_none());
 
-        let first = save_document(&lease, &operation_id, 0, "# First\n")
-            .expect("save first revision");
+        let first =
+            save_document(&lease, &operation_id, 0, "# First\n").expect("save first revision");
         assert_eq!(first.revision, 1);
         assert_eq!(first.markdown, "# First\n");
-        let second = save_document(&lease, &operation_id, 1, "# Second\n")
-            .expect("save second revision");
+        let second =
+            save_document(&lease, &operation_id, 1, "# Second\n").expect("save second revision");
         assert_eq!(second.revision, 2);
         assert!(save_document(&lease, &operation_id, 1, "# Stale\n").is_err());
 
@@ -372,6 +415,26 @@ mod tests {
         assert!(save_document(&lease, &operation_id, 0, &oversized).is_err());
         assert_eq!(fs::read(&source).expect("read source"), SOURCE_BYTES);
         assert_eq!(open_document(&lease, &operation_id).unwrap().revision, 0);
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn recovers_an_uncommitted_markdown_revision_before_retrying() {
+        let (root, source, lease, operation_id) = committed_fixture();
+        let orphan_directory = root.join("vault/Knowledge").join(&operation_id);
+        fs::create_dir(&orphan_directory).expect("create orphan directory");
+        fs::write(orphan_directory.join("00000001.md"), "# Orphan\n")
+            .expect("write orphan revision");
+
+        let saved = save_document(&lease, &operation_id, 0, "# Recovered\n")
+            .expect("replace uncommitted revision");
+
+        assert_eq!(saved.revision, 1);
+        assert_eq!(
+            open_document(&lease, &operation_id).unwrap().markdown,
+            "# Recovered\n"
+        );
+        assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 }

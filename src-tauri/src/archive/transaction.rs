@@ -916,8 +916,7 @@ pub(crate) fn verified_registered_original(
         return Err("Registered original belongs to a different Vault authority".to_owned());
     }
     verify_committed(vault, &record)?;
-    let registration_path =
-        Path::new(".aiks/registrations").join(format!("{operation_id}.json"));
+    let registration_path = Path::new(".aiks/registrations").join(format!("{operation_id}.json"));
     let registration: OriginalRegistration = read_json(&vault.directory, &registration_path)?;
     let canonical_name = registration
         .canonical_name
@@ -943,9 +942,7 @@ fn validate_operation_id(value: &str) -> Result<(), String> {
     if value.is_empty()
         || value.len() > 128
         || !value.bytes().all(|byte| {
-            byte.is_ascii_lowercase()
-                || byte.is_ascii_digit()
-                || matches!(byte, b'-' | b'_')
+            byte.is_ascii_lowercase() || byte.is_ascii_digit() || matches!(byte, b'-' | b'_')
         })
     {
         return Err("Archive operation ID is invalid".to_owned());
@@ -962,8 +959,8 @@ fn transaction_failure_text(failure: TransactionFailure) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_plan_with_faults, reconcile_vault, verified_registered_original,
-        ArchiveItemStatus, OperationContext, TransactionFaults,
+        commit_plan_with_faults, reconcile_vault, verified_registered_original, ArchiveItemStatus,
+        OperationContext, TransactionFaults,
     };
     use crate::archive::plan::{ArchivePlan, ArchivePlanItem};
     use crate::identity::ContentIdentity;

@@ -85,6 +85,11 @@ test("keeps archive operations honest in the browser fixture", async ({
   );
   await expect(archive).toContainText("Uncommitted");
   await expect(archive).not.toContainText("Archive committed");
+  await expect(page.getByText("Local draft · not saved")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Create knowledge note" }),
+  ).toHaveCount(0);
+  await expect(page.getByText(/Saved revision/)).toHaveCount(0);
 });
 
 test("keeps canonical naming non-mutating in the browser fixture", async ({

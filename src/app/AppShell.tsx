@@ -14,6 +14,7 @@ import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
 import type { ArchiveClient } from "../features/archive/types";
 import type { ProfileClient } from "../features/profiles/types";
 import type { NamingClient } from "../features/naming/types";
+import type { KnowledgeClient, KnowledgeTarget } from "../features/knowledge/types";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -76,6 +77,7 @@ interface AppShellProps {
   readonly discoveryClient: DiscoveryClient;
   readonly dropBridge: NativeDropBridge;
   readonly namingClient: NamingClient;
+  readonly knowledgeClient: KnowledgeClient;
   readonly profileClient: ProfileClient;
 }
 
@@ -84,9 +86,11 @@ export function AppShell({
   discoveryClient,
   dropBridge,
   namingClient,
+  knowledgeClient,
   profileClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
+  const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
   const drop = useNativeDrop({
     bridge: dropBridge,
     discoveryClient,
@@ -178,9 +182,24 @@ export function AppShell({
         <ArchivePreviewPane
           archiveClient={archiveClient}
           namingClient={namingClient}
+          onCommittedItems={(items, vault) => {
+            const next = items.map((item) => ({
+              authorityId: vault.authorityId,
+              operationId: item.operationId,
+              itemId: item.itemId,
+              destinationPath: item.destinationPath,
+              originalIdentity: item.identity,
+            }));
+            setKnowledgeTargets((current) => [
+              ...current.filter((existing) =>
+                !next.some((target) => target.operationId === existing.operationId)
+              ),
+              ...next,
+            ]);
+          }}
           proposal={proposal}
         />
-        <DocumentPane />
+        <DocumentPane client={knowledgeClient} targets={knowledgeTargets} />
       </section>
       {layout.contextCollapsed ? null : (
         <PaneSeparator

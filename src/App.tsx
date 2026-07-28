@@ -21,6 +21,11 @@ import {
 } from "./features/naming/namingClient";
 import type { NamingClient } from "./features/naming/types";
 import {
+  createBrowserKnowledgeClient,
+  createTauriKnowledgeClient,
+} from "./features/knowledge/knowledgeClient";
+import type { KnowledgeClient } from "./features/knowledge/types";
+import {
   createBrowserProfileClient,
   createTauriProfileClient,
 } from "./features/profiles/profileClient";
@@ -31,6 +36,7 @@ interface AppProps {
   readonly discoveryClient?: DiscoveryClient;
   readonly dropBridge?: NativeDropBridge;
   readonly namingClient?: NamingClient;
+  readonly knowledgeClient?: KnowledgeClient;
   readonly profileClient?: ProfileClient;
 }
 
@@ -40,6 +46,7 @@ const browserDiscoveryClient = createBrowserDiscoveryClient(
   demoDiscoveryProposal,
 );
 const browserNamingClient = createBrowserNamingClient();
+const browserKnowledgeClient = createBrowserKnowledgeClient();
 const browserProfileClient = createBrowserProfileClient();
 
 function isTauriRuntime(): boolean {
@@ -51,6 +58,7 @@ export default function App({
   discoveryClient,
   dropBridge,
   namingClient,
+  knowledgeClient,
   profileClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
@@ -73,6 +81,10 @@ export default function App({
       namingClient={
         namingClient ??
         (nativeRuntime ? createTauriNamingClient() : browserNamingClient)
+      }
+      knowledgeClient={
+        knowledgeClient ??
+        (nativeRuntime ? createTauriKnowledgeClient() : browserKnowledgeClient)
       }
       profileClient={
         profileClient ??

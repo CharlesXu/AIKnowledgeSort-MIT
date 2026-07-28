@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   ArchiveClient,
   ArchiveCommitResult,
+  ArchiveItemResult,
   ArchivePlan,
   VaultSummary,
 } from "../archive/types";
@@ -18,6 +19,10 @@ import { Icon } from "../../ui/Icon";
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
   readonly namingClient: NamingClient;
+  readonly onCommittedItems?: (
+    items: readonly ArchiveItemResult[],
+    vault: VaultSummary,
+  ) => void;
   readonly proposal: DiscoveryProposal;
 }
 
@@ -66,6 +71,7 @@ function errorText(error: unknown): string {
 export function ArchivePreviewPane({
   archiveClient,
   namingClient,
+  onCommittedItems,
   proposal,
 }: ArchivePreviewPaneProps) {
   const proposalId = useRef(proposal.proposalId);
@@ -254,6 +260,14 @@ export function ArchivePreviewPane({
       });
       if (proposalId.current === activeProposal) {
         setResult(committed);
+        if (vault !== null) {
+          const eligible = committed.items.filter(
+            (item) => item.status === "committed",
+          );
+          if (eligible.length > 0) {
+            onCommittedItems?.(eligible, vault);
+          }
+        }
       }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {

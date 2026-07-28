@@ -141,10 +141,12 @@ describe("archive preview", () => {
   test("requires an exact reviewed plan before a source-preserving commit", async () => {
     const archiveClient = client();
     const names = namingClient();
+    const onCommittedItems = vi.fn();
     render(
       <ArchivePreviewPane
         archiveClient={archiveClient}
         namingClient={names}
+        onCommittedItems={onCommittedItems}
         proposal={proposal}
       />,
     );
@@ -235,6 +237,13 @@ describe("archive preview", () => {
         /source preserved/i,
       ),
     ).toBeInTheDocument();
+    expect(onCommittedItems).toHaveBeenCalledWith(
+      [expect.objectContaining({
+        operationId: "operation-1",
+        status: "committed",
+      })],
+      vault,
+    );
   });
 
   test("blocks archive planning when canonical naming needs review", async () => {

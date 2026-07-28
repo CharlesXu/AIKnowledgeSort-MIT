@@ -6,8 +6,8 @@ mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
-mod naming;
 mod knowledge;
+mod naming;
 pub mod profiles;
 mod vault;
 
@@ -21,6 +21,7 @@ pub fn run() {
         .manage(vault::VaultAuthorityRegistry::default())
         .manage(archive::ArchivePlanRegistry::default())
         .manage(naming::NamingBatchRegistry::default())
+        .manage(knowledge::KnowledgeWriteRegistry::default())
         .manage(profiles::ProfileAuthority::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};

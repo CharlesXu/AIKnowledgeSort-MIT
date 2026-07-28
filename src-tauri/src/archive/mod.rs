@@ -7,13 +7,13 @@ use crate::vault::VaultAuthorityRegistry;
 use serde::Deserialize;
 use std::time::{Instant, SystemTime};
 
-pub use plan::{ArchivePlan, ArchivePlanRegistry};
 #[cfg(test)]
 pub(crate) use plan::ArchivePlanItem;
-pub(crate) use transaction::{reconcile_vault, verified_registered_original};
+pub use plan::{ArchivePlan, ArchivePlanRegistry};
+pub use transaction::ArchiveCommitResult;
 #[cfg(test)]
 pub(crate) use transaction::{commit_plan_with_faults, TransactionFaults};
-pub use transaction::ArchiveCommitResult;
+pub(crate) use transaction::{reconcile_vault, verified_registered_original};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

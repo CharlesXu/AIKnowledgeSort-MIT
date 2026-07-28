@@ -88,8 +88,16 @@ pub(crate) fn read_json<T: DeserializeOwned>(
     relative: &Path,
 ) -> Result<T, String> {
     validate_relative_path(relative)?;
+    let metadata = directory
+        .symlink_metadata(relative)
+        .map_err(|error| format!("Vault record cannot be inspected: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Vault record is not a regular file".to_owned());
+    }
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
     let file = directory
-        .open(relative)
+        .open_with(relative, &options)
         .map_err(|error| format!("Vault record cannot be opened: {error}"))?;
     serde_json::from_reader(file).map_err(|error| format!("Vault record is invalid: {error}"))
 }
