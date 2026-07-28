@@ -5,6 +5,7 @@ import type {
   AgentAccessClient,
   AgentAccessState,
   AgentGrantSummary,
+  McpTransportState,
 } from "./types";
 
 const scope = { scopeId: "scope-1", displayPath: "/Users/charles/Documents" };
@@ -38,6 +39,16 @@ const state: AgentAccessState = {
   ],
   grants: [],
 };
+const stoppedTransport: McpTransportState = {
+  running: false,
+  url: null,
+  executablePath: "/Applications/AI Knowledge Sort.app/Contents/MacOS/ai-knowledge-sort",
+};
+const runningTransport: McpTransportState = {
+  running: true,
+  url: "http://127.0.0.1:43123/mcp",
+  executablePath: stoppedTransport.executablePath,
+};
 
 function client(): AgentAccessClient {
   return {
@@ -45,6 +56,9 @@ function client(): AgentAccessClient {
     inspect: vi.fn().mockResolvedValue(state),
     createGrant: vi.fn().mockResolvedValue({ grant, grantToken: "a".repeat(64) }),
     revokeGrant: vi.fn().mockResolvedValue({ ...state, grants: [{ ...grant, status: "revoked" }] }),
+    inspectTransport: vi.fn().mockResolvedValue(stoppedTransport),
+    startTransport: vi.fn().mockResolvedValue(runningTransport),
+    stopTransport: vi.fn().mockResolvedValue(stoppedTransport),
   };
 }
 
@@ -66,6 +80,9 @@ describe("AgentAccessPanel", () => {
       target: { value: "Codex Desktop" },
     });
     fireEvent.click(screen.getByLabelText("Read capability catalog"));
+    fireEvent.change(screen.getByLabelText("Allowed HTTP origins"), {
+      target: { value: "http://127.0.0.1:5173" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Issue Agent grant" }));
 
     await waitFor(() => expect(agentClient.createGrant).toHaveBeenCalledWith({
@@ -73,7 +90,7 @@ describe("AgentAccessPanel", () => {
       agentId: "codex-desktop",
       label: "Codex Desktop",
       toolIds: ["capabilities.read"],
-      allowedHttpOrigins: [],
+      allowedHttpOrigins: ["http://127.0.0.1:5173"],
       expiresInSeconds: 3_600,
       limits: {
         maxRequestsPerSession: 1_000,
@@ -83,8 +100,26 @@ describe("AgentAccessPanel", () => {
     }));
     expect(screen.getByRole("status")).toHaveTextContent("a".repeat(64));
     expect(screen.getByRole("status")).toHaveTextContent(/cannot be recovered/i);
+    fireEvent.click(screen.getByRole("button", { name: "Start local MCP" }));
+    expect(await screen.findByText(runningTransport.url!)).toBeInTheDocument();
+    expect((screen.getByLabelText("Direct HTTP configuration") as HTMLTextAreaElement).value)
+      .toContain("Authorization: Bearer " + "a".repeat(64));
+    expect((screen.getByLabelText("stdio relay configuration") as HTMLTextAreaElement).value)
+      .toContain("AIKS_MCP_GRANT_TOKEN=" + "a".repeat(64));
     fireEvent.click(screen.getByRole("button", { name: "Dismiss token" }));
     expect(screen.queryByText("a".repeat(64))).toBeNull();
+    expect(screen.queryByLabelText("Direct HTTP configuration")).toBeNull();
+  });
+
+  test("starts and stops only the explicit local MCP broker", async () => {
+    const agentClient = client();
+    render(<AgentAccessPanel client={agentClient} />);
+    await screen.findByText("Read capability catalog");
+    fireEvent.click(screen.getByRole("button", { name: "Start local MCP" }));
+    await waitFor(() => expect(agentClient.startTransport).toHaveBeenCalledWith({ port: 0 }));
+    fireEvent.click(screen.getByRole("button", { name: "Stop local MCP" }));
+    await waitFor(() => expect(agentClient.stopTransport).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText(runningTransport.url!)).toBeNull();
   });
 
   test("shows lifecycle and revokes the exact grant", async () => {

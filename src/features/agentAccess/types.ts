@@ -59,9 +59,18 @@ export interface AgentAccessState {
   readonly grants: readonly AgentGrantSummary[];
 }
 
+export interface McpTransportState {
+  readonly running: boolean;
+  readonly url: string | null;
+  readonly executablePath: string | null;
+}
+
 export interface AgentAccessClient {
   selectDirectories(): Promise<NativeScopeSelection | null>;
   inspect(): Promise<AgentAccessState>;
   createGrant(request: CreateAgentGrantRequest): Promise<IssuedAgentGrant>;
   revokeGrant(request: { readonly grantId: string }): Promise<AgentAccessState>;
+  inspectTransport(): Promise<McpTransportState>;
+  startTransport(request: { readonly port: number }): Promise<McpTransportState>;
+  stopTransport(): Promise<McpTransportState>;
 }

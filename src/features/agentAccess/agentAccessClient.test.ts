@@ -20,7 +20,7 @@ const request: CreateAgentGrantRequest = {
 };
 
 describe("Agent access client", () => {
-  test("invokes only the four explicit native Agent access boundaries", async () => {
+  test("invokes only the seven explicit native Agent access boundaries", async () => {
     const invoke = vi.fn().mockResolvedValue({ schemaVersion: 1, grants: [] });
     const client = createTauriAgentAccessClient(invoke);
 
@@ -28,12 +28,18 @@ describe("Agent access client", () => {
     await client.inspect();
     await client.createGrant(request);
     await client.revokeGrant({ grantId: "grant-1" });
+    await client.inspectTransport();
+    await client.startTransport({ port: 0 });
+    await client.stopTransport();
 
     expect(invoke.mock.calls).toEqual([
       ["select_agent_grant_directories"],
       ["inspect_agent_access"],
       ["create_agent_grant", { request }],
       ["revoke_agent_grant", { request: { grantId: "grant-1" } }],
+      ["inspect_mcp_transport"],
+      ["start_mcp_transport", { request: { port: 0 } }],
+      ["stop_mcp_transport"],
     ]);
   });
 
@@ -45,5 +51,8 @@ describe("Agent access client", () => {
     await expect(client.inspect()).rejects.toThrow(expected);
     await expect(client.createGrant(request)).rejects.toThrow(expected);
     await expect(client.revokeGrant({ grantId: "grant-1" })).rejects.toThrow(expected);
+    await expect(client.inspectTransport()).rejects.toThrow(expected);
+    await expect(client.startTransport({ port: 0 })).rejects.toThrow(expected);
+    await expect(client.stopTransport()).rejects.toThrow(expected);
   });
 });

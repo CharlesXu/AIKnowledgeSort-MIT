@@ -3,6 +3,7 @@ import type {
   AgentAccessClient,
   AgentAccessState,
   AgentResourceLimits,
+  McpTransportState,
   NativeScopeSelection,
 } from "./types";
 
@@ -22,9 +23,13 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
   const [agentId, setAgentId] = useState("");
   const [label, setLabel] = useState("");
   const [toolIds, setToolIds] = useState<readonly string[]>([]);
+  const [allowedOriginText, setAllowedOriginText] = useState("");
   const [expiryHours, setExpiryHours] = useState("1");
   const [limits, setLimits] = useState<AgentResourceLimits>(defaultLimits);
   const [issuedToken, setIssuedToken] = useState<string | null>(null);
+  const [issuedGrantId, setIssuedGrantId] = useState<string | null>(null);
+  const [issuedAgentId, setIssuedAgentId] = useState<string | null>(null);
+  const [transport, setTransport] = useState<McpTransportState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +38,20 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
     client.inspect()
       .then((next) => {
         if (active) setState(next);
+      })
+      .catch((reason: unknown) => {
+        if (active) setError(errorMessage(reason));
+      });
+    return () => {
+      active = false;
+    };
+  }, [client]);
+
+  useEffect(() => {
+    let active = true;
+    client.inspectTransport()
+      .then((next) => {
+        if (active) setTransport(next);
       })
       .catch((reason: unknown) => {
         if (active) setError(errorMessage(reason));
@@ -75,7 +94,10 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
         agentId,
         label,
         toolIds,
-        allowedHttpOrigins: [],
+        allowedHttpOrigins: allowedOriginText
+          .split(/\r?\n/)
+          .map((origin) => origin.trim())
+          .filter(Boolean),
         expiresInSeconds: Math.round(Number(expiryHours) * 3_600),
         limits,
       });
@@ -87,6 +109,8 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
         ],
       } : current);
       setIssuedToken(issued.grantToken);
+      setIssuedGrantId(issued.grant.grantId);
+      setIssuedAgentId(issued.grant.agentId);
       setSelection(null);
       setToolIds([]);
     } catch (reason) {
@@ -101,12 +125,62 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
     setError(null);
     try {
       setState(await client.revokeGrant({ grantId }));
+      if (issuedGrantId === grantId) dismissToken();
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
       setBusy(false);
     }
   }
+
+  async function startTransport(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      setTransport(await client.startTransport({ port: 0 }));
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function stopTransport(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      setTransport(await client.stopTransport());
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function dismissToken(): void {
+    setIssuedToken(null);
+    setIssuedGrantId(null);
+    setIssuedAgentId(null);
+  }
+
+  const directHttpTemplate = issuedToken && issuedGrantId && issuedAgentId && transport?.url
+    ? [
+        `URL: ${transport.url}`,
+        `Authorization: Bearer ${issuedToken}`,
+        `X-AIKS-Agent-Id: ${issuedAgentId}`,
+        `X-AIKS-Grant-Id: ${issuedGrantId}`,
+      ].join("\n")
+    : null;
+  const stdioTemplate = issuedToken && issuedGrantId && issuedAgentId
+    && transport?.url && transport.executablePath
+    ? [
+        `command: ${transport.executablePath}`,
+        `args: --mcp-stdio-relay --broker-url ${transport.url}`,
+        `AIKS_MCP_AGENT_ID=${issuedAgentId}`,
+        `AIKS_MCP_GRANT_ID=${issuedGrantId}`,
+        `AIKS_MCP_GRANT_TOKEN=${issuedToken}`,
+      ].join("\n")
+    : null;
 
   const canIssue = Boolean(selection && agentId && label && toolIds.length);
 
@@ -120,6 +194,22 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
           </div>
           <code>{state?.toolCatalogVersion ?? "agent-tools-v1"}</code>
         </div>
+        <div className="agent-transport">
+          <div>
+            <strong>Local MCP broker</strong>
+            <span>{transport?.running ? "RUNNING · loopback only" : "STOPPED"}</span>
+          </div>
+          {transport?.url ? <code>{transport.url}</code> : null}
+          {transport?.running ? (
+            <button disabled={busy} onClick={() => void stopTransport()} type="button">
+              Stop local MCP
+            </button>
+          ) : (
+            <button disabled={busy} onClick={() => void startTransport()} type="button">
+              Start local MCP
+            </button>
+          )}
+        </div>
         {state?.grants.length ? state.grants.map((grant) => (
           <article className="agent-grant-row" key={grant.grantId}>
             <div className="agent-grant-row__title">
@@ -130,6 +220,7 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
             </div>
             <span>{grant.agentId}</span>
             <p>{grant.toolIds.join(" · ")}</p>
+            {grant.allowedHttpOrigins.map((origin) => <code key={origin}>{origin}</code>)}
             {grant.scopes.map((scope) => <code key={scope.scopeId}>{scope.displayPath}</code>)}
             <small>Expires {new Date(grant.expiresAtUnixMs).toLocaleString()}</small>
             {grant.status === "active" || grant.status === "inactive" ? (
@@ -148,7 +239,19 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
             <strong>One-time grant token</strong>
             <p>This token cannot be recovered after dismissal. Configure it only in the intended local Agent runtime.</p>
             <code>{issuedToken}</code>
-            <button onClick={() => setIssuedToken(null)} type="button">Dismiss token</button>
+            {directHttpTemplate && stdioTemplate ? (
+              <div className="agent-token__templates">
+                <label>
+                  Direct HTTP configuration
+                  <textarea aria-label="Direct HTTP configuration" readOnly value={directHttpTemplate} />
+                </label>
+                <label>
+                  stdio relay configuration
+                  <textarea aria-label="stdio relay configuration" readOnly value={stdioTemplate} />
+                </label>
+              </div>
+            ) : null}
+            <button onClick={dismissToken} type="button">Dismiss token</button>
           </div>
         ) : null}
       </section>
@@ -169,6 +272,19 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
           Grant label
           <input onChange={(event) => setLabel(event.target.value)} value={label} />
         </label>
+        <label htmlFor="agent-http-origins">
+          Allowed HTTP origins
+          <textarea
+            aria-describedby="agent-origin-help"
+            id="agent-http-origins"
+            onChange={(event) => setAllowedOriginText(event.target.value)}
+            placeholder="Optional · one literal loopback origin per line"
+            value={allowedOriginText}
+          />
+        </label>
+        <small id="agent-origin-help">
+          Browser callers only. Use canonical http://127.0.0.1:port origins; stdio and native clients may omit Origin.
+        </small>
         <div className="agent-scope-picker">
           <button disabled={busy} onClick={() => void chooseDirectories()} type="button">
             Choose directories

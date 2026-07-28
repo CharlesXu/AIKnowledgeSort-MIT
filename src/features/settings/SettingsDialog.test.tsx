@@ -22,6 +22,13 @@ const agentClient: AgentAccessClient = {
   }),
   createGrant: vi.fn(),
   revokeGrant: vi.fn(),
+  inspectTransport: vi.fn().mockResolvedValue({
+    running: false,
+    url: null,
+    executablePath: "/Applications/AI Knowledge Sort.app/Contents/MacOS/ai-knowledge-sort",
+  }),
+  startTransport: vi.fn(),
+  stopTransport: vi.fn(),
 };
 
 describe("SettingsDialog", () => {

@@ -4,6 +4,7 @@ import type {
   AgentAccessState,
   CreateAgentGrantRequest,
   IssuedAgentGrant,
+  McpTransportState,
   NativeScopeSelection,
 } from "./types";
 
@@ -28,6 +29,15 @@ export function createTauriAgentAccessClient(
     revokeGrant(request: { readonly grantId: string }) {
       return invoke<AgentAccessState>("revoke_agent_grant", { request });
     },
+    inspectTransport() {
+      return invoke<McpTransportState>("inspect_mcp_transport");
+    },
+    startTransport(request: { readonly port: number }) {
+      return invoke<McpTransportState>("start_mcp_transport", { request });
+    },
+    stopTransport() {
+      return invoke<McpTransportState>("stop_mcp_transport");
+    },
   };
 }
 
@@ -43,5 +53,8 @@ export function createBrowserAgentAccessClient(): AgentAccessClient {
     inspect: desktopRuntimeRequired,
     createGrant: desktopRuntimeRequired,
     revokeGrant: desktopRuntimeRequired,
+    inspectTransport: desktopRuntimeRequired,
+    startTransport: desktopRuntimeRequired,
+    stopTransport: desktopRuntimeRequired,
   };
 }
