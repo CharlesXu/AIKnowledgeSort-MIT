@@ -18,7 +18,8 @@ import type { KnowledgeClient, KnowledgeTarget } from "../features/knowledge/typ
 import type { KnowledgeDocument } from "../features/knowledge/types";
 import type { GraphClient } from "../features/graph/types";
 import type { ModelRuntimeClient } from "../features/models/types";
-import { ModelSettingsDialog } from "../features/models/ModelSettingsDialog";
+import type { AgentAccessClient } from "../features/agentAccess/types";
+import { SettingsDialog } from "../features/settings/SettingsDialog";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -85,6 +86,7 @@ interface AppShellProps {
   readonly graphClient: GraphClient;
   readonly profileClient: ProfileClient;
   readonly modelRuntimeClient: ModelRuntimeClient;
+  readonly agentAccessClient: AgentAccessClient;
 }
 
 export function AppShell({
@@ -96,6 +98,7 @@ export function AppShell({
   graphClient,
   profileClient,
   modelRuntimeClient,
+  agentAccessClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
@@ -242,8 +245,9 @@ export function AppShell({
         proposal={proposal}
       />
       {settingsOpen ? (
-        <ModelSettingsDialog
-          client={modelRuntimeClient}
+        <SettingsDialog
+          agentAccessClient={agentAccessClient}
+          modelRuntimeClient={modelRuntimeClient}
           onClose={() => setSettingsOpen(false)}
           triggerRef={settingsButtonRef}
         />

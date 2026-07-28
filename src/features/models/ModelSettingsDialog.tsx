@@ -12,6 +12,10 @@ interface ModelSettingsDialogProps {
   readonly triggerRef: React.RefObject<HTMLButtonElement | null>;
 }
 
+interface ModelSettingsPanelProps {
+  readonly client: ModelRuntimeClient;
+}
+
 const emptyConfig: ModelConfigInput = {
   configId: "",
   label: "",
@@ -42,11 +46,7 @@ function configInput(config: ModelConfigSummary): ModelConfigInput {
   };
 }
 
-export function ModelSettingsDialog({
-  client,
-  onClose,
-  triggerRef,
-}: ModelSettingsDialogProps) {
+export function ModelSettingsPanel({ client }: ModelSettingsPanelProps) {
   const [state, setState] = useState<ModelRuntimeState | null>(null);
   const [draft, setDraft] = useState<ModelConfigInput>(emptyConfig);
   const [timeoutSeconds, setTimeoutSeconds] = useState("30");
@@ -54,22 +54,9 @@ export function ModelSettingsDialog({
   const [error, setError] = useState<string | null>(null);
   const firstFieldRef = useRef<HTMLInputElement>(null);
 
-  const close = useCallback(() => {
-    onClose();
-    queueMicrotask(() => triggerRef.current?.focus());
-  }, [onClose, triggerRef]);
-
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        close();
-      }
-    };
-    document.addEventListener("keydown", handleKeyDown);
     firstFieldRef.current?.focus();
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [close]);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -125,22 +112,8 @@ export function ModelSettingsDialog({
   }
 
   return (
-    <div className="settings-overlay" role="presentation">
-      <section
-        aria-labelledby="model-settings-title"
-        aria-modal="true"
-        className="model-settings"
-        role="dialog"
-      >
-        <header className="model-settings__header">
-          <div>
-            <span className="section-kicker">LOCAL RUNTIME</span>
-            <h2 id="model-settings-title">Model runtime settings</h2>
-          </div>
-          <button aria-label="Close model settings" onClick={close} type="button">×</button>
-        </header>
-
-        <div className="model-settings__body">
+    <>
+      <div className="model-settings__body">
           <section aria-labelledby="configured-models" className="model-settings__list">
             <h3 id="configured-models">Configured models</h3>
             {state?.configs.length ? state.configs.map((config) => (
@@ -247,8 +220,49 @@ export function ModelSettingsDialog({
               {busy ? "Saving…" : "Save model config"}
             </button>
           </form>
-        </div>
-        {error ? <p className="model-settings__error" role="alert">{error}</p> : null}
+      </div>
+      {error ? <p className="model-settings__error" role="alert">{error}</p> : null}
+    </>
+  );
+}
+
+export function ModelSettingsDialog({
+  client,
+  onClose,
+  triggerRef,
+}: ModelSettingsDialogProps) {
+  const close = useCallback(() => {
+    onClose();
+    queueMicrotask(() => triggerRef.current?.focus());
+  }, [onClose, triggerRef]);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        close();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [close]);
+
+  return (
+    <div className="settings-overlay" role="presentation">
+      <section
+        aria-labelledby="model-settings-title"
+        aria-modal="true"
+        className="model-settings"
+        role="dialog"
+      >
+        <header className="model-settings__header">
+          <div>
+            <span className="section-kicker">LOCAL RUNTIME</span>
+            <h2 id="model-settings-title">Model runtime settings</h2>
+          </div>
+          <button aria-label="Close model settings" onClick={close} type="button">×</button>
+        </header>
+        <ModelSettingsPanel client={client} />
       </section>
     </div>
   );

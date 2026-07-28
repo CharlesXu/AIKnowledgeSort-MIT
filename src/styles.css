@@ -2323,6 +2323,39 @@ input:focus-visible,
   font-size: 19px;
 }
 
+.settings-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px 12px 0;
+  border-bottom: 1px solid var(--divider);
+  background: #f7f7f8;
+}
+
+.settings-tabs button {
+  min-height: 31px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 0 12px;
+  color: #737680;
+  background: transparent;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.settings-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--accent);
+  color: #383b44;
+}
+
+.settings-dialog {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.settings-dialog__panel {
+  min-height: 0;
+  overflow: auto;
+}
+
 .model-settings__body {
   display: grid;
   min-height: 0;
@@ -2479,6 +2512,175 @@ input:focus-visible,
   color: #874c4c;
   background: #fbf1f1;
   font-size: 10px;
+}
+
+.agent-access {
+  display: grid;
+  min-height: 100%;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 0.95fr);
+  position: relative;
+}
+
+.agent-access__grants,
+.agent-access__form {
+  min-width: 0;
+  padding: 16px;
+  overflow: auto;
+}
+
+.agent-access__grants {
+  border-right: 1px solid var(--divider);
+}
+
+.agent-access__section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.agent-access__section-heading h3,
+.agent-access__section-heading p {
+  margin: 0;
+}
+
+.agent-access__section-heading p,
+.agent-access__section-heading code,
+.agent-grant-row span,
+.agent-grant-row p,
+.agent-grant-row small {
+  color: #767982;
+  font-size: 9px;
+}
+
+.agent-grant-row {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 8px;
+  padding: 11px;
+  border: 1px solid #dbdce0;
+  border-radius: 5px;
+  background: #fff;
+}
+
+.agent-grant-row__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.agent-grant-status {
+  border-radius: 999px;
+  padding: 2px 6px;
+  background: #e9e8ed;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.agent-grant-status--active { color: #356b52; background: #e3f0e8; }
+.agent-grant-status--inactive { color: #75652d; background: #f2edd8; }
+.agent-grant-status--revoked,
+.agent-grant-status--expired { color: #874c4c; background: #f6e5e5; }
+
+.agent-grant-row code,
+.agent-token code,
+.agent-scope-picker code {
+  overflow-wrap: anywhere;
+  font: 9px/1.45 var(--font-mono);
+}
+
+.agent-grant-row button,
+.agent-token button,
+.agent-scope-picker button {
+  justify-self: start;
+  min-height: 27px;
+  border: 1px solid #c9cad0;
+  border-radius: 4px;
+  color: #4e515a;
+  background: #f7f7f8;
+  font-size: 9px;
+}
+
+.agent-token {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+  padding: 12px;
+  border: 1px solid #cfc6e4;
+  border-radius: 5px;
+  background: #f3f0f9;
+}
+
+.agent-token p {
+  margin: 0;
+  color: #655d79;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.agent-scope-picker {
+  display: grid;
+  gap: 5px;
+}
+
+.agent-scope-picker span {
+  color: #777a83;
+  font-size: 9px;
+}
+
+.agent-tool-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  border: 1px solid #d4d5da;
+  border-radius: 4px;
+  padding: 9px;
+}
+
+.agent-tool-list legend {
+  padding: 0 4px;
+  color: #565962;
+  font-size: 9.5px;
+  font-weight: 650;
+}
+
+.agent-tool-list label {
+  display: flex;
+  grid-template-columns: none;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.agent-tool-list input {
+  width: 13px;
+  min-height: 13px;
+  margin-top: 1px;
+}
+
+.agent-tool-list span,
+.agent-tool-list small {
+  display: block;
+}
+
+.agent-tool-list small {
+  margin-top: 2px;
+  color: #7a7d85;
+  font-weight: 450;
+}
+
+.agent-limit-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.agent-access__error {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
 }
 
 .agent-review {
@@ -2784,6 +2986,15 @@ input:focus-visible,
   }
 
   .model-settings__list {
+    border-right: 0;
+    border-bottom: 1px solid var(--divider);
+  }
+
+  .agent-access {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .agent-access__grants {
     border-right: 0;
     border-bottom: 1px solid var(--divider);
   }
