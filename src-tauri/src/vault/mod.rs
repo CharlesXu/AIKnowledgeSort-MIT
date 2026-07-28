@@ -8,12 +8,18 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 6] = [
+const PRODUCT_DIRECTORIES: [&str; 12] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/registrations",
     ".aiks/staging",
     ".aiks/pending-registrations",
+    ".aiks/profiles",
+    ".aiks/profiles/sources",
+    ".aiks/profiles/candidates",
+    ".aiks/profiles/decisions",
+    ".aiks/profiles/installed",
+    ".aiks/profiles/activations",
     "Originals",
 ];
 const VAULT_AUTHORITY_RECORD: &str = ".aiks/vault-authority.json";
@@ -271,6 +277,11 @@ mod tests {
             ".aiks/registrations",
             ".aiks/staging",
             ".aiks/pending-registrations",
+            ".aiks/profiles/sources",
+            ".aiks/profiles/candidates",
+            ".aiks/profiles/decisions",
+            ".aiks/profiles/installed",
+            ".aiks/profiles/activations",
             "Originals",
         ] {
             assert!(vault.join(relative).is_dir(), "{relative} must exist");

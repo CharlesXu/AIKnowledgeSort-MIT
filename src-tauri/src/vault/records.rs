@@ -1,7 +1,7 @@
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{Dir, OpenOptions};
 use serde::{de::DeserializeOwned, Serialize};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Component, Path};
 use uuid::Uuid;
 
@@ -21,6 +21,16 @@ pub(crate) fn write_new_json(
     directory: &Dir,
     relative: &Path,
     value: &impl Serialize,
+) -> Result<(), String> {
+    let bytes = serde_json::to_vec(value)
+        .map_err(|error| format!("Vault record cannot be serialized: {error}"))?;
+    write_new_bytes(directory, relative, &bytes)
+}
+
+pub(crate) fn write_new_bytes(
+    directory: &Dir,
+    relative: &Path,
+    bytes: &[u8],
 ) -> Result<(), String> {
     validate_relative_path(relative)?;
     match directory.symlink_metadata(relative) {
@@ -48,9 +58,7 @@ pub(crate) fn write_new_json(
         let mut file = directory
             .open_with(&temporary, &options)
             .map_err(|error| format!("Vault record temporary file cannot be created: {error}"))?;
-        let bytes = serde_json::to_vec(value)
-            .map_err(|error| format!("Vault record cannot be serialized: {error}"))?;
-        file.write_all(&bytes)
+        file.write_all(bytes)
             .map_err(|error| format!("Vault record cannot be written: {error}"))?;
         file.sync_all()
             .map_err(|error| format!("Vault record cannot be synchronized: {error}"))?;
@@ -84,6 +92,36 @@ pub(crate) fn read_json<T: DeserializeOwned>(
         .open(relative)
         .map_err(|error| format!("Vault record cannot be opened: {error}"))?;
     serde_json::from_reader(file).map_err(|error| format!("Vault record is invalid: {error}"))
+}
+
+pub(crate) fn read_bytes_bounded(
+    directory: &Dir,
+    relative: &Path,
+    max_bytes: usize,
+) -> Result<Vec<u8>, String> {
+    validate_relative_path(relative)?;
+    let metadata = directory
+        .symlink_metadata(relative)
+        .map_err(|error| format!("Vault record cannot be inspected: {error}"))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err("Vault record is not a regular file".to_owned());
+    }
+    if metadata.len() > max_bytes as u64 {
+        return Err("Vault record exceeds its read limit".to_owned());
+    }
+    let mut options = OpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = directory
+        .open_with(relative, &options)
+        .map_err(|error| format!("Vault record cannot be opened: {error}"))?;
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    file.take(max_bytes as u64 + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|error| format!("Vault record cannot be read: {error}"))?;
+    if bytes.len() > max_bytes {
+        return Err("Vault record exceeds its read limit".to_owned());
+    }
+    Ok(bytes)
 }
 
 #[cfg(test)]
