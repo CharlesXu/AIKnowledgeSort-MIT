@@ -8,12 +8,13 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 12] = [
+const PRODUCT_DIRECTORIES: [&str; 14] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/registrations",
     ".aiks/staging",
     ".aiks/pending-registrations",
+    ".aiks/knowledge",
     ".aiks/profiles",
     ".aiks/profiles/sources",
     ".aiks/profiles/candidates",
@@ -21,6 +22,7 @@ const PRODUCT_DIRECTORIES: [&str; 12] = [
     ".aiks/profiles/installed",
     ".aiks/profiles/activations",
     "Originals",
+    "Knowledge",
 ];
 const VAULT_AUTHORITY_RECORD: &str = ".aiks/vault-authority.json";
 const VAULT_AUTHORITY_SCHEMA_VERSION: u32 = 1;

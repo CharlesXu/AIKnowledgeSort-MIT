@@ -136,6 +136,17 @@ struct OriginalRegistration {
     identity: ContentIdentity,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct VerifiedRegisteredOriginal {
+    pub authority_id: String,
+    pub operation_id: String,
+    pub relative_path: String,
+    pub canonical_name: String,
+    pub original_format: String,
+    pub byte_size: u64,
+    pub identity: ContentIdentity,
+}
+
 struct OperationContext {
     record: OperationRecord,
     staging_path: PathBuf,
@@ -890,6 +901,58 @@ fn verify_committed(vault: &VaultLease, record: &OperationRecord) -> Result<(), 
     Ok(())
 }
 
+pub(crate) fn verified_registered_original(
+    vault: &VaultLease,
+    operation_id: &str,
+) -> Result<VerifiedRegisteredOriginal, String> {
+    validate_operation_id(operation_id)?;
+    let record = latest_operation_records(vault)?
+        .remove(operation_id)
+        .ok_or_else(|| "Registered original was not found".to_owned())?;
+    if record.state != OperationState::Committed {
+        return Err("Registered original archive is not committed".to_owned());
+    }
+    if record.authority_id != vault.summary.authority_id {
+        return Err("Registered original belongs to a different Vault authority".to_owned());
+    }
+    verify_committed(vault, &record)?;
+    let registration_path =
+        Path::new(".aiks/registrations").join(format!("{operation_id}.json"));
+    let registration: OriginalRegistration = read_json(&vault.directory, &registration_path)?;
+    let canonical_name = registration
+        .canonical_name
+        .clone()
+        .or_else(|| {
+            Path::new(&registration.relative_path)
+                .file_name()
+                .map(|value| value.to_string_lossy().into_owned())
+        })
+        .ok_or_else(|| "Registered original canonical name is missing".to_owned())?;
+    Ok(VerifiedRegisteredOriginal {
+        authority_id: registration.authority_id,
+        operation_id: registration.operation_id,
+        relative_path: registration.relative_path,
+        canonical_name,
+        original_format: registration.original_format,
+        byte_size: registration.byte_size,
+        identity: registration.identity,
+    })
+}
+
+fn validate_operation_id(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value.bytes().all(|byte| {
+            byte.is_ascii_lowercase()
+                || byte.is_ascii_digit()
+                || matches!(byte, b'-' | b'_')
+        })
+    {
+        return Err("Archive operation ID is invalid".to_owned());
+    }
+    Ok(())
+}
+
 fn transaction_failure_text(failure: TransactionFailure) -> String {
     match failure {
         TransactionFailure::Rejected(reason) | TransactionFailure::Interrupted(reason) => reason,
@@ -899,8 +962,8 @@ fn transaction_failure_text(failure: TransactionFailure) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_plan_with_faults, reconcile_vault, ArchiveItemStatus, OperationContext,
-        TransactionFaults,
+        commit_plan_with_faults, reconcile_vault, verified_registered_original,
+        ArchiveItemStatus, OperationContext, TransactionFaults,
     };
     use crate::archive::plan::{ArchivePlan, ArchivePlanItem};
     use crate::identity::ContentIdentity;
@@ -1071,6 +1134,41 @@ mod tests {
             operation["confirmationBindingSha256"],
             nonce_only.digest.as_str()
         );
+    }
+
+    #[test]
+    fn verified_registered_original_requires_a_current_sha256_valid_commit() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let vault_path = tree.vault();
+        let vaults = VaultAuthorityRegistry::default();
+        let summary = vaults
+            .authorize_path(&vault_path)
+            .expect("authorize generated Vault");
+        let lease = vaults
+            .lease(&summary.authority_id)
+            .expect("lease generated Vault");
+        let plan = plan(&source, &summary.authority_id);
+        let destination = vault_path.join(&plan.items[0].destination_path);
+        let result = commit_plan_with_faults(plan, &lease, TransactionFaults::default());
+        let operation_id = &result.items[0].operation_id;
+
+        let verified = verified_registered_original(&lease, operation_id)
+            .expect("verify committed registered original");
+        assert_eq!(verified.authority_id, summary.authority_id);
+        assert_eq!(verified.operation_id, *operation_id);
+        assert_eq!(verified.canonical_name, "Canonical-source.txt");
+        assert_eq!(verified.original_format, "txt");
+        assert_eq!(verified.byte_size, SOURCE_BYTES.len() as u64);
+        assert_eq!(verified.identity, identity());
+        assert_eq!(verified.relative_path, result.items[0].destination_path);
+
+        assert!(verified_registered_original(&lease, "unknown-operation").is_err());
+        assert!(verified_registered_original(&lease, "../escape").is_err());
+
+        fs::write(&destination, b"changed archived bytes").expect("replace archived bytes");
+        assert!(verified_registered_original(&lease, operation_id).is_err());
+        assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
     }
 
     #[test]

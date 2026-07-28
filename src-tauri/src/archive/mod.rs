@@ -8,7 +8,11 @@ use serde::Deserialize;
 use std::time::{Instant, SystemTime};
 
 pub use plan::{ArchivePlan, ArchivePlanRegistry};
-pub(crate) use transaction::reconcile_vault;
+#[cfg(test)]
+pub(crate) use plan::ArchivePlanItem;
+pub(crate) use transaction::{reconcile_vault, verified_registered_original};
+#[cfg(test)]
+pub(crate) use transaction::{commit_plan_with_faults, TransactionFaults};
 pub use transaction::ArchiveCommitResult;
 
 #[derive(Deserialize)]

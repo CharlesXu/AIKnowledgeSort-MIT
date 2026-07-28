@@ -7,6 +7,7 @@ mod archive;
 mod discovery;
 pub mod identity;
 mod naming;
+mod knowledge;
 pub mod profiles;
 mod vault;
 
@@ -80,6 +81,8 @@ pub fn run() {
             archive::create_archive_plan,
             archive::confirm_archive_plan,
             naming::create_naming_batch,
+            knowledge::open_knowledge_document,
+            knowledge::save_knowledge_document,
             profiles::inspect_profile_state,
             profiles::import_local_profile_candidate,
             profiles::decide_profile_candidate
