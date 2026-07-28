@@ -8,6 +8,7 @@ mod discovery;
 mod graph;
 pub mod identity;
 mod knowledge;
+mod model_runtime;
 mod naming;
 pub mod profiles;
 mod vault;
@@ -24,6 +25,7 @@ pub fn run() {
         .manage(naming::NamingBatchRegistry::default())
         .manage(knowledge::KnowledgeWriteRegistry::default())
         .manage(graph::GraphWriteRegistry::default())
+        .manage(model_runtime::ModelRuntimeAuthority::default())
         .manage(profiles::ProfileAuthority::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};
@@ -89,6 +91,9 @@ pub fn run() {
             graph::inspect_knowledge_graph,
             graph::propose_graph_relation,
             graph::decide_graph_relation,
+            model_runtime::inspect_model_runtime,
+            model_runtime::upsert_model_config,
+            model_runtime::remove_model_config,
             profiles::inspect_profile_state,
             profiles::import_local_profile_candidate,
             profiles::decide_profile_candidate
