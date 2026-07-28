@@ -257,7 +257,7 @@ git diff --check
 
 Also scan the branch diff for bearer values, header/body logging, listener addresses, permissive CORS, ambient path opening, direct cleanup execution, command execution beyond the exact relay mode, and any path supplied by the frontend. Review the official SDK lockfile additions with `cargo tree -i rmcp` and `cargo audit` when available; do not claim exhaustive dependency coverage if the audit database is unavailable.
 
-- [ ] **Step 4: Commit, fast-forward merge, and reverify main**
+- [x] **Step 4: Commit, fast-forward merge, and reverify main**
 
 Commit: `docs: record governed local MCP milestone`
 
