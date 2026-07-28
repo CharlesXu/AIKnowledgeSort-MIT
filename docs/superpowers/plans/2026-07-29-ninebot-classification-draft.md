@@ -169,8 +169,9 @@ materials. Do not emit keyword rules from the dictionary.
 - [x] **Step 4: Generate and verify the resource**
 
 ```bash
+export AIKS_NINEBOT_TREE_SOURCE=/path/to/verified/classification_tree.md
 node scripts/compile-ninebot-classification.mjs \
-  /private/tmp/nimble-kb-org-rc3.uOFf9A/nimble-kb-org/references/classification_tree.md \
+  "$AIKS_NINEBOT_TREE_SOURCE" \
   src-tauri/resources/profiles/ninebot-electronic-archive-0.3.0-draft.json
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::ninebot --lib
 ```
@@ -294,14 +295,14 @@ git commit -m "feat: show Ninebot taxonomy governance"
 - Modify: `docs/FUNCTIONAL_CONTRACTS.md`
 - Modify: this plan's checkboxes
 
-- [ ] **Step 1: Document the delivered boundary**
+- [x] **Step 1: Document the delivered boundary**
 
 State that the complete draft taxonomy and conflict policy are bundled, but
 semantic model classification and formal-company activation remain pending.
 Document that generated indexes are link-only and knowledge nodes may be
 cross-domain after the archive receives one primary category.
 
-- [ ] **Step 2: Run formatting, tests, security, and clean-room gates**
+- [x] **Step 2: Run formatting, tests, security, and clean-room gates**
 
 ```bash
 NODE_OPTIONS=--no-experimental-webstorage npm test -- --run
@@ -319,14 +320,14 @@ rg -n "(sk-[A-Za-z0-9]|Bearer [A-Za-z0-9._-]{20,}|api[_-]?key\\s*[:=])" \
 Expected: all tests and builds pass, audit reports no high vulnerabilities,
 Clippy is warning-free, and the secret scan finds no credential material.
 
-- [ ] **Step 3: Review the complete diff**
+- [x] **Step 3: Review the complete diff**
 
 Confirm every changed line maps to source provenance, schema-v2 taxonomy,
 bundled profile validation, inactive installation, UI summary, tests, or
 boundary documentation. Confirm no source file operation or deletion behavior
 changed.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add README.md docs

@@ -64,11 +64,28 @@ proposals; missing or conflicting semantic evidence is routed to
 the browser preview fail visibly instead of simulating persistence or
 activation.
 
-The bundled `Ninebot electronic archive` entry is intentionally a zero-rule
-draft shell. It documents the clean implementation boundary but cannot classify
-or become active. The full Ninebot taxonomy, model-assisted conversion of
-future notices and drafts, automatic classification, and activation of an
-unapproved profile are not implemented or claimed.
+Profile schema version 2 adds a bounded parent-linked taxonomy and declarative
+governance policy while preserving schema version 1 candidate compatibility.
+Candidate diffs separately report added, removed, and changed taxonomy nodes
+and executable rules, so a future formal notice or draft cannot appear
+unchanged merely because it contains no literal rules.
+
+The bundled Ninebot profile is `0.3.0-draft`. It contains the complete
+owner-authorized discussion taxonomy: 14 L1, 94 L2, 179 L3, and 179 L4 nodes
+(466 total). `SN-02 IPMS 集成营销服` is canonical and the usage manual's
+`SN-02 IPMS 管理营销闭环` wording is retained as an alias. Its governance requires
+semantic evidence, one primary archive category, dedicated review for
+conflicting evidence, `importantIndexed` for insufficient evidence,
+archive-first processing, cross-domain knowledge links, selected independent
+knowledge nodes, and link-only generated indexes.
+
+The bundled discussion profile has zero executable rules and remains visibly
+draft, inactive, and non-committable. Dictionary terms are candidate-recall
+vocabulary, not deterministic keyword placement rules. Model-assisted
+conversion of future notices and drafts, the governed semantic classification
+adapter, and activation of any unapproved profile are not implemented or
+claimed. The supplied discussion material is not represented as EMT-approved
+or effective company policy.
 
 ## Canonical naming and source-preserving archive
 

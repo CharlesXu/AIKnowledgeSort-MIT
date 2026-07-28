@@ -50,15 +50,32 @@ offers controlled MCP access to Agent runtimes.
 
 ## Classification profile format
 
-A profile shall use a documented declarative, non-executable, versioned representation that exposes profile identity, exact version, approval status, rules, provenance, and evidence to users and conformance tests. Serialization, schema field names, rule vocabulary, and storage are implementation freedoms. [RULE-001]
+A profile shall use a documented declarative, non-executable, versioned representation that exposes profile identity, exact version, approval status, taxonomy, governance, rules, provenance, and evidence to users and conformance tests. A taxonomy node shall have a unique identity, canonical label, depth, parent identity, canonical path, and optional aliases. Governance shall distinguish the unique primary archive category from cross-domain knowledge links and generated indexes. Serialization, schema field names, rule vocabulary, and storage are implementation freedoms. [RULE-001]
 
 Each classification proposal shall expose the selected profile identity and exact version, relevant rule identities, evidence references, proposed destination, and proposal or dedicated-review status; only an approved profile may support a committed classification. [RULE-001, RULE-004]
 
-A candidate import record shall expose source kind, import time, literal `SHA-256` algorithm label, 64-hex digest of imported bytes, parsed profile identity and version, candidate status, a reviewable diff against the selected base version, and approval evidence. Stored source provenance shall use a minimized or redacted locator or locator digest sufficient for review and shall not retain embedded credentials or sensitive query and fragment values by default. Candidate status shall remain unapproved until a user decision records actor, time, decision, and reviewed digest. [RULE-003, SAFE-004]
+A candidate import record shall expose source kind, import time, literal `SHA-256` algorithm label, 64-hex digest of imported bytes, parsed profile identity and version, candidate status, a reviewable taxonomy-and-rule diff against the selected base version, and approval evidence. Stored source provenance shall use a minimized or redacted locator or locator digest sufficient for review and shall not retain embedded credentials or sensitive query and fragment values by default. Candidate status shall remain unapproved until a user decision records actor, time, decision, and reviewed digest. [RULE-003, SAFE-004]
 
 Invalid, executable, unverifiable, unreachable, or unapproved candidate content shall leave the active profile and filesystem unchanged; URL import failure while offline shall be visible and non-mutating. [RULE-001, RULE-003, SAFE-007]
 
 Profile matching technique, representation, parsing, and rule vocabulary are implementation freedoms, but committed results shall be reproducible from the recorded profile version and evidence, and missing evidence shall route to review rather than fabricated classification. [RULE-001, RULE-004]
+
+The bundled Ninebot profile shall contain the authorized discussion taxonomy
+version `0.3.0-draft`: 14 L1, 94 L2, 179 L3, and 179 L4 nodes. It shall retain
+the canonical SN-02 label from the classification tree and the differing usage
+manual term as an explicit alias. It shall remain draft, inactive, and
+non-committable until a separately imported exact candidate digest is approved.
+The discussion dictionary may narrow semantic candidates but shall not become
+executable or literal keyword-placement rules. [RULE-001, RULE-002, RULE-005]
+
+The Ninebot governance profile shall assign each source archive one primary
+category supported by semantic evidence. Organization, business unit, product
+line, project, IPD stage, product element, owner scope, and library
+classification are metadata projections rather than parallel physical archive
+copies. Knowledge nodes may link across domains after archive confirmation;
+only high-value, cross-domain, or explicitly requested content requires an
+independent knowledge node, and generated indexes shall link rather than copy
+source or Markdown bodies. [ARCH-002, FILE-003, RULE-004, KNOW-001, KNOW-005]
 
 ## Canonical naming contract
 

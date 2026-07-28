@@ -177,9 +177,10 @@ optional candidate profile or diff imported from a local file or user-provided
 URL.
 
 **Externally observable outputs.** Classification proposals tied to an exact
-profile version; dedicated review entries for conflicts; candidate import
-records containing source, SHA-256 algorithm and digest, diff, and approval
-evidence.
+profile version; dedicated review entries for conflicts; a reviewable,
+parent-linked taxonomy with per-level coverage; declarative archive/knowledge
+governance; candidate import records containing source, SHA-256 algorithm and
+digest, taxonomy-and-rule diff, and approval evidence.
 
 **User decisions.** The user selects a profile, approves or rejects profile
 versions and candidate diffs, and resolves conflicts. The Ninebot profile
@@ -189,7 +190,11 @@ approved.
 **Safety invariants.** Profiles are declarative, non-executable, and versioned.
 No pending, unclassified, or equivalent catch-all directory is created.
 Conflicts are routed to dedicated review. Unapproved candidates cannot affect
-committed classification.
+committed classification. A source archive has one primary category; knowledge
+derived after archive confirmation may link across domains, while generated
+indexes link to authoritative bodies instead of copying them. Dictionary terms
+may narrow model candidates but cannot establish formal placement without
+semantic evidence.
 
 **Failure behavior.** Invalid, executable, unverifiable, or unapproved profile
 content is rejected without changing active rules or files. Ambiguous matches
@@ -206,6 +211,14 @@ produce review items instead of fabricated classification.
    preserved while status remains unapproved.
 4. Produce conflicting classification evidence and verify a dedicated review
    result appears without creation of a catch-all directory.
+5. Load the bundled Ninebot discussion profile and verify `0.3.0-draft`, 466
+   unique nodes, level counts 14/94/179/179, maximum depth four, zero executable
+   rules, and no active profile.
+6. Seed the immutable `0.1.0-draft` shell, inspect state, and verify its bytes
+   remain unchanged while the complete `0.3.0-draft` is installed separately.
+7. Import a candidate containing taxonomy-only changes and verify added,
+   removed, and changed category identities are reviewable even when rule
+   changes are empty.
 
 **Implementation freedoms.** Declarative schema, matching technique, profile
 storage, and review presentation are unconstrained within these boundaries.
