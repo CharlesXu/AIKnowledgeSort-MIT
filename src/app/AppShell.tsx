@@ -15,6 +15,8 @@ import type { ArchiveClient } from "../features/archive/types";
 import type { ProfileClient } from "../features/profiles/types";
 import type { NamingClient } from "../features/naming/types";
 import type { KnowledgeClient, KnowledgeTarget } from "../features/knowledge/types";
+import type { KnowledgeDocument } from "../features/knowledge/types";
+import type { GraphClient } from "../features/graph/types";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -78,6 +80,7 @@ interface AppShellProps {
   readonly dropBridge: NativeDropBridge;
   readonly namingClient: NamingClient;
   readonly knowledgeClient: KnowledgeClient;
+  readonly graphClient: GraphClient;
   readonly profileClient: ProfileClient;
 }
 
@@ -87,10 +90,12 @@ export function AppShell({
   dropBridge,
   namingClient,
   knowledgeClient,
+  graphClient,
   profileClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
+  const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
   const drop = useNativeDrop({
     bridge: dropBridge,
     discoveryClient,
@@ -199,7 +204,11 @@ export function AppShell({
           }}
           proposal={proposal}
         />
-        <DocumentPane client={knowledgeClient} targets={knowledgeTargets} />
+        <DocumentPane
+          client={knowledgeClient}
+          onDocumentChange={setActiveDocument}
+          targets={knowledgeTargets}
+        />
       </section>
       {layout.contextCollapsed ? null : (
         <PaneSeparator
@@ -214,6 +223,8 @@ export function AppShell({
       )}
       <ContextPane
         collapsed={layout.contextCollapsed}
+        document={activeDocument}
+        graphClient={graphClient}
         onCollapsedChange={(contextCollapsed) =>
           updateLayout({ contextCollapsed })
         }

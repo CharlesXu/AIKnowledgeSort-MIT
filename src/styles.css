@@ -1640,13 +1640,223 @@ input:focus-visible,
 
 .knowledge-timeline {
   display: grid;
-  min-height: 36px;
+  height: 34px;
+  min-height: 34px;
   grid-template-columns: 28px minmax(100px, 1fr) 48px;
   align-items: center;
   gap: 7px;
   padding: 0 10px;
   border-top: 1px solid var(--divider);
   background: #f7f7f8;
+}
+
+.knowledge-graph {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: auto;
+  background: #fff;
+}
+
+.knowledge-graph__notice {
+  display: flex;
+  min-height: 41px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--divider);
+  color: #525660;
+  font-size: 10px;
+}
+
+.knowledge-graph__notice div {
+  display: grid;
+  gap: 2px;
+}
+
+.knowledge-graph__notice strong {
+  color: #38333f;
+  font-size: 10.5px;
+}
+
+.knowledge-graph__notice span,
+.knowledge-graph__hint {
+  color: #858891;
+  font-size: 9px;
+}
+
+.knowledge-graph__canvas {
+  position: relative;
+  min-height: 230px;
+  overflow: hidden;
+  border-bottom: 1px solid var(--divider);
+  background:
+    radial-gradient(circle at 50% 48%, rgb(117 103 168 / 8%), transparent 32%),
+    #fff;
+}
+
+.knowledge-graph__canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.knowledge-graph__canvas line {
+  stroke: #7e72a1;
+  stroke-width: 0.65;
+}
+
+.knowledge-graph__canvas text {
+  fill: #756b8d;
+  font-size: 3px;
+  text-anchor: middle;
+}
+
+.knowledge-graph__node {
+  position: absolute;
+  max-width: 132px;
+  padding: 4px 7px;
+  border: 2px solid #7567a8;
+  border-radius: 999px;
+  overflow: hidden;
+  color: #3f394d;
+  background: #eeebf7;
+  font-size: 9.5px;
+  font-weight: 625;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transform: translate(-50%, -50%);
+}
+
+.knowledge-graph__empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  color: #999ca3;
+  font-size: 10px;
+  transform: translate(-50%, -50%);
+}
+
+.knowledge-graph__error,
+.knowledge-graph__hint {
+  margin: 0;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.knowledge-graph__error {
+  color: #874d4d;
+  background: #fbf3f3;
+  font-size: 9.5px;
+}
+
+.knowledge-graph__form {
+  display: grid;
+  grid-template-columns: 1fr 0.85fr 1fr;
+  gap: 5px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--divider);
+}
+
+.knowledge-graph__form input,
+.knowledge-graph__decisions input {
+  min-width: 0;
+  height: 27px;
+  padding: 0 7px;
+  border: 1px solid #d9dbe0;
+  border-radius: 4px;
+  color: #454851;
+  background: #fff;
+  font-size: 9.5px;
+}
+
+.knowledge-graph__range {
+  display: flex;
+  grid-column: 1 / 3;
+  align-items: center;
+  gap: 4px;
+}
+
+.knowledge-graph__range input {
+  width: 100%;
+}
+
+.knowledge-graph__form button,
+.knowledge-graph__decisions button {
+  height: 27px;
+  border: 1px solid #d3d0dc;
+  border-radius: 4px;
+  color: #4f4760;
+  background: #f3f1f7;
+  font-size: 9.5px;
+}
+
+.knowledge-graph__relations {
+  display: grid;
+  gap: 1px;
+  border-top: 1px solid var(--divider);
+  background: var(--divider);
+}
+
+.knowledge-graph__relations button {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  color: #474a52;
+  background: #fff;
+  font-size: 9px;
+  text-align: left;
+}
+
+.knowledge-graph__relations button[aria-pressed="true"] {
+  background: #f0edf7;
+}
+
+.knowledge-graph__relations strong {
+  overflow: hidden;
+  font-size: 9.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.knowledge-graph__relations span {
+  flex: none;
+  color: #7d7888;
+}
+
+.knowledge-graph__evidence {
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--divider);
+  background: #faf9fc;
+}
+
+.knowledge-graph__evidence blockquote {
+  display: grid;
+  gap: 4px;
+  margin: 0 0 7px;
+  padding: 7px 8px;
+  border-left: 2px solid var(--accent);
+  color: #49464f;
+  background: #fff;
+  font-size: 9.5px;
+  line-height: 1.45;
+}
+
+.knowledge-graph__evidence blockquote span {
+  color: #817a8e;
+  font-size: 8.5px;
+}
+
+.knowledge-graph__decisions {
+  display: grid;
+  grid-template-columns: minmax(100px, 1fr) repeat(3, auto);
+  gap: 5px;
 }
 
 .knowledge-timeline button,

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import type { DiscoveryProposal } from "../drop/types";
+import type { GraphClient } from "../graph/types";
 import type { ProfileClient } from "../profiles/types";
 import { ContextPane } from "./ContextPane";
 
@@ -37,9 +38,16 @@ describe("ContextPane", () => {
       importLocalCandidate: vi.fn(),
       decideCandidate: vi.fn(),
     };
+    const graphClient: GraphClient = {
+      inspect: vi.fn(),
+      propose: vi.fn(),
+      decide: vi.fn(),
+    };
     render(
       <ContextPane
         collapsed={false}
+        document={null}
+        graphClient={graphClient}
         onCollapsedChange={vi.fn()}
         profileClient={profileClient}
         proposal={proposal}

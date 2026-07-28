@@ -466,8 +466,8 @@ mod tests {
         save_document(&lease, &operation_id, 1, "# Second\n\nEvidence two.\n")
             .expect("save second revision");
 
-        let first = open_committed_revision(&lease, &operation_id, 1)
-            .expect("open exact first revision");
+        let first =
+            open_committed_revision(&lease, &operation_id, 1).expect("open exact first revision");
         assert_eq!(first.revision, 1);
         assert_eq!(first.markdown, "# First\n\nEvidence one.\n");
         assert!(open_committed_revision(&lease, &operation_id, 0).is_err());

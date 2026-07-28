@@ -85,6 +85,7 @@ pub struct GraphEvent {
     pub version: u32,
     pub status: RelationStatus,
     pub source_node: String,
+    pub relation_type: String,
     pub target_node: String,
     pub recorded_at_unix_ms: u64,
 }
@@ -170,8 +171,8 @@ pub(crate) fn decide_relation(
             }
         }
         GraphDecision::Revise => {
-            let revision = revision
-                .ok_or_else(|| "Revise requires replacement relation fields".to_owned())?;
+            let revision =
+                revision.ok_or_else(|| "Revise requires replacement relation fields".to_owned())?;
             build_relation(
                 vault,
                 relation_id,
@@ -208,7 +209,8 @@ pub(crate) fn inspect_graph(
         if index >= MAX_RELATIONS {
             return Err("Graph relation store exceeds its scan limit".to_owned());
         }
-        let entry = entry.map_err(|error| format!("Graph relation entry is unreadable: {error}"))?;
+        let entry =
+            entry.map_err(|error| format!("Graph relation entry is unreadable: {error}"))?;
         let file_type = entry
             .file_type()
             .map_err(|error| format!("Graph relation entry type is unreadable: {error}"))?;
@@ -223,9 +225,10 @@ pub(crate) fn inspect_graph(
         let versions = relation_versions(vault, &relation_id)?;
         if versions.iter().any(|relation| {
             relation.operation_id == operation_id
-                && relation.evidence.iter().any(|evidence| {
-                    evidence.original_identity != original.identity
-                })
+                && relation
+                    .evidence
+                    .iter()
+                    .any(|evidence| evidence.original_identity != original.identity)
         }) {
             return Err("Graph relation provenance no longer matches its original".to_owned());
         }
@@ -242,6 +245,7 @@ pub(crate) fn inspect_graph(
             version: relation.version,
             status: relation.status,
             source_node: relation.source_node,
+            relation_type: relation.relation_type,
             target_node: relation.target_node,
             recorded_at_unix_ms: relation.recorded_at_unix_ms,
         }));
@@ -362,11 +366,8 @@ fn verify_relation_evidence(vault: &VaultLease, relation: &GraphRelation) -> Res
             end_line: evidence.end_line,
         })
         .collect::<Vec<_>>();
-    let document = open_committed_revision(
-        vault,
-        &relation.operation_id,
-        relation.knowledge_revision,
-    )?;
+    let document =
+        open_committed_revision(vault, &relation.operation_id, relation.knowledge_revision)?;
     let extracted = extract_evidence(
         &relation.operation_id,
         relation.knowledge_revision,
@@ -385,8 +386,8 @@ fn verify_relation_evidence(vault: &VaultLease, relation: &GraphRelation) -> Res
 }
 
 fn write_relation(vault: &VaultLease, relation: &GraphRelation) -> Result<(), String> {
-    let path = relation_directory(&relation.relation_id)
-        .join(format!("{:08}.json", relation.version));
+    let path =
+        relation_directory(&relation.relation_id).join(format!("{:08}.json", relation.version));
     write_new_json(&vault.directory, &path, relation)
 }
 
@@ -396,10 +397,7 @@ fn latest_relation(vault: &VaultLease, relation_id: &str) -> Result<GraphRelatio
         .ok_or_else(|| "Graph relation was not found".to_owned())
 }
 
-fn relation_versions(
-    vault: &VaultLease,
-    relation_id: &str,
-) -> Result<Vec<GraphRelation>, String> {
+fn relation_versions(vault: &VaultLease, relation_id: &str) -> Result<Vec<GraphRelation>, String> {
     validate_relation_id(relation_id)?;
     let directory = relation_directory(relation_id);
     let mut versions = Vec::new();
@@ -412,7 +410,8 @@ fn relation_versions(
         if index >= MAX_RELATION_VERSIONS as usize {
             return Err("Graph relation exceeds its version scan limit".to_owned());
         }
-        let entry = entry.map_err(|error| format!("Graph relation version is unreadable: {error}"))?;
+        let entry =
+            entry.map_err(|error| format!("Graph relation version is unreadable: {error}"))?;
         let file_type = entry
             .file_type()
             .map_err(|error| format!("Graph relation version type is unreadable: {error}"))?;
@@ -474,7 +473,9 @@ fn ensure_trusted_directory(vault: &VaultLease, path: &Path) -> Result<(), Strin
             .directory
             .create_dir(path)
             .map_err(|error| format!("Graph storage directory cannot be created: {error}")),
-        Err(error) => Err(format!("Graph storage directory cannot be inspected: {error}")),
+        Err(error) => Err(format!(
+            "Graph storage directory cannot be inspected: {error}"
+        )),
     }
 }
 
@@ -495,11 +496,11 @@ fn validate_relation_id(value: &str) -> Result<(), String> {
 
 fn bounded_text(value: &str, max_chars: usize, label: &str) -> Result<String, String> {
     let value = value.trim();
-    if value.is_empty()
-        || value.chars().count() > max_chars
-        || value.chars().any(char::is_control)
+    if value.is_empty() || value.chars().count() > max_chars || value.chars().any(char::is_control)
     {
-        return Err(format!("{label} is empty, oversized, or contains control characters"));
+        return Err(format!(
+            "{label} is empty, oversized, or contains control characters"
+        ));
     }
     Ok(value.to_owned())
 }
@@ -539,7 +540,10 @@ mod tests {
         let root = std::env::temp_dir().join(format!(
             "aiks-graph-{}-{}-{}",
             std::process::id(),
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_nanos(),
             NEXT_TEMP_ID.fetch_add(1, Ordering::Relaxed),
         ));
         fs::create_dir(&root).unwrap();
@@ -711,7 +715,10 @@ mod tests {
             }],
         )
         .is_err());
-        assert!(inspect_graph(&lease, &operation_id).unwrap().relations.is_empty());
+        assert!(inspect_graph(&lease, &operation_id)
+            .unwrap()
+            .relations
+            .is_empty());
         assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
         fs::remove_dir_all(root).unwrap();
     }

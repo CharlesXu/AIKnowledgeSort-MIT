@@ -50,7 +50,14 @@ describe("DocumentPane", () => {
 
   test("opens only an eligible archive and saves one exact revision", async () => {
     const knowledgeClient = client();
-    render(<DocumentPane client={knowledgeClient} targets={[target]} />);
+    const onDocumentChange = vi.fn();
+    const { rerender } = render(
+      <DocumentPane
+        client={knowledgeClient}
+        onDocumentChange={onDocumentChange}
+        targets={[target]}
+      />,
+    );
 
     expect(await screen.findByRole("combobox", {
       name: "Eligible archived original",
@@ -80,6 +87,17 @@ describe("DocumentPane", () => {
       markdown: "# Changed\n",
     }));
     expect(await screen.findByText("Saved revision 1")).toBeInTheDocument();
+    expect(onDocumentChange).toHaveBeenLastCalledWith(document(1, "# Changed\n"));
+
+    rerender(
+      <DocumentPane
+        client={knowledgeClient}
+        onDocumentChange={onDocumentChange}
+        targets={[]}
+      />,
+    );
+    await waitFor(() => expect(onDocumentChange).toHaveBeenLastCalledWith(null));
+    expect(screen.getByText("Local draft · not saved")).toBeInTheDocument();
   });
 
   test("preserves unsaved Markdown when persistence rejects a stale revision", async () => {

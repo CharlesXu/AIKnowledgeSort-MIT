@@ -5,8 +5,8 @@ fn application_name() -> &'static str {
 mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
-pub mod identity;
 mod graph;
+pub mod identity;
 mod knowledge;
 mod naming;
 pub mod profiles;

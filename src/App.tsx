@@ -25,6 +25,8 @@ import {
   createTauriKnowledgeClient,
 } from "./features/knowledge/knowledgeClient";
 import type { KnowledgeClient } from "./features/knowledge/types";
+import { createBrowserGraphClient, createTauriGraphClient } from "./features/graph/graphClient";
+import type { GraphClient } from "./features/graph/types";
 import {
   createBrowserProfileClient,
   createTauriProfileClient,
@@ -37,6 +39,7 @@ interface AppProps {
   readonly dropBridge?: NativeDropBridge;
   readonly namingClient?: NamingClient;
   readonly knowledgeClient?: KnowledgeClient;
+  readonly graphClient?: GraphClient;
   readonly profileClient?: ProfileClient;
 }
 
@@ -47,6 +50,7 @@ const browserDiscoveryClient = createBrowserDiscoveryClient(
 );
 const browserNamingClient = createBrowserNamingClient();
 const browserKnowledgeClient = createBrowserKnowledgeClient();
+const browserGraphClient = createBrowserGraphClient();
 const browserProfileClient = createBrowserProfileClient();
 
 function isTauriRuntime(): boolean {
@@ -59,6 +63,7 @@ export default function App({
   dropBridge,
   namingClient,
   knowledgeClient,
+  graphClient,
   profileClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
@@ -85,6 +90,9 @@ export default function App({
       knowledgeClient={
         knowledgeClient ??
         (nativeRuntime ? createTauriKnowledgeClient() : browserKnowledgeClient)
+      }
+      graphClient={
+        graphClient ?? (nativeRuntime ? createTauriGraphClient() : browserGraphClient)
       }
       profileClient={
         profileClient ??

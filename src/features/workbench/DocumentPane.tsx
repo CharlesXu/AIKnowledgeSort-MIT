@@ -53,6 +53,7 @@ const modes: readonly {
 
 interface DocumentPaneProps {
   readonly client: KnowledgeClient;
+  readonly onDocumentChange?: (document: KnowledgeDocument | null) => void;
   readonly targets: readonly KnowledgeTarget[];
 }
 
@@ -64,7 +65,11 @@ function heading(target: KnowledgeTarget | undefined): string {
   return displayName(target).replace(/\.[^.]+$/, "");
 }
 
-export function DocumentPane({ client, targets }: DocumentPaneProps) {
+export function DocumentPane({
+  client,
+  onDocumentChange,
+  targets,
+}: DocumentPaneProps) {
   const [mode, setMode] = useState<DocumentMode>("source");
   const [draft, setDraft] = useState(initialDraft);
   const [selectedOperationId, setSelectedOperationId] = useState("");
@@ -78,12 +83,16 @@ export function DocumentPane({ client, targets }: DocumentPaneProps) {
   );
 
   useEffect(() => {
-    if (targets.length > 0 && !targets.some(
-      (target) => target.operationId === selectedOperationId
-    )) {
-      setSelectedOperationId(targets[0].operationId);
+    if (targets.some((target) => target.operationId === selectedOperationId)) {
+      return;
     }
-  }, [selectedOperationId, targets]);
+    setSelectedOperationId(targets[0]?.operationId ?? "");
+    setDocument(null);
+    setDraft(initialDraft);
+    setDirty(false);
+    setError(null);
+    onDocumentChange?.(null);
+  }, [onDocumentChange, selectedOperationId, targets]);
 
   function selectTarget(operationId: string): void {
     setSelectedOperationId(operationId);
@@ -91,6 +100,7 @@ export function DocumentPane({ client, targets }: DocumentPaneProps) {
     setDraft(initialDraft);
     setDirty(false);
     setError(null);
+    onDocumentChange?.(null);
   }
 
   async function openDocument(): Promise<void> {
@@ -107,6 +117,7 @@ export function DocumentPane({ client, targets }: DocumentPaneProps) {
       setDocument(opened);
       setDraft(opened.markdown);
       setDirty(false);
+      onDocumentChange?.(opened);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
@@ -130,6 +141,7 @@ export function DocumentPane({ client, targets }: DocumentPaneProps) {
       setDocument(saved);
       setDraft(saved.markdown);
       setDirty(false);
+      onDocumentChange?.(saved);
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : String(nextError));
     } finally {
