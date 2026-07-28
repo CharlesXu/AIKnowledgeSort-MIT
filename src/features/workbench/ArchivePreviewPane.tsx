@@ -6,14 +6,58 @@ import type {
   VaultSummary,
 } from "../archive/types";
 import type { DiscoveryProposal } from "../drop/types";
+import type {
+  NamingBatch,
+  NamingClient,
+  NamingFact,
+  NamingFactKind,
+  NamingReviewReason,
+} from "../naming/types";
 import { Icon } from "../../ui/Icon";
 
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
+  readonly namingClient: NamingClient;
   readonly proposal: DiscoveryProposal;
 }
 
-type PendingAction = "vault" | "plan" | "commit" | null;
+type PendingAction = "vault" | "naming" | "plan" | "commit" | null;
+
+interface EvidenceDraft {
+  readonly project: string;
+  readonly model: string;
+  readonly regulation: string;
+  readonly version: string;
+  readonly subject: string;
+  readonly evidenceLocation: string;
+}
+
+const emptyEvidence: EvidenceDraft = {
+  project: "",
+  model: "",
+  regulation: "",
+  version: "",
+  subject: "",
+  evidenceLocation: "",
+};
+
+const factFields: readonly {
+  readonly kind: NamingFactKind;
+  readonly label: string;
+}[] = [
+  { kind: "project", label: "Project" },
+  { kind: "model", label: "Model" },
+  { kind: "regulation", label: "Regulation" },
+  { kind: "version", label: "Version" },
+  { kind: "subject", label: "Subject" },
+];
+
+const reviewReasonLabels: Record<NamingReviewReason, string> = {
+  missingEvidence: "Missing evidence",
+  conflictingEvidence: "Conflicting evidence",
+  unsafeName: "Unsafe canonical name",
+  collision: "Unresolved name collision",
+};
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
@@ -21,6 +65,7 @@ function errorText(error: unknown): string {
 
 export function ArchivePreviewPane({
   archiveClient,
+  namingClient,
   proposal,
 }: ArchivePreviewPaneProps) {
   const proposalId = useRef(proposal.proposalId);
@@ -28,6 +73,10 @@ export function ArchivePreviewPane({
     () => new Set(),
   );
   const [vault, setVault] = useState<VaultSummary | null>(null);
+  const [evidence, setEvidence] = useState<
+    Readonly<Record<string, EvidenceDraft>>
+  >({});
+  const [namingBatch, setNamingBatch] = useState<NamingBatch | null>(null);
   const [plan, setPlan] = useState<ArchivePlan | null>(null);
   const [result, setResult] = useState<ArchiveCommitResult | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -37,6 +86,8 @@ export function ArchivePreviewPane({
   useEffect(() => {
     proposalId.current = proposal.proposalId;
     setSelectedIds(new Set());
+    setEvidence({});
+    setNamingBatch(null);
     setPlan(null);
     setResult(null);
     setConfirmed(false);
@@ -51,6 +102,11 @@ export function ArchivePreviewPane({
     setError(null);
   }
 
+  function invalidateNaming(): void {
+    setNamingBatch(null);
+    invalidatePlan();
+  }
+
   function toggleItem(itemId: string): void {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -61,7 +117,27 @@ export function ArchivePreviewPane({
       }
       return next;
     });
-    invalidatePlan();
+    setEvidence((current) =>
+      current[itemId] === undefined
+        ? { ...current, [itemId]: emptyEvidence }
+        : current,
+    );
+    invalidateNaming();
+  }
+
+  function updateEvidence(
+    itemId: string,
+    field: keyof EvidenceDraft,
+    value: string,
+  ): void {
+    setEvidence((current) => ({
+      ...current,
+      [itemId]: {
+        ...(current[itemId] ?? emptyEvidence),
+        [field]: value,
+      },
+    }));
+    invalidateNaming();
   }
 
   async function chooseVault(): Promise<void> {
@@ -74,7 +150,51 @@ export function ArchivePreviewPane({
         return;
       }
       setVault(selected);
-      invalidatePlan();
+      invalidateNaming();
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function reviewNames(): Promise<void> {
+    if (vault === null || !evidenceComplete) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("naming");
+    setError(null);
+    setResult(null);
+    setPlan(null);
+    try {
+      const batch = await namingClient.createBatch({
+        proposalId: proposal.proposalId,
+        items: selectedItems.map((item) => {
+          const draft = evidence[item.itemId] ?? emptyEvidence;
+          const facts = factFields.flatMap<NamingFact>(({ kind }) => {
+            const value = draft[kind].trim();
+            return value.length === 0
+              ? []
+              : [
+                  {
+                    kind,
+                    value,
+                    evidenceLocation: draft.evidenceLocation.trim(),
+                  },
+                ];
+          });
+          return { itemId: item.itemId, facts };
+        }),
+      });
+      if (proposalId.current === activeProposal) {
+        setNamingBatch(batch);
+        setConfirmed(false);
+      }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
         setError(errorText(nextError));
@@ -87,7 +207,11 @@ export function ArchivePreviewPane({
   }
 
   async function reviewPlan(): Promise<void> {
-    if (vault === null || selectedIds.size === 0) {
+    if (
+      vault === null ||
+      namingBatch === null ||
+      namingBatch.proposals.some((item) => item.status !== "proposed")
+    ) {
       return;
     }
     const activeProposal = proposal.proposalId;
@@ -98,6 +222,7 @@ export function ArchivePreviewPane({
       const reviewed = await archiveClient.createPlan({
         proposalId: proposal.proposalId,
         itemIds: [...selectedIds].sort(),
+        namingBatchId: namingBatch.batchId,
       });
       if (proposalId.current === activeProposal) {
         setPlan(reviewed);
@@ -105,6 +230,7 @@ export function ArchivePreviewPane({
       }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
+        setNamingBatch(null);
         setError(errorText(nextError));
       }
     } finally {
@@ -141,6 +267,20 @@ export function ArchivePreviewPane({
   }
 
   const committed = result?.status === "committed";
+  const selectedItems = proposal.items.filter((item) =>
+    selectedIds.has(item.itemId),
+  );
+  const evidenceComplete =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => {
+      const draft = evidence[item.itemId] ?? emptyEvidence;
+      return (
+        draft.subject.trim().length > 0 &&
+        draft.evidenceLocation.trim().length > 0
+      );
+    });
+  const namingNeedsReview =
+    namingBatch?.proposals.some((item) => item.status !== "proposed") ?? true;
   const statusLabel =
     result === null ? "Uncommitted" : committed ? "Committed" : "Attention";
 
@@ -194,15 +334,114 @@ export function ArchivePreviewPane({
         </li>
       </ul>
 
+      {selectedItems.length === 0 ? null : (
+        <section
+          aria-label="Local naming evidence"
+          className="archive-preview__evidence"
+        >
+          <header>
+            <strong>Local evidence</strong>
+            <span>cited facts</span>
+          </header>
+          {selectedItems.map((item) => {
+            const draft = evidence[item.itemId] ?? emptyEvidence;
+            return (
+              <fieldset key={item.itemId}>
+                <legend>{item.name}</legend>
+                {factFields.map(({ kind, label }) => (
+                  <label key={kind}>
+                    <span>{label}</span>
+                    <input
+                      aria-label={`${label} for ${item.name}`}
+                      disabled={pending !== null || committed}
+                      onChange={(event) =>
+                        updateEvidence(item.itemId, kind, event.target.value)
+                      }
+                      required={kind === "subject"}
+                      type="text"
+                      value={draft[kind]}
+                    />
+                  </label>
+                ))}
+                <label>
+                  <span>Evidence location</span>
+                  <input
+                    aria-label={`Evidence location for ${item.name}`}
+                    disabled={pending !== null || committed}
+                    onChange={(event) =>
+                      updateEvidence(
+                        item.itemId,
+                        "evidenceLocation",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="page:1 / section"
+                    required
+                    type="text"
+                    value={draft.evidenceLocation}
+                  />
+                </label>
+              </fieldset>
+            );
+          })}
+        </section>
+      )}
+
       <div className="archive-preview__actions">
         <button
-          disabled={vault === null || selectedIds.size === 0 || pending !== null || committed}
+          disabled={
+            vault === null ||
+            !evidenceComplete ||
+            pending !== null ||
+            committed
+          }
+          onClick={() => void reviewNames()}
+          type="button"
+        >
+          {pending === "naming" ? "Checking names…" : "Review canonical names"}
+        </button>
+        <button
+          disabled={
+            vault === null ||
+            namingBatch === null ||
+            namingNeedsReview ||
+            pending !== null ||
+            committed
+          }
           onClick={() => void reviewPlan()}
           type="button"
         >
           {pending === "plan" ? "Building plan…" : "Review archive plan"}
         </button>
       </div>
+
+      {namingBatch === null ? null : (
+        <section
+          aria-label="Canonical name review"
+          className="archive-preview__naming-review"
+        >
+          <header>
+            <strong>Canonical names</strong>
+            <span>
+              {namingBatch.policyId} · {namingBatch.policyVersion}
+            </span>
+          </header>
+          {namingBatch.proposals.map((item) => (
+            <article key={item.itemId}>
+              <p>
+                {item.originalName} → {item.canonicalName ?? "Review required"}
+              </p>
+              {item.reviewReason === null ? null : (
+                <strong>{reviewReasonLabels[item.reviewReason]}</strong>
+              )}
+              <dl>
+                <dt>SHA-256</dt>
+                <dd>{item.identity.digest}</dd>
+              </dl>
+            </article>
+          ))}
+        </section>
+      )}
 
       {plan === null ? null : (
         <section
@@ -224,6 +463,14 @@ export function ArchivePreviewPane({
                 <dd>{item.sourcePath}</dd>
                 <dt>Destination</dt>
                 <dd>{item.destinationPath}</dd>
+                <dt>Canonical name</dt>
+                <dd>
+                  {item.originalName} → {item.canonicalName}
+                </dd>
+                <dt>Naming policy</dt>
+                <dd>
+                  {item.naming.policyId} · {item.naming.policyVersion}
+                </dd>
                 <dt>SHA-256</dt>
                 <dd>{item.identity.digest}</dd>
               </dl>

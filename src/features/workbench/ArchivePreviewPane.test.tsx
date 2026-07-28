@@ -6,6 +6,10 @@ import type {
   VaultSummary,
 } from "../archive/types";
 import type { DiscoveryProposal } from "../drop/types";
+import type {
+  NamingBatch,
+  NamingClient,
+} from "../naming/types";
 import { ArchivePreviewPane } from "./ArchivePreviewPane";
 
 const proposal: DiscoveryProposal = {
@@ -40,8 +44,9 @@ const vault: VaultSummary = {
 
 const plan: ArchivePlan = {
   planId: "plan-1",
-  planVersion: 1,
+  planVersion: 2,
   proposalId: "proposal-1",
+  namingBatchId: "naming-batch-1",
   authorityId: "vault-1",
   vaultPath: "/Knowledge Vault",
   expiresAtUnixMs: Date.now() + 300_000,
@@ -52,9 +57,55 @@ const plan: ArchivePlan = {
       itemId: "item-1",
       sourcePath: "/inbox/notes.md",
       destinationPath:
-        "Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/notes.md",
+        "Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Reset-reliability.md",
+      originalName: "notes.md",
+      canonicalName: "Reset-reliability.md",
+      naming: {
+        namingProposalId: "naming-proposal-1",
+        originalName: "notes.md",
+        canonicalName: "Reset-reliability.md",
+        policyId: "canonical-v1",
+        policyVersion: "1.0.0",
+        appliedRule: "ordered-cited-facts-v1",
+        facts: [
+          {
+            kind: "subject",
+            value: "Reset reliability",
+            evidenceLocation: "page:1",
+          },
+        ],
+      },
       byteSize: 12,
       identity: proposal.items[0].identity,
+    },
+  ],
+};
+
+const namingBatch: NamingBatch = {
+  batchId: "naming-batch-1",
+  discoveryProposalId: "proposal-1",
+  policyId: "canonical-v1",
+  policyVersion: "1.0.0",
+  expiresAtUnixMs: Date.now() + 300_000,
+  proposals: [
+    {
+      proposalId: "naming-proposal-1",
+      itemId: "item-1",
+      originalName: "notes.md",
+      canonicalName: "Reset-reliability.md",
+      identity: proposal.items[0].identity,
+      policyId: "canonical-v1",
+      policyVersion: "1.0.0",
+      appliedRule: "ordered-cited-facts-v1",
+      status: "proposed",
+      reviewReason: null,
+      facts: [
+        {
+          kind: "subject",
+          value: "Reset reliability",
+          evidenceLocation: "page:1",
+        },
+      ],
     },
   ],
 };
@@ -80,27 +131,81 @@ function client(): ArchiveClient {
   };
 }
 
+function namingClient(batch: NamingBatch = namingBatch): NamingClient {
+  return {
+    createBatch: vi.fn().mockResolvedValue(batch),
+  };
+}
+
 describe("archive preview", () => {
   test("requires an exact reviewed plan before a source-preserving commit", async () => {
     const archiveClient = client();
+    const names = namingClient();
     render(
-      <ArchivePreviewPane archiveClient={archiveClient} proposal={proposal} />,
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={names}
+        proposal={proposal}
+      />,
     );
 
     expect(screen.getByText("No Vault selected")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Review archive plan" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("checkbox", { name: /notes\.md/i }));
+    expect(
+      screen.getByRole("textbox", { name: "Project for notes.md" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Model for notes.md" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Regulation for notes.md" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Version for notes.md" }),
+    ).toBeInTheDocument();
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+      { target: { value: "Reset reliability" } },
+    );
+    expect(
+      screen.getByRole("button", { name: "Review canonical names" }),
+    ).toBeDisabled();
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Evidence location for notes.md",
+      }),
+      { target: { value: "page:1" } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
     await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review canonical names" }),
+    );
+    const namingReview = await screen.findByRole("region", {
+      name: "Canonical name review",
+    });
+    expect(namingReview).toHaveTextContent("notes.md → Reset-reliability.md");
+    expect(namingReview).toHaveTextContent("canonical-v1 · 1.0.0");
+    expect(namingReview).toHaveTextContent(
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Review archive plan" }));
 
+    await waitFor(() =>
+      expect(archiveClient.createPlan).toHaveBeenCalledWith({
+        proposalId: "proposal-1",
+        itemIds: ["item-1"],
+        namingBatchId: "naming-batch-1",
+      }),
+    );
     const review = await screen.findByRole("region", {
       name: "Exact archive plan",
     });
     expect(review).toHaveTextContent("/inbox/notes.md");
     expect(review).toHaveTextContent(
-      "Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/notes.md",
+      "Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Reset-reliability.md",
     );
     expect(review).toHaveTextContent(/SHA-256/i);
     expect(review).toHaveTextContent(/source file remains/i);
@@ -132,13 +237,62 @@ describe("archive preview", () => {
     ).toBeInTheDocument();
   });
 
+  test("blocks archive planning when canonical naming needs review", async () => {
+    const reviewBatch: NamingBatch = {
+      ...namingBatch,
+      proposals: [
+        {
+          ...namingBatch.proposals[0],
+          canonicalName: null,
+          status: "namingReview",
+          reviewReason: "conflictingEvidence",
+        },
+      ],
+    };
+    const archiveClient = client();
+    render(
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={namingClient(reviewBatch)}
+        proposal={proposal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /notes\.md/i }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+      { target: { value: "Reset reliability" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Evidence location for notes.md",
+      }),
+      { target: { value: "page:1" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+    await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review canonical names" }),
+    );
+
+    expect(await screen.findByText("Conflicting evidence")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review archive plan" }),
+    ).toBeDisabled();
+    expect(archiveClient.createPlan).not.toHaveBeenCalled();
+  });
+
   test("surfaces native errors without claiming any change", async () => {
     const archiveClient = client();
     vi.mocked(archiveClient.chooseVault).mockRejectedValue(
       new Error("Desktop runtime is required for archive operations."),
     );
     render(
-      <ArchivePreviewPane archiveClient={archiveClient} proposal={proposal} />,
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={namingClient()}
+        proposal={proposal}
+      />,
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));

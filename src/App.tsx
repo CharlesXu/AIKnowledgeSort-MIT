@@ -16,6 +16,11 @@ import {
 } from "./features/archive/archiveClient";
 import type { ArchiveClient } from "./features/archive/types";
 import {
+  createBrowserNamingClient,
+  createTauriNamingClient,
+} from "./features/naming/namingClient";
+import type { NamingClient } from "./features/naming/types";
+import {
   createBrowserProfileClient,
   createTauriProfileClient,
 } from "./features/profiles/profileClient";
@@ -25,6 +30,7 @@ interface AppProps {
   readonly archiveClient?: ArchiveClient;
   readonly discoveryClient?: DiscoveryClient;
   readonly dropBridge?: NativeDropBridge;
+  readonly namingClient?: NamingClient;
   readonly profileClient?: ProfileClient;
 }
 
@@ -33,6 +39,7 @@ const browserArchiveClient = createBrowserArchiveClient();
 const browserDiscoveryClient = createBrowserDiscoveryClient(
   demoDiscoveryProposal,
 );
+const browserNamingClient = createBrowserNamingClient();
 const browserProfileClient = createBrowserProfileClient();
 
 function isTauriRuntime(): boolean {
@@ -43,6 +50,7 @@ export default function App({
   archiveClient,
   discoveryClient,
   dropBridge,
+  namingClient,
   profileClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
@@ -61,6 +69,10 @@ export default function App({
       }
       dropBridge={
         dropBridge ?? (nativeRuntime ? tauriNativeDropBridge : browserDropBridge)
+      }
+      namingClient={
+        namingClient ??
+        (nativeRuntime ? createTauriNamingClient() : browserNamingClient)
       }
       profileClient={
         profileClient ??

@@ -21,6 +21,7 @@ describe("archive client", () => {
     await client.createPlan({
       proposalId: "proposal-1",
       itemIds: ["item-1"],
+      namingBatchId: "naming-batch-1",
     });
     await client.confirmPlan({
       planId: "plan-1",
@@ -35,6 +36,7 @@ describe("archive client", () => {
           request: {
             proposalId: "proposal-1",
             itemIds: ["item-1"],
+            namingBatchId: "naming-batch-1",
           },
         },
       ],
@@ -57,7 +59,11 @@ describe("archive client", () => {
       /desktop runtime is required/i,
     );
     await expect(
-      client.createPlan({ proposalId: "proposal-1", itemIds: ["item-1"] }),
+      client.createPlan({
+        proposalId: "proposal-1",
+        itemIds: ["item-1"],
+        namingBatchId: "naming-batch-1",
+      }),
     ).rejects.toThrow(/desktop runtime is required/i);
     await expect(
       client.confirmPlan({

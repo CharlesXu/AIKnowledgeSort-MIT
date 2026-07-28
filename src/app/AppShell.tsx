@@ -13,6 +13,7 @@ import { DocumentPane } from "../features/workbench/DocumentPane";
 import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
 import type { ArchiveClient } from "../features/archive/types";
 import type { ProfileClient } from "../features/profiles/types";
+import type { NamingClient } from "../features/naming/types";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -74,6 +75,7 @@ interface AppShellProps {
   readonly archiveClient: ArchiveClient;
   readonly discoveryClient: DiscoveryClient;
   readonly dropBridge: NativeDropBridge;
+  readonly namingClient: NamingClient;
   readonly profileClient: ProfileClient;
 }
 
@@ -81,6 +83,7 @@ export function AppShell({
   archiveClient,
   discoveryClient,
   dropBridge,
+  namingClient,
   profileClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
@@ -172,7 +175,11 @@ export function AppShell({
         />
       )}
       <section aria-label="Knowledge workspace" className="knowledge-workspace">
-        <ArchivePreviewPane archiveClient={archiveClient} proposal={proposal} />
+        <ArchivePreviewPane
+          archiveClient={archiveClient}
+          namingClient={namingClient}
+          proposal={proposal}
+        />
         <DocumentPane />
       </section>
       {layout.contextCollapsed ? null : (
