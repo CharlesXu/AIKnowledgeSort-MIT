@@ -341,11 +341,11 @@ fn is_public_ipv6(address: Ipv6Addr) -> bool {
     }
     let segments = address.segments();
     let global_unicast = segments[0] & 0xe000 == 0x2000;
-    let teredo = segments[0] == 0x2001 && segments[1] == 0;
-    let benchmarking = segments[0] == 0x2001 && segments[1] == 0x0002 && segments[2] == 0;
-    let documentation = segments[0] == 0x2001 && segments[1] == 0x0db8;
+    let ietf_protocol_assignments = segments[0] == 0x2001 && segments[1] <= 0x01ff;
+    let documentation = (segments[0] == 0x2001 && segments[1] == 0x0db8)
+        || (segments[0] == 0x3fff && segments[1] & 0xf000 == 0);
     let six_to_four = segments[0] == 0x2002;
-    global_unicast && !teredo && !benchmarking && !documentation && !six_to_four
+    global_unicast && !ietf_protocol_assignments && !documentation && !six_to_four
 }
 
 #[cfg(test)]
@@ -512,8 +512,10 @@ mod tests {
             "100::1",
             "2001::1",
             "2001:2::1",
+            "2001:100::1",
             "2001:db8::1",
             "2002::1",
+            "3fff::1",
             "fc00::1",
             "fe80::1",
             "ff00::1",
