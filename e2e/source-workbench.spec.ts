@@ -87,6 +87,21 @@ test("keeps archive operations honest in the browser fixture", async ({
   await expect(archive).not.toContainText("Archive committed");
 });
 
+test("keeps profile import and activation honest in the browser fixture", async ({
+  page,
+}) => {
+  await page.getByRole("tab", { name: "Import Review" }).click();
+
+  await expect(page.getByText("Ninebot electronic archive")).toBeVisible();
+  await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Import local profile" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Desktop runtime is required for profile operations.",
+  );
+  await expect(page.getByText(/Approved and active/)).toHaveCount(0);
+  await expect(page.getByText("3 eligible · 0 changes")).toBeVisible();
+});
+
 test("collapses and restores the adjustable side panes", async ({ page }) => {
   await expect(
     page.getByRole("separator", { name: "Resize Sources panel" }),

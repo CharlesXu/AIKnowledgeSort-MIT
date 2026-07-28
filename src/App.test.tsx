@@ -262,7 +262,8 @@ describe("source workbench shell", () => {
     expect(screen.getByText(/available after confirmed ingestion/i)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "Import Review" }));
-    expect(screen.getByRole("list", { name: "Proposal status counts" })).toBeVisible();
+    expect(screen.getByText("Ninebot electronic archive")).toBeVisible();
+    expect(screen.getByText(/0 rules — classification disabled/)).toBeVisible();
   });
 
   test("provides adjustable pane separators and responsive collapse hooks", () => {

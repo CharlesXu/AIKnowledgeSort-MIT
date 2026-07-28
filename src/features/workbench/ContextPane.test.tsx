@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import type { DiscoveryProposal } from "../drop/types";
+import type { ProfileClient } from "../profiles/types";
 import { ContextPane } from "./ContextPane";
 
 const proposal: DiscoveryProposal = {
@@ -26,36 +27,31 @@ const proposal: DiscoveryProposal = {
 };
 
 describe("ContextPane", () => {
-  test("shows five compact proposal statuses and no-mutation evidence", () => {
+  test("keeps graph and governed profile review as separate right-pane tabs", async () => {
+    const profileClient: ProfileClient = {
+      inspect: vi.fn().mockResolvedValue({
+        installed: [],
+        active: null,
+        candidates: [],
+      }),
+      importLocalCandidate: vi.fn(),
+      decideCandidate: vi.fn(),
+    };
     render(
       <ContextPane
         collapsed={false}
-        isDemo
         onCollapsedChange={vi.fn()}
+        profileClient={profileClient}
         proposal={proposal}
       />,
     );
 
+    expect(screen.getByRole("tab", { name: "Knowledge Graph" }))
+      .toHaveAttribute("aria-selected", "true");
     fireEvent.click(screen.getByRole("tab", { name: "Import Review" }));
-    const statuses = screen.getByRole("list", {
-      name: "Proposal status counts",
-    });
-    const expected = {
-      Included: "2",
-      Excluded: "3",
-      Unreadable: "1",
-      Symlink: "4",
-      "Out of scope": "5",
-    };
-
-    for (const [label, count] of Object.entries(expected)) {
-      expect(
-        within(statuses).getByRole("listitem", { name: label }),
-      ).toHaveTextContent(count);
-    }
-
-    expect(screen.getByText("Mutation").nextElementSibling).toHaveTextContent(
-      "None",
-    );
+    expect(await screen.findByText("Ninebot electronic archive"))
+      .toBeInTheDocument();
+    expect(screen.getByText("No candidate awaiting review"))
+      .toBeInTheDocument();
   });
 });

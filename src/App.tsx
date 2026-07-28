@@ -15,11 +15,17 @@ import {
   createTauriArchiveClient,
 } from "./features/archive/archiveClient";
 import type { ArchiveClient } from "./features/archive/types";
+import {
+  createBrowserProfileClient,
+  createTauriProfileClient,
+} from "./features/profiles/profileClient";
+import type { ProfileClient } from "./features/profiles/types";
 
 interface AppProps {
   readonly archiveClient?: ArchiveClient;
   readonly discoveryClient?: DiscoveryClient;
   readonly dropBridge?: NativeDropBridge;
+  readonly profileClient?: ProfileClient;
 }
 
 const browserDropBridge = createBrowserNativeDropBridge();
@@ -27,6 +33,7 @@ const browserArchiveClient = createBrowserArchiveClient();
 const browserDiscoveryClient = createBrowserDiscoveryClient(
   demoDiscoveryProposal,
 );
+const browserProfileClient = createBrowserProfileClient();
 
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -36,6 +43,7 @@ export default function App({
   archiveClient,
   discoveryClient,
   dropBridge,
+  profileClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
 
@@ -53,6 +61,10 @@ export default function App({
       }
       dropBridge={
         dropBridge ?? (nativeRuntime ? tauriNativeDropBridge : browserDropBridge)
+      }
+      profileClient={
+        profileClient ??
+        (nativeRuntime ? createTauriProfileClient() : browserProfileClient)
       }
     />
   );

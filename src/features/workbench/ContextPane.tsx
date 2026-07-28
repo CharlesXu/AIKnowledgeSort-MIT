@@ -1,31 +1,24 @@
 import { useState } from "react";
 import type { DiscoveryProposal } from "../drop/types";
+import type { ProfileClient } from "../profiles/types";
+import { ProfileReview } from "../profiles/ProfileReview";
 import { Icon } from "../../ui/Icon";
 import { ProposalTopology } from "./ProposalTopology";
 
 interface ContextPaneProps {
   readonly collapsed: boolean;
-  readonly isDemo: boolean;
   readonly onCollapsedChange: (collapsed: boolean) => void;
+  readonly profileClient: ProfileClient;
   readonly proposal: DiscoveryProposal;
 }
 
-const statusDefinitions = [
-  ["Included", "included"],
-  ["Excluded", "excluded"],
-  ["Unreadable", "unreadable"],
-  ["Symlink", "symlink"],
-  ["Out of scope", "outOfScope"],
-] as const;
-
 export function ContextPane({
   collapsed,
-  isDemo,
   onCollapsedChange,
+  profileClient,
   proposal,
 }: ContextPaneProps) {
   const [mode, setMode] = useState<"graph" | "review">("graph");
-  const firstItem = proposal.items[0];
 
   return (
     <aside
@@ -78,66 +71,7 @@ export function ContextPane({
             {mode === "graph" ? (
               <ProposalTopology proposal={proposal} />
             ) : (
-              <>
-                <section className="context-section" aria-labelledby="review-scope">
-                  <h3 id="review-scope">Review scope</h3>
-                  <dl className="detail-list">
-                    <div>
-                      <dt>Mode</dt>
-                      <dd>{isDemo ? "Demo fixture" : "Trusted local preview"}</dd>
-                    </div>
-                    <div>
-                      <dt>Eligible</dt>
-                      <dd>{proposal.counts.included} files</dd>
-                    </div>
-                    <div>
-                      <dt>Mutation</dt>
-                      <dd>None</dd>
-                    </div>
-                  </dl>
-                </section>
-                <section
-                  className="context-section context-section--statuses"
-                  aria-labelledby="proposal-statuses"
-                >
-                  <h3 id="proposal-statuses">Proposal status</h3>
-                  <ul
-                    aria-label="Proposal status counts"
-                    className="context-status-list"
-                  >
-                    {statusDefinitions.map(([label, key]) => (
-                      <li
-                        aria-label={label}
-                        className={`context-status-row context-status-row--${key}`}
-                        key={key}
-                      >
-                        <span className="context-status-row__label">
-                          <i aria-hidden="true" />
-                          {label}
-                        </span>
-                        <strong>{proposal.counts[key]}</strong>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-                <section className="context-section" aria-labelledby="first-source">
-                  <h3 id="first-source">First included source</h3>
-                  <p className="context-file">
-                    {firstItem?.name ?? "No included source"}
-                  </p>
-                  <p className="context-path">{firstItem?.path ?? "—"}</p>
-                </section>
-                <section
-                  className="context-section context-section--deferred"
-                  aria-labelledby="later-tools"
-                >
-                  <h3 id="later-tools">Later workflows</h3>
-                  <p>
-                    Markdown editing, classification, archive workflows, and
-                    MCP connections are not available in Phase 1.
-                  </p>
-                </section>
-              </>
+              <ProfileReview client={profileClient} />
             )}
           </div>
         </>

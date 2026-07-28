@@ -12,6 +12,7 @@ import { ContextPane } from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
 import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
 import type { ArchiveClient } from "../features/archive/types";
+import type { ProfileClient } from "../features/profiles/types";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
 import {
@@ -73,12 +74,14 @@ interface AppShellProps {
   readonly archiveClient: ArchiveClient;
   readonly discoveryClient: DiscoveryClient;
   readonly dropBridge: NativeDropBridge;
+  readonly profileClient: ProfileClient;
 }
 
 export function AppShell({
   archiveClient,
   discoveryClient,
   dropBridge,
+  profileClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const drop = useNativeDrop({
@@ -188,7 +191,7 @@ export function AppShell({
         onCollapsedChange={(contextCollapsed) =>
           updateLayout({ contextCollapsed })
         }
-        isDemo={drop.isDemo}
+        profileClient={profileClient}
         proposal={proposal}
       />
       {drop.status === "hovering" ? (
