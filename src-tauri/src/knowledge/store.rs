@@ -64,6 +64,26 @@ pub(crate) fn open_document(
     }
 }
 
+pub(crate) fn open_committed_revision(
+    vault: &VaultLease,
+    operation_id: &str,
+    revision: u32,
+) -> Result<KnowledgeDocument, String> {
+    if revision == 0 || revision > MAX_REVISIONS {
+        return Err("Committed knowledge revision is invalid".to_owned());
+    }
+    let original = verified_registered_original(vault, operation_id)?;
+    let path = Path::new(".aiks/knowledge")
+        .join(operation_id)
+        .join(format!("{revision:08}.json"));
+    let record: KnowledgeRevisionRecord = read_json(&vault.directory, &path)?;
+    validate_record(vault, operation_id, &record)?;
+    if record.revision != revision {
+        return Err("Knowledge revision metadata does not match the request".to_owned());
+    }
+    read_committed_revision(vault, &original.identity, record)
+}
+
 pub(crate) fn save_document(
     vault: &VaultLease,
     operation_id: &str,
@@ -302,7 +322,7 @@ fn unix_time_ms() -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{open_document, save_document};
+    use super::{open_committed_revision, open_document, save_document};
     use crate::archive::{
         commit_plan_with_faults, ArchivePlan, ArchivePlanItem, TransactionFaults,
     };
@@ -434,6 +454,31 @@ mod tests {
             open_document(&lease, &operation_id).unwrap().markdown,
             "# Recovered\n"
         );
+        assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
+        fs::remove_dir_all(root).expect("remove fixture");
+    }
+
+    #[test]
+    fn opens_one_exact_committed_revision_with_current_provenance() {
+        let (root, source, lease, operation_id) = committed_fixture();
+        save_document(&lease, &operation_id, 0, "# First\n\nEvidence one.\n")
+            .expect("save first revision");
+        save_document(&lease, &operation_id, 1, "# Second\n\nEvidence two.\n")
+            .expect("save second revision");
+
+        let first = open_committed_revision(&lease, &operation_id, 1)
+            .expect("open exact first revision");
+        assert_eq!(first.revision, 1);
+        assert_eq!(first.markdown, "# First\n\nEvidence one.\n");
+        assert!(open_committed_revision(&lease, &operation_id, 0).is_err());
+        assert!(open_committed_revision(&lease, &operation_id, 3).is_err());
+
+        let first_path = root
+            .join("vault/Knowledge")
+            .join(&operation_id)
+            .join("00000001.md");
+        fs::write(first_path, "# Tampered\n").expect("tamper revision");
+        assert!(open_committed_revision(&lease, &operation_id, 1).is_err());
         assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
         fs::remove_dir_all(root).expect("remove fixture");
     }
