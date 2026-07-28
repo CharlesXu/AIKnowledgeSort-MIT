@@ -7,7 +7,8 @@ This new-history repository contains only a sanitized, implementation-clean
 specification handoff. Its test vectors are self-contained and require no
 external fixture, source checkout, source index, or specification-room path.
 
-No product implementation code is included in this initial commit.
+The repository now contains the first independently implemented desktop
+milestones described below.
 
 License: MIT
 
@@ -29,3 +30,25 @@ hostile or stalled network filesystem cannot be forcibly cancelled; timed-out
 workers retain their bounded concurrency permit until that call returns, so the
 UI thread remains responsive and additional work is rejected at the configured
 limit.
+
+## Declarative classification profiles
+
+The desktop runtime can import a local, declarative JSON classification profile
+as an unapproved candidate. The trusted Rust boundary rejects unknown and
+executable-shaped fields, limits input to 1 MiB, preserves the exact source
+bytes by SHA-256 in the authorized Vault, and records candidate provenance
+without persisting the source's absolute path.
+
+Approval and rejection require the exact candidate digest and create immutable
+decision records. An approved version can produce exact-version classification
+proposals; missing or conflicting semantic evidence is routed to
+`classificationReview` without inventing a destination. Profile operations in
+the browser preview fail visibly instead of simulating persistence or
+activation.
+
+The bundled `Ninebot electronic archive` entry is intentionally a zero-rule
+draft shell. It documents the clean implementation boundary but cannot classify
+or become active. The full Ninebot taxonomy, URL import, model-assisted
+conversion of future notices and drafts, canonical file naming, and application
+of classified paths to archive transactions are not yet implemented or
+claimed.
