@@ -1,6 +1,7 @@
 mod auth;
 mod http;
 mod service;
+pub mod stdio_relay;
 mod tools;
 
 pub use http::{McpTransportAuthority, McpTransportState, StartMcpTransportRequest};
