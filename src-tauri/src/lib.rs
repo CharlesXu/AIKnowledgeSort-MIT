@@ -2,7 +2,7 @@ fn application_name() -> &'static str {
     "AI Knowledge Sort"
 }
 
-mod agent_access;
+pub mod agent_access;
 mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;

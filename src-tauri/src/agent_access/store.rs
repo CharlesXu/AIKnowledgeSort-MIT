@@ -56,6 +56,7 @@ struct AgentAuditEvent<'a> {
     event_id: String,
     event_type: &'a str,
     grant_id: &'a str,
+    subject_id: Option<&'a str>,
     at_unix_ms: u64,
     actor: &'static str,
 }
@@ -122,6 +123,7 @@ impl AgentAccessStore {
             event_id: event_id.clone(),
             event_type,
             grant_id,
+            subject_id: None,
             at_unix_ms,
             actor: "desktop-user",
         };
@@ -131,6 +133,37 @@ impl AgentAccessStore {
             "Agent access audit",
         )?;
         self.write_state(state)
+    }
+
+    pub fn write_runtime_event(
+        &self,
+        sequence: u64,
+        event_type: &str,
+        grant_id: &str,
+        subject_id: &str,
+        at_unix_ms: u64,
+    ) -> Result<(), String> {
+        validate_safe_id("Agent audit event type", event_type)?;
+        validate_safe_id("Agent grant id", grant_id)?;
+        validate_safe_id("Agent audit subject id", subject_id)?;
+        ensure_directory(&self.directory, "Agent access configuration")?;
+        let audit_directory = self.directory.join(AUDIT_DIRECTORY);
+        ensure_directory(&audit_directory, "Agent access audit")?;
+        let event_id = Uuid::new_v4().simple().to_string();
+        write_new_json(
+            &audit_directory.join(format!("{sequence:020}-{event_id}.json")),
+            &AgentAuditEvent {
+                schema_version: AGENT_ACCESS_SCHEMA_VERSION,
+                sequence,
+                event_id,
+                event_type,
+                grant_id,
+                subject_id: Some(subject_id),
+                at_unix_ms,
+                actor: "agent-access-kernel",
+            },
+            "Agent access audit",
+        )
     }
 
     fn write_state(&self, state: &PersistedAgentAccess) -> Result<(), String> {

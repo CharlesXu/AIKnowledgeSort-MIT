@@ -1,6 +1,6 @@
-pub(crate) mod authority;
-pub(crate) mod schema;
-pub(crate) mod store;
+pub mod authority;
+pub mod schema;
+mod store;
 
 use authority::AgentAccessAuthority;
 use schema::{

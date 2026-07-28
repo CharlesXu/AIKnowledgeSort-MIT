@@ -147,6 +147,63 @@ pub struct AgentAccessState {
     pub grants: Vec<AgentGrantSummary>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OpenSessionRequest {
+    pub grant_id: String,
+    pub agent_id: String,
+    pub grant_token: String,
+}
+
+#[derive(Clone, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IssuedSession {
+    pub session_id: String,
+    pub session_token: String,
+    pub expires_at_unix_ms: u64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct AuthorizeRequest {
+    pub grant_id: String,
+    pub agent_id: String,
+    pub session_id: String,
+    pub session_token: String,
+    pub request_id: String,
+    pub tool_id: String,
+    pub scope_id: Option<String>,
+    pub request_bytes: u64,
+    pub response_budget_bytes: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum DenialCode {
+    InvalidRequest,
+    Unauthenticated,
+    UnknownGrant,
+    InactiveGrant,
+    RevokedGrant,
+    ExpiredGrant,
+    UnknownSession,
+    SessionMismatch,
+    ReplayedRequest,
+    ToolDenied,
+    ScopeDenied,
+    RequestLimitExceeded,
+    RequestTooLarge,
+    ResponseBudgetExceeded,
+    AuthorityUnavailable,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Denial {
+    pub code: DenialCode,
+    pub message: String,
+}
+
 impl CreateAgentGrantRequest {
     pub fn validate(&self) -> Result<(), String> {
         validate_safe_id("selection id", &self.selection_id)?;
