@@ -20,6 +20,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(agent_access::authority::AgentAccessAuthority::default())
+        .manage(mcp_transport::McpTransportAuthority::default())
         .manage(discovery::DropGrantRegistry::default())
         .manage(discovery::ReviewedSourceRegistry::default())
         .manage(discovery::DropWorkLimiter::default())
@@ -88,6 +89,9 @@ pub fn run() {
             agent_access::inspect_agent_access,
             agent_access::create_agent_grant,
             agent_access::revoke_agent_grant,
+            mcp_transport::inspect_mcp_transport,
+            mcp_transport::start_mcp_transport,
+            mcp_transport::stop_mcp_transport,
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
