@@ -2074,6 +2074,41 @@ input:focus-visible,
   opacity: 0.5;
 }
 
+.profile-url-import {
+  margin-top: 10px;
+}
+
+.profile-url-import > label {
+  display: block;
+  margin-bottom: 4px;
+  color: #656a74;
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.profile-url-import__controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+}
+
+.profile-url-import__controls input {
+  min-width: 0;
+  height: 27px;
+  padding: 0 7px;
+  border: 1px solid #d5d7dc;
+  border-radius: 5px;
+  outline: none;
+  color: #40454e;
+  background: #fff;
+  font-size: 9.5px;
+}
+
+.profile-url-import__controls input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(112 97 153 / 12%);
+}
+
 .profile-digest {
   display: block;
   margin-top: 7px;

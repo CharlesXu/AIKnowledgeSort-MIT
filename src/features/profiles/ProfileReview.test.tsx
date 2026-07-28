@@ -93,6 +93,73 @@ describe("ProfileReview", () => {
       .toBeInTheDocument();
   });
 
+  test("imports a URL into review without retaining or displaying the locator", async () => {
+    const remoteState: ProfileStateSummary = {
+      ...state,
+      candidates: [{
+        ...state.candidates[0],
+        candidateId: "remote-candidate",
+        sourceKind: "remoteUrl",
+        sourceBasename: "remote-profile.json",
+        sourceByteSize: 2_048,
+      }],
+    };
+    const profileClient = client();
+    vi.mocked(profileClient.inspect)
+      .mockResolvedValueOnce({ ...state, candidates: [] })
+      .mockResolvedValueOnce(remoteState);
+    vi.mocked(profileClient.importUrlCandidate)
+      .mockResolvedValue(remoteState.candidates[0]);
+    render(<ProfileReview client={profileClient} />);
+    await screen.findByText("No candidate awaiting review");
+
+    const input = screen.getByRole("textbox", { name: "Profile URL" });
+    fireEvent.change(input, {
+      target: {
+        value: "https://profiles.example.com/remote-profile.json?signature=synthetic-secret",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    await waitFor(() => {
+      expect(profileClient.importUrlCandidate).toHaveBeenCalledWith(
+        "https://profiles.example.com/remote-profile.json?signature=synthetic-secret",
+      );
+    });
+    expect(input).toHaveValue("");
+    expect(await screen.findByText("Remote URL · 2,048 bytes"))
+      .toBeInTheDocument();
+    expect(screen.getByText(/SHA-256 a{12}/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve profile" }))
+      .toBeDisabled();
+    expect(document.body).not.toHaveTextContent("profiles.example.com");
+    expect(document.body).not.toHaveTextContent("synthetic-secret");
+  });
+
+  test("clears a rejected URL attempt without rendering its secret", async () => {
+    const profileClient = client();
+    vi.mocked(profileClient.inspect)
+      .mockResolvedValue({ ...state, candidates: [] });
+    vi.mocked(profileClient.importUrlCandidate).mockRejectedValue(
+      new Error("Remote profile target is not allowed"),
+    );
+    render(<ProfileReview client={profileClient} />);
+    await screen.findByText("No candidate awaiting review");
+    const input = screen.getByRole("textbox", { name: "Profile URL" });
+    fireEvent.change(input, {
+      target: {
+        value: "https://private.example/profile.json?token=synthetic-secret#secret",
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Import URL" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Remote profile target is not allowed",
+    );
+    expect(input).toHaveValue("");
+    expect(document.body).not.toHaveTextContent("synthetic-secret");
+  });
+
   test("keeps browser limitations visible without hiding the bundled draft", async () => {
     const unavailable: ProfileClient = {
       inspect: vi.fn().mockRejectedValue(

@@ -49,6 +49,7 @@ export function ProfileReview({ client }: {
   const [state, setState] = useState<ProfileStateSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [profileUrl, setProfileUrl] = useState("");
   const [reviewedCandidateId, setReviewedCandidateId] = useState<string | null>(
     null,
   );
@@ -79,6 +80,23 @@ export function ProfileReview({ client }: {
     try {
       const imported = await client.importLocalCandidate();
       if (imported) setState(await client.inspect());
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function importUrlCandidate(): Promise<void> {
+    const url = profileUrl.trim();
+    if (!url) return;
+    setProfileUrl("");
+    setBusy(true);
+    setError(null);
+    try {
+      await client.importUrlCandidate(url);
+      setReviewedCandidateId(null);
+      setState(await client.inspect());
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -143,6 +161,29 @@ export function ProfileReview({ client }: {
         <p className="profile-help">
           Declarative data only. Source bytes and digest remain in the Vault.
         </p>
+        <div className="profile-url-import">
+          <label htmlFor="profile-url">Profile URL</label>
+          <div className="profile-url-import__controls">
+            <input
+              autoComplete="off"
+              disabled={busy}
+              id="profile-url"
+              onChange={(event) => setProfileUrl(event.target.value)}
+              placeholder="https://…/profile.json"
+              spellCheck={false}
+              type="url"
+              value={profileUrl}
+            />
+            <button
+              className="profile-import-button"
+              disabled={busy || profileUrl.trim().length === 0}
+              onClick={() => void importUrlCandidate()}
+              type="button"
+            >
+              Import URL
+            </button>
+          </div>
+        </div>
       </section>
 
       {candidate ? (
@@ -155,6 +196,13 @@ export function ProfileReview({ client }: {
           </div>
           <p className="profile-meta">
             {candidate.profileId} · {candidate.profileVersion}
+          </p>
+          <p className="profile-meta">
+            {candidate.sourceKind === "remoteUrl" ? "Remote URL" : "Local file"}
+            {" · "}
+            {candidate.sourceByteSize > 0
+              ? `${candidate.sourceByteSize.toLocaleString()} bytes`
+              : "size unavailable"}
           </p>
           <code className="profile-digest" title={candidate.sourceIdentity.digest}>
             SHA-256 {candidate.sourceIdentity.digest.slice(0, 12)}…

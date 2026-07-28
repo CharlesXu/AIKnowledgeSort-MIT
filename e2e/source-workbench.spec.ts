@@ -138,6 +138,18 @@ test("keeps profile import and activation honest in the browser fixture", async 
 
   await expect(page.getByText("Ninebot electronic archive")).toBeVisible();
   await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
+  const url = page.getByRole("textbox", { name: "Profile URL" });
+  await url.fill(
+    "https://profiles.example.com/ninebot.json?signature=synthetic-secret#review",
+  );
+  await page.getByRole("button", { name: "Import URL" }).click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Desktop runtime is required for profile operations.",
+  );
+  await expect(url).toHaveValue("");
+  await expect(page.getByText("synthetic-secret")).toHaveCount(0);
+  await expect(page.getByText(/Remote URL ·/)).toHaveCount(0);
+  await expect(page.getByText(/SHA-256/)).toHaveCount(0);
   await page.getByRole("button", { name: "Import local profile" }).click();
   await expect(page.getByRole("alert")).toContainText(
     "Desktop runtime is required for profile operations.",
