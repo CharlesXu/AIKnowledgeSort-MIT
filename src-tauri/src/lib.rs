@@ -6,6 +6,7 @@ mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
+mod graph;
 mod knowledge;
 mod naming;
 pub mod profiles;
@@ -22,6 +23,7 @@ pub fn run() {
         .manage(archive::ArchivePlanRegistry::default())
         .manage(naming::NamingBatchRegistry::default())
         .manage(knowledge::KnowledgeWriteRegistry::default())
+        .manage(graph::GraphWriteRegistry::default())
         .manage(profiles::ProfileAuthority::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};
@@ -84,6 +86,9 @@ pub fn run() {
             naming::create_naming_batch,
             knowledge::open_knowledge_document,
             knowledge::save_knowledge_document,
+            graph::inspect_knowledge_graph,
+            graph::propose_graph_relation,
+            graph::decide_graph_relation,
             profiles::inspect_profile_state,
             profiles::import_local_profile_candidate,
             profiles::decide_profile_candidate

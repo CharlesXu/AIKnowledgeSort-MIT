@@ -8,13 +8,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 14] = [
+const PRODUCT_DIRECTORIES: [&str; 16] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/registrations",
     ".aiks/staging",
     ".aiks/pending-registrations",
     ".aiks/knowledge",
+    ".aiks/graph",
+    ".aiks/graph/relations",
     ".aiks/profiles",
     ".aiks/profiles/sources",
     ".aiks/profiles/candidates",

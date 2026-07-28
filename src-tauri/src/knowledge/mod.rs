@@ -6,6 +6,9 @@ use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 pub use store::KnowledgeDocument;
+pub(crate) use store::open_committed_revision;
+#[cfg(test)]
+pub(crate) use store::save_document;
 
 #[derive(Clone, Default)]
 pub struct KnowledgeWriteRegistry {
