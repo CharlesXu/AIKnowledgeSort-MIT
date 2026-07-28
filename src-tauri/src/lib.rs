@@ -18,6 +18,7 @@ pub fn run() {
         .manage(discovery::DropWorkLimiter::default())
         .manage(vault::VaultAuthorityRegistry::default())
         .manage(archive::ArchivePlanRegistry::default())
+        .manage(profiles::ProfileAuthority::default())
         .on_window_event(|window, event| {
             use tauri::{Emitter, Manager};
 
@@ -75,7 +76,10 @@ pub fn run() {
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
-            archive::confirm_archive_plan
+            archive::confirm_archive_plan,
+            profiles::inspect_profile_state,
+            profiles::import_local_profile_candidate,
+            profiles::decide_profile_candidate
         ])
         .run(tauri::generate_context!())
         .unwrap_or_else(|error| panic!("error while running {}: {error}", application_name()));
