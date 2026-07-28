@@ -228,6 +228,8 @@ mod tests {
                 ownership: ProfileOwnership::Owned,
                 evidence: vec!["authorization:test".to_owned()],
             },
+            categories: Vec::new(),
+            governance: None,
             rules,
         }
     }

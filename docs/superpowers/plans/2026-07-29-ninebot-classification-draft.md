@@ -73,7 +73,7 @@ git commit -m "docs: record Ninebot draft classification sources"
 - Modify: `src-tauri/src/profiles/schema.rs`
 - Test: inline unit tests in `src-tauri/src/profiles/schema.rs`
 
-- [ ] **Step 1: Write failing schema-v2 tests**
+- [x] **Step 1: Write failing schema-v2 tests**
 
 Add tests proving that:
 
@@ -85,7 +85,7 @@ Add tests proving that:
 4. unknown or executable-shaped fields remain rejected;
 5. draft status is still rejected at candidate-import ingress.
 
-- [ ] **Step 2: Run and verify RED**
+- [x] **Step 2: Run and verify RED**
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::schema --lib
@@ -93,7 +93,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::schema --lib
 
 Expected: new tests fail because taxonomy and policy fields are absent.
 
-- [ ] **Step 3: Implement minimal versioned types**
+- [x] **Step 3: Implement minimal versioned types**
 
 Add bounded `ClassificationCategory` and `ProfileGovernance` data. Each
 category carries an opaque category ID, label, depth, optional parent ID,
@@ -113,7 +113,7 @@ Keep every field declarative and `deny_unknown_fields`. Accept schema versions
 1 and 2; require empty taxonomy/policy for v1 and complete taxonomy/policy for
 v2. Preserve the 1 MiB document limit.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```bash
 PATH=/opt/homebrew/bin:/usr/bin:/bin cargo test profiles::schema --lib
@@ -122,7 +122,7 @@ PATH=/opt/homebrew/bin:/usr/bin:/bin cargo clippy --all-targets --all-features -
 
 Expected: schema tests pass and Clippy is clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src-tauri/src/profiles/schema.rs

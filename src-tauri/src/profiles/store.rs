@@ -371,6 +371,8 @@ fn bundled_ninebot_draft() -> DeclarativeProfile {
             ownership: ProfileOwnership::FirstPartyAuthorized,
             evidence: vec!["RULE-005".to_owned()],
         },
+        categories: Vec::new(),
+        governance: None,
         rules: Vec::new(),
     }
 }
