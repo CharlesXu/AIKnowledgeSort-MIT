@@ -46,6 +46,38 @@ pub struct NamingPolicy {
     pub separator: char,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NamingStatus {
+    Proposed,
+    NamingReview,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum NamingReviewReason {
+    MissingEvidence,
+    ConflictingEvidence,
+    UnsafeName,
+    Collision,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct NamingProposal {
+    pub proposal_id: String,
+    pub item_id: String,
+    pub original_name: String,
+    pub canonical_name: Option<String>,
+    pub identity: ContentIdentity,
+    pub policy_id: String,
+    pub policy_version: String,
+    pub applied_rule: String,
+    pub status: NamingStatus,
+    pub review_reason: Option<NamingReviewReason>,
+    pub facts: Vec<NamingFact>,
+}
+
 pub fn canonical_policy() -> NamingPolicy {
     NamingPolicy {
         policy_id: "canonical-v1",
