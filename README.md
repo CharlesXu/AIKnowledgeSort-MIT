@@ -91,9 +91,26 @@ checks reject stale saves without discarding the editor text, and an
 uncommitted Markdown orphan can be safely retried without affecting the archive.
 The browser preview retains a local unsaved draft and never claims a Vault save.
 
+## Evidence-backed knowledge graph
+
+An authoritative saved Markdown revision can now produce manually proposed
+source–relation–target claims in the right pane. The frontend submits only node
+fields and committed Markdown line ranges. Rust reopens that exact immutable
+revision, extracts the evidence text itself, binds it to both Markdown and
+archived-original SHA-256 identities, and stores append-only relation versions
+inside the authorized Vault.
+
+Each relation starts in review. Accept, revise, and reject require the exact
+latest version plus a reason; accepted and rejected versions are terminal and
+cannot be replayed. The two-dimensional graph, accessible relation list,
+evidence inspector, and compact 34 px timeline are projections of persisted
+relation events. The browser preview keeps showing proposal topology and cannot
+simulate relation persistence or acceptance.
+
 Model-generated naming facts, local/OpenAI-compatible model execution, Agent
 comparison and adjudication, physical source renaming, user-controlled original
-cleanup, classified destination paths, evidence-backed graph relation review and
-timeline playback, model-generated knowledge, MCP exposure, and URL profile
-import remain unimplemented. Those future integrations must use the same cited-fact,
-single-use batch, exact identity, and explicit archive-confirmation boundaries.
+cleanup, classified destination paths, automatic graph inference, GraphRAG
+indexing/retrieval, a 3D graph, model-generated knowledge, MCP exposure, and URL
+profile import remain unimplemented. Those future integrations must use the same
+cited-fact, single-use batch, exact identity, and explicit archive-confirmation
+boundaries.

@@ -64,6 +64,15 @@ test("shows all five proposal counts with no fake mutation action", async ({
     page.getByRole("button", { name: "Play knowledge timeline" }),
   ).toBeDisabled();
   await expect(
+    page.getByRole("button", { name: "Add relation" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("region", { name: "Relation evidence" }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("img", { name: "Knowledge network" }),
+  ).toHaveCount(0);
+  await expect(
     page.getByRole("button", { name: /import files/i }),
   ).toHaveCount(0);
   await expect(
