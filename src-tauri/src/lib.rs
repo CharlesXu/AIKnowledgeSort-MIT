@@ -6,6 +6,7 @@ mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
+pub mod naming;
 pub mod profiles;
 mod vault;
 
