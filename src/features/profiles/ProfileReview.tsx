@@ -161,6 +161,9 @@ export function ProfileReview({ client }: {
         <p className="profile-help">
           Declarative data only. Source bytes and digest remain in the Vault.
         </p>
+        <p className="profile-help">
+          HTTPS JSON only. Query and fragment values are never retained.
+        </p>
         <div className="profile-url-import">
           <label htmlFor="profile-url">Profile URL</label>
           <div className="profile-url-import__controls">

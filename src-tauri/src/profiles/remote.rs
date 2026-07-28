@@ -353,13 +353,17 @@ mod tests {
     use super::{
         fetch_profile_url_with, is_public_ip, validate_initial_url, NetworkPolicy, SensitiveHeaders,
     };
+    use crate::profiles::ProfileAuthority;
+    use crate::vault::VaultAuthorityRegistry;
     use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
     use axum::response::IntoResponse;
     use axum::routing::get;
     use axum::Router;
+    use std::fs;
     use std::net::IpAddr;
+    use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
     use tokio::task::JoinHandle;
 
     struct TestServer {
@@ -387,6 +391,69 @@ mod tests {
         fn drop(&mut self) {
             self.task.abort();
         }
+    }
+
+    struct TestVault {
+        root: PathBuf,
+        registry: VaultAuthorityRegistry,
+    }
+
+    impl TestVault {
+        fn new() -> Self {
+            let root = std::env::temp_dir().join(format!(
+                "aiknowledgesort-remote-profile-{}-{}",
+                std::process::id(),
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_nanos()
+            ));
+            fs::create_dir(&root).unwrap();
+            let root = root.canonicalize().unwrap();
+            let registry = VaultAuthorityRegistry::default();
+            registry.authorize_path(&root).unwrap();
+            Self { root, registry }
+        }
+
+        fn lease(&self) -> crate::vault::VaultLease {
+            let summary = self.registry.current_summary().unwrap();
+            self.registry.lease(&summary.authority_id).unwrap()
+        }
+    }
+
+    impl Drop for TestVault {
+        fn drop(&mut self) {
+            fs::remove_dir_all(&self.root).unwrap();
+        }
+    }
+
+    fn snapshot_tree(root: &Path) -> Vec<(String, Vec<u8>)> {
+        fn visit(base: &Path, current: &Path, snapshot: &mut Vec<(String, Vec<u8>)>) {
+            let mut entries = current
+                .read_dir()
+                .unwrap()
+                .collect::<Result<Vec<_>, _>>()
+                .unwrap();
+            entries.sort_by_key(|entry| entry.file_name());
+            for entry in entries {
+                let path = entry.path();
+                if entry.file_type().unwrap().is_dir() {
+                    visit(base, &path, snapshot);
+                } else {
+                    snapshot.push((
+                        path.strip_prefix(base)
+                            .unwrap()
+                            .to_string_lossy()
+                            .into_owned(),
+                        fs::read(path).unwrap(),
+                    ));
+                }
+            }
+        }
+
+        let mut snapshot = Vec::new();
+        visit(root, root, &mut snapshot);
+        snapshot
     }
 
     #[test]
@@ -564,6 +631,10 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_redirect_content_type_size_and_timeout_failures() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        authority.inspect(&vault.lease()).unwrap();
+        let baseline = snapshot_tree(&vault.root);
         let oversized = "x".repeat(crate::profiles::schema::MAX_PROFILE_BYTES + 1);
         let server = TestServer::start(
             Router::new()
@@ -594,9 +665,44 @@ mod tests {
                         tokio::time::sleep(Duration::from_millis(150)).await;
                         ([(header::CONTENT_TYPE, "application/json")], "{}")
                     }),
+                )
+                .route(
+                    "/malformed",
+                    get(|| async { ([(header::CONTENT_TYPE, "application/json")], "{") }),
+                )
+                .route(
+                    "/executable",
+                    get(|| async {
+                        (
+                            [(header::CONTENT_TYPE, "application/json")],
+                            r#"{
+                                "schemaVersion":1,
+                                "profileId":"bad",
+                                "version":"1",
+                                "title":"Bad",
+                                "status":"candidate",
+                                "command":"run",
+                                "provenance":{
+                                    "sourceTitle":"Bad",
+                                    "ownership":"owned",
+                                    "evidence":["test"]
+                                },
+                                "rules":[]
+                            }"#,
+                        )
+                    }),
                 ),
         )
         .await;
+
+        assert!(fetch_profile_url_with(
+            "http://10.0.0.1/profile.json",
+            NetworkPolicy::test_loopback(Duration::from_secs(2)),
+            SensitiveHeaders::default(),
+        )
+        .await
+        .is_err());
+        assert_eq!(snapshot_tree(&vault.root), baseline);
 
         for path in ["private", "plain", "oversized"] {
             let result = fetch_profile_url_with(
@@ -606,6 +712,7 @@ mod tests {
             )
             .await;
             assert!(result.is_err(), "accepted {path}");
+            assert_eq!(snapshot_tree(&vault.root), baseline);
         }
         let timeout = fetch_profile_url_with(
             &format!("{}/slow", server.base_url),
@@ -615,5 +722,26 @@ mod tests {
         .await
         .unwrap_err();
         assert_eq!(timeout, "Remote profile request timed out");
+        assert_eq!(snapshot_tree(&vault.root), baseline);
+
+        for path in ["malformed", "executable"] {
+            let fetched = fetch_profile_url_with(
+                &format!("{}/{path}", server.base_url),
+                NetworkPolicy::test_loopback(Duration::from_secs(2)),
+                SensitiveHeaders::default(),
+            )
+            .await
+            .unwrap();
+            assert!(authority
+                .import_remote_bytes(
+                    &vault.lease(),
+                    &fetched.source_basename,
+                    &fetched.minimized_locator,
+                    &fetched.bytes,
+                    SystemTime::UNIX_EPOCH,
+                )
+                .is_err());
+            assert_eq!(snapshot_tree(&vault.root), baseline);
+        }
     }
 }
