@@ -6,6 +6,7 @@ mod archive;
 #[path = "discovery/mod.rs"]
 mod discovery;
 pub mod identity;
+pub mod profiles;
 mod vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
