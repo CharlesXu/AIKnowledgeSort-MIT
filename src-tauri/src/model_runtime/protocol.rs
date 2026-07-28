@@ -172,6 +172,7 @@ pub struct ComparisonRecord {
     pub desktop_outcome: ProviderOutcome,
     pub agent_outcome: ProviderOutcome,
     pub adjudication: Option<AgentAdjudication>,
+    pub adjudication_failure: Option<String>,
     pub status: ComparisonStatus,
     pub actor: String,
     pub recorded_at_unix_ms: u64,

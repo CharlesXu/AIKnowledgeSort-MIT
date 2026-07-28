@@ -9,12 +9,19 @@ mod tests {
     };
     use crate::identity::ContentIdentity;
     use crate::knowledge::save_document;
-    use crate::model_runtime::protocol::{ComparisonRecord, ComparisonStatus, ProviderOutcome};
+    use crate::model_runtime::config::{ModelConfigSummary, ModelLocation};
+    use crate::model_runtime::protocol::{
+        AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
+        ProviderOutcome, RelationSuggestion,
+    };
+    use crate::model_runtime::{run_comparison_with_transport, ModelTransport};
     use crate::naming::schema::{NamingDecisionEvidence, NamingFact, NamingFactKind};
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
     use std::io::Cursor;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::{Arc, Barrier, Mutex};
     use std::time::{SystemTime, UNIX_EPOCH};
 
     const SOURCE_BYTES: &[u8] = b"comparison source bytes\n";
@@ -231,6 +238,7 @@ mod tests {
             desktop_outcome: ProviderOutcome::failed("not run"),
             agent_outcome: ProviderOutcome::failed("not run"),
             adjudication: None,
+            adjudication_failure: None,
             status: ComparisonStatus::Failed,
             actor: "desktop-orchestrator".to_owned(),
             recorded_at_unix_ms: SystemTime::now()
@@ -251,6 +259,235 @@ mod tests {
             .join(&record.comparison_id)
             .join("00000001.json")
             .is_file());
+    }
+
+    type CapturedAdjudication = (String, Vec<u8>, ModelProposal, ModelProposal);
+
+    struct CaptureTransport {
+        proposals_started: Barrier,
+        proposal_envelopes: Mutex<Vec<(String, Vec<u8>)>>,
+        adjudications: Mutex<Vec<CapturedAdjudication>>,
+    }
+
+    impl CaptureTransport {
+        fn new() -> Self {
+            Self {
+                proposals_started: Barrier::new(2),
+                proposal_envelopes: Mutex::new(Vec::new()),
+                adjudications: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl ModelTransport for CaptureTransport {
+        fn propose(
+            &self,
+            config: &ModelConfigSummary,
+            envelope_json: &[u8],
+        ) -> Result<ModelProposal, String> {
+            self.proposal_envelopes
+                .lock()
+                .expect("lock proposal capture")
+                .push((config.config_id.clone(), envelope_json.to_vec()));
+            self.proposals_started.wait();
+            Ok(ModelProposal {
+                summary: format!("{} proposal", config.config_id),
+                relations: vec![RelationSuggestion {
+                    source: "MCU".to_owned(),
+                    relation_type: if config.config_id == "desktop-model" {
+                        "dependsOn".to_owned()
+                    } else {
+                        "relatedTo".to_owned()
+                    },
+                    target: "Reset controller".to_owned(),
+                    evidence_ids: vec!["line-2-3".to_owned()],
+                }],
+            })
+        }
+
+        fn adjudicate(
+            &self,
+            config: &ModelConfigSummary,
+            envelope_json: &[u8],
+            desktop: &ModelProposal,
+            agent: &ModelProposal,
+        ) -> Result<AgentAdjudication, String> {
+            self.adjudications
+                .lock()
+                .expect("lock adjudication capture")
+                .push((
+                    config.config_id.clone(),
+                    envelope_json.to_vec(),
+                    desktop.clone(),
+                    agent.clone(),
+                ));
+            Ok(AgentAdjudication {
+                decision: AgentDecision::Review,
+                reason: "The relation types materially conflict".to_owned(),
+                evidence_ids: vec!["line-2-3".to_owned()],
+                selected_side: None,
+                revised_relations: vec![],
+            })
+        }
+    }
+
+    fn model_config(config_id: &str) -> ModelConfigSummary {
+        ModelConfigSummary {
+            config_id: config_id.to_owned(),
+            label: config_id.to_owned(),
+            location: ModelLocation::Local,
+            endpoint_url: "http://127.0.0.1:11434/v1/chat/completions".to_owned(),
+            model: format!("{config_id}-v1"),
+            timeout_ms: 5_000,
+            authenticated: false,
+            credential_environment: None,
+        }
+    }
+
+    #[test]
+    fn runs_independent_identical_proposals_then_agent_only_adjudication() {
+        let fixture = Fixture::new();
+        let transport = Arc::new(CaptureTransport::new());
+        let source_before = fs::read(&fixture.source).expect("snapshot source");
+        let archive_before = fs::read(&fixture.archived).expect("snapshot archive");
+        let graph_before = fs::read_dir(fixture.root.join("vault/.aiks/graph/relations"))
+            .expect("snapshot graph")
+            .count();
+
+        let record = run_comparison_with_transport(
+            &fixture.lease,
+            &fixture.operation_id,
+            1,
+            &[range(2, 3)],
+            &model_config("desktop-model"),
+            &model_config("agent-model"),
+            transport.as_ref(),
+        )
+        .expect("run comparison");
+
+        assert_eq!(record.status, ComparisonStatus::Review);
+        let proposals = transport
+            .proposal_envelopes
+            .lock()
+            .expect("read proposal capture");
+        assert_eq!(proposals.len(), 2);
+        assert_eq!(proposals[0].1, proposals[1].1);
+        let adjudications = transport
+            .adjudications
+            .lock()
+            .expect("read adjudication capture");
+        assert_eq!(adjudications.len(), 1);
+        assert_eq!(adjudications[0].0, "agent-model");
+        assert_eq!(adjudications[0].1, proposals[0].1);
+        assert_eq!(
+            fs::read(&fixture.source).expect("reread source"),
+            source_before
+        );
+        assert_eq!(
+            fs::read(&fixture.archived).expect("reread archive"),
+            archive_before
+        );
+        assert_eq!(
+            fs::read_dir(fixture.root.join("vault/.aiks/graph/relations"))
+                .expect("reread graph")
+                .count(),
+            graph_before
+        );
+    }
+
+    #[test]
+    fn rejects_same_config_before_model_execution() {
+        let fixture = Fixture::new();
+        let transport = CaptureTransport::new();
+        let config = model_config("same-model");
+        assert!(run_comparison_with_transport(
+            &fixture.lease,
+            &fixture.operation_id,
+            1,
+            &[range(2, 3)],
+            &config,
+            &config,
+            &transport,
+        )
+        .is_err());
+        assert!(transport
+            .proposal_envelopes
+            .lock()
+            .expect("read proposal capture")
+            .is_empty());
+    }
+
+    struct FailureTransport {
+        adjudication_calls: AtomicUsize,
+    }
+
+    impl ModelTransport for FailureTransport {
+        fn propose(
+            &self,
+            config: &ModelConfigSummary,
+            _envelope_json: &[u8],
+        ) -> Result<ModelProposal, String> {
+            if config.config_id == "desktop-model" {
+                return Err("deadline exceeded".to_owned());
+            }
+            Ok(ModelProposal {
+                summary: "Agent proposal".to_owned(),
+                relations: vec![RelationSuggestion {
+                    source: "MCU".to_owned(),
+                    relation_type: "dependsOn".to_owned(),
+                    target: "Reset controller".to_owned(),
+                    evidence_ids: vec!["line-2-3".to_owned()],
+                }],
+            })
+        }
+
+        fn adjudicate(
+            &self,
+            _config: &ModelConfigSummary,
+            _envelope_json: &[u8],
+            _desktop: &ModelProposal,
+            _agent: &ModelProposal,
+        ) -> Result<AgentAdjudication, String> {
+            self.adjudication_calls.fetch_add(1, Ordering::Relaxed);
+            Err("adjudication must not run".to_owned())
+        }
+    }
+
+    #[test]
+    fn persists_provider_failure_without_agent_adjudication_or_other_mutation() {
+        let fixture = Fixture::new();
+        let transport = FailureTransport {
+            adjudication_calls: AtomicUsize::new(0),
+        };
+        let archive_before = fs::read(&fixture.archived).expect("snapshot archive");
+        let record = run_comparison_with_transport(
+            &fixture.lease,
+            &fixture.operation_id,
+            1,
+            &[range(2, 3)],
+            &model_config("desktop-model"),
+            &model_config("agent-model"),
+            &transport,
+        )
+        .expect("record failed comparison");
+
+        assert_eq!(record.status, ComparisonStatus::Failed);
+        assert_eq!(
+            record.desktop_outcome.failure_reason.as_deref(),
+            Some("deadline exceeded")
+        );
+        assert!(record.adjudication.is_none());
+        assert_eq!(transport.adjudication_calls.load(Ordering::Relaxed), 0);
+        assert_eq!(
+            fs::read(&fixture.archived).expect("reread archive"),
+            archive_before
+        );
+        assert_eq!(
+            inspect_comparison_records(&fixture.lease)
+                .expect("inspect failed record")
+                .len(),
+            1
+        );
     }
 }
 use super::protocol::{
@@ -360,6 +597,9 @@ pub fn persist_comparison_record(
     validate_comparison_record(record)?;
     let root = Path::new(".aiks/comparisons");
     ensure_trusted_directory(vault, root)?;
+    if inspect_comparison_records(vault)?.len() >= MAX_COMPARISON_RECORDS {
+        return Err("Comparison record namespace reached its storage limit".to_owned());
+    }
     let namespace = root.join(&record.comparison_id);
     match vault.directory.symlink_metadata(&namespace) {
         Ok(_) => return Err("Comparison record already exists".to_owned()),
@@ -443,18 +683,48 @@ fn validate_comparison_record(record: &ComparisonRecord) -> Result<(), String> {
     validate_envelope(&record.envelope)?;
     record.desktop_outcome.validate(&record.envelope)?;
     record.agent_outcome.validate(&record.envelope)?;
+    if record.adjudication.is_some() && record.adjudication_failure.is_some() {
+        return Err("Comparison cannot contain both adjudication and failure".to_owned());
+    }
+    if let Some(failure) = &record.adjudication_failure {
+        if failure.is_empty()
+            || failure.trim() != failure
+            || failure.chars().count() > 2_048
+            || failure.chars().any(char::is_control)
+        {
+            return Err("Adjudication failure is invalid".to_owned());
+        }
+    }
     if let Some(adjudication) = &record.adjudication {
         adjudication.validate(&record.envelope)?;
+        if (adjudication.decision == super::protocol::AgentDecision::Review
+            && record.status != ComparisonStatus::Review)
+            || (adjudication.decision != super::protocol::AgentDecision::Review
+                && record.status == ComparisonStatus::Review
+                && record.adjudication_failure.is_none())
+        {
+            return Err("Comparison status does not match Agent adjudication".to_owned());
+        }
     }
     match record.status {
-        ComparisonStatus::Completed if record.adjudication.is_none() => {
-            Err("Completed comparison requires Agent adjudication".to_owned())
+        ComparisonStatus::Completed
+            if record.adjudication.is_none()
+                || record.adjudication_failure.is_some()
+                || record.desktop_outcome.status != ProviderOutcomeStatus::Succeeded
+                || record.agent_outcome.status != ProviderOutcomeStatus::Succeeded =>
+        {
+            Err("Completed comparison requires two proposals and Agent adjudication".to_owned())
         }
         ComparisonStatus::Failed
             if record.desktop_outcome.status != ProviderOutcomeStatus::Failed
                 && record.agent_outcome.status != ProviderOutcomeStatus::Failed =>
         {
             Err("Failed comparison requires a provider failure".to_owned())
+        }
+        ComparisonStatus::Review
+            if record.adjudication.is_none() && record.adjudication_failure.is_none() =>
+        {
+            Err("Review comparison requires an Agent review or adjudication failure".to_owned())
         }
         _ => Ok(()),
     }

@@ -113,6 +113,15 @@ impl ModelConfigStore {
         state_from_persisted(persisted)
     }
 
+    pub fn get(&self, config_id: &str) -> Result<ModelConfigSummary, String> {
+        validate_config_id(config_id)?;
+        self.inspect()?
+            .configs
+            .into_iter()
+            .find(|config| config.config_id == config_id)
+            .ok_or_else(|| "Model configuration does not exist".to_owned())
+    }
+
     fn read(&self) -> Result<PersistedModelRuntime, String> {
         ensure_config_directory(&self.directory)?;
         let path = self.directory.join(CONFIG_FILENAME);
