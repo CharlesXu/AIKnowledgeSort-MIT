@@ -462,7 +462,7 @@ git diff --check
 
 Expected: all tests, build, audit, format, smoke, and strict lint gates pass.
 
-- [ ] **Step 5: Commit, fast-forward merge, and reverify main**
+- [x] **Step 5: Commit, fast-forward merge, and reverify main**
 
 Commit:
 
