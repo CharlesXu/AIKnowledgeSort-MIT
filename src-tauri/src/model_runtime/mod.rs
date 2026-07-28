@@ -1,4 +1,6 @@
 mod config;
+mod protocol;
+mod store;
 
 use config::{ModelConfigInput, ModelConfigStore, ModelRuntimeState};
 use serde::Deserialize;
