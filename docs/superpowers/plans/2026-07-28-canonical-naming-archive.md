@@ -20,6 +20,7 @@ This slice implements local evidence entry, deterministic proposals, review rout
 - `src-tauri/src/naming/normalize.rs`: Unicode normalization, extension preservation, reserved-name checks, and deterministic collision resolution.
 - `src-tauri/src/naming/registry.rs`: bounded expiring proposal batches bound to reviewed items.
 - `src-tauri/src/naming/mod.rs`: DTO exports and Tauri command.
+- `src-tauri/src/vault/mod.rs`: capability-scoped read of the actual digest namespace used for collision checks.
 - `src-tauri/src/archive/plan.rs`: consumes an exact naming batch and embeds naming evidence in plan items.
 - `src-tauri/src/archive/transaction.rs`: persists naming audit fields in operation and registration records.
 - `src-tauri/src/archive/mod.rs`: archive command wiring only.
@@ -228,6 +229,7 @@ Assert the registry:
 
 - accepts only item IDs resolved from one live `ReviewedSourceRegistry` proposal;
 - replaces request names and identities with the trusted reviewed-source values;
+- derives occupied names by reading `Originals/<digest>` through the current Vault capability; the frontend cannot supply or suppress collisions;
 - returns both proposed and review outcomes for UI inspection;
 - binds the batch ID to exact item IDs, identities, policy version, and proposals;
 - expires after five minutes, is single-use when consumed by archive planning, and rejects unknown, replayed, or mismatched selections;
@@ -272,6 +274,9 @@ pub fn create_naming_batch(
 ```
 
 The request contains `proposalId` and per-item cited facts only. Original name, path, byte size, and identity always come from the trusted reviewed-source registry.
+Occupied names always come from the authoritative Vault capability. Missing digest
+directories mean an empty namespace; links, non-directories, unreadable entries, or
+more than 10,000 entries fail closed.
 
 - [ ] **Step 5: Verify and commit**
 
