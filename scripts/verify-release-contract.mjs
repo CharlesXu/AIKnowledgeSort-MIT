@@ -80,6 +80,12 @@ requireText(
 requireText(
   violations,
   workflow,
+  /smoke_prefix: dbus-run-session -- xvfb-run -a env NO_AT_BRIDGE=1/,
+  "Linux desktop smoke must provide a session D-Bus and disable the AT-SPI bridge",
+);
+requireText(
+  violations,
+  workflow,
   /uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v4/,
   "upload-artifact must be pinned to a full v4 commit SHA",
 );

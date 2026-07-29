@@ -76,7 +76,7 @@ jobs:
           - os: ubuntu-22.04
             bundles: deb,appimage
             executable: src-tauri/target/release/ai-knowledge-sort
-            smoke_prefix: xvfb-run -a
+            smoke_prefix: dbus-run-session -- xvfb-run -a env NO_AT_BRIDGE=1
             artifact_name: AIKnowledgeSort-Linux
             artifact_paths: |
               src-tauri/target/release/bundle/deb/*.deb
@@ -107,6 +107,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            dbus-x11 \
             libwebkit2gtk-4.1-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev \
