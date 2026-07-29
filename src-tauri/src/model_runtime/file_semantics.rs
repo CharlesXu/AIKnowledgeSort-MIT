@@ -944,6 +944,7 @@ mod tests {
             .join(format!("{}.json", inconsistent.comparison_id))
             .exists());
 
+        drop(vault);
         fs::remove_dir_all(root).expect("remove file semantic test directory");
     }
 }
