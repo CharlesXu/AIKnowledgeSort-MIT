@@ -269,13 +269,28 @@ test("never fabricates Agent comparison or mutation actions for a browser draft"
   ).toHaveCount(0);
 });
 
-test("collapses and restores the adjustable side panes", async ({ page }) => {
-  await expect(
-    page.getByRole("separator", { name: "Resize Sources panel" }),
-  ).toBeVisible();
+test("drags, collapses, and restores the adjustable side panes", async ({ page }) => {
+  const sourceSeparator = page.getByRole("separator", {
+    name: "Resize Sources panel",
+  });
+  await expect(sourceSeparator).toBeVisible();
   await expect(
     page.getByRole("separator", { name: "Resize import review context" }),
   ).toBeVisible();
+
+  const sourceBox = await sourceSeparator.boundingBox();
+  expect(sourceBox).not.toBeNull();
+  await page.mouse.move(
+    sourceBox!.x + sourceBox!.width / 2,
+    sourceBox!.y + sourceBox!.height / 2,
+  );
+  await page.mouse.down();
+  await page.mouse.move(
+    sourceBox!.x + sourceBox!.width / 2 + 60,
+    sourceBox!.y + sourceBox!.height / 2,
+  );
+  await page.mouse.up();
+  await expect(sourceSeparator).toHaveAttribute("aria-valuenow", "308");
 
   await page.getByRole("button", { name: "Collapse Sources panel" }).click();
   await page

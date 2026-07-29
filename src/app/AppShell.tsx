@@ -51,12 +51,53 @@ function PaneSeparator({
   direction,
   onChange,
 }: PaneSeparatorProps) {
+  const dragStart = useRef<{
+    readonly pointerId: number;
+    readonly clientX: number;
+    readonly value: number;
+  } | null>(null);
+
+  function clamp(nextValue: number): number {
+    return Math.min(max, Math.max(min, nextValue));
+  }
+
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     const step = event.shiftKey ? 32 : 8;
     if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
       const physicalDelta = event.key === "ArrowRight" ? step : -step;
-      onChange(Math.min(max, Math.max(min, value + physicalDelta * direction)));
+      onChange(clamp(value + physicalDelta * direction));
       event.preventDefault();
+    }
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>): void {
+    if (event.button !== 0) {
+      return;
+    }
+    dragStart.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      value,
+    };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>): void {
+    const start = dragStart.current;
+    if (start === null || start.pointerId !== event.pointerId) {
+      return;
+    }
+    onChange(clamp(start.value + (event.clientX - start.clientX) * direction));
+  }
+
+  function finishPointerDrag(event: React.PointerEvent<HTMLDivElement>): void {
+    if (dragStart.current?.pointerId !== event.pointerId) {
+      return;
+    }
+    dragStart.current = null;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
     }
   }
 
@@ -69,6 +110,13 @@ function PaneSeparator({
       aria-valuenow={value}
       className={`pane-separator pane-separator--${side}`}
       onKeyDown={handleKeyDown}
+      onLostPointerCapture={() => {
+        dragStart.current = null;
+      }}
+      onPointerCancel={finishPointerDrag}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
       role="separator"
       tabIndex={0}
     >

@@ -297,6 +297,26 @@ describe("source workbench shell", () => {
     ).toHaveAttribute("data-collapse-at", "1440");
   });
 
+  test("resizes both side panes by dragging their vertical separators", () => {
+    render(<App />);
+
+    const sourceSeparator = screen.getByRole("separator", {
+      name: "Resize Sources panel",
+    });
+    fireEvent.pointerDown(sourceSeparator, { clientX: 300, pointerId: 1 });
+    fireEvent.pointerMove(sourceSeparator, { clientX: 360, pointerId: 1 });
+    fireEvent.pointerUp(sourceSeparator, { clientX: 360, pointerId: 1 });
+    expect(sourceSeparator).toHaveAttribute("aria-valuenow", "308");
+
+    const contextSeparator = screen.getByRole("separator", {
+      name: "Resize import review context",
+    });
+    fireEvent.pointerDown(contextSeparator, { clientX: 900, pointerId: 2 });
+    fireEvent.pointerMove(contextSeparator, { clientX: 960, pointerId: 2 });
+    fireEvent.pointerUp(contextSeparator, { clientX: 960, pointerId: 2 });
+    expect(contextSeparator).toHaveAttribute("aria-valuenow", "500");
+  });
+
   test("labels deferred tools honestly and exposes no fake primary action", () => {
     render(<App />);
 
