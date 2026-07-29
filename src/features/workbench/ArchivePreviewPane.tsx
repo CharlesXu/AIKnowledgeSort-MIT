@@ -22,10 +22,16 @@ import type {
   ClassificationBatch,
   ProfileClient,
 } from "../profiles/types";
+import type {
+  FileSemanticComparison,
+  ModelRuntimeClient,
+} from "../models/types";
 import { Icon } from "../../ui/Icon";
+import { FileSemanticReview } from "./FileSemanticReview";
 
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
+  readonly modelRuntimeClient?: ModelRuntimeClient;
   readonly namingClient: NamingClient;
   readonly profileClient: ProfileClient;
   readonly onCommittedItems?: (
@@ -98,6 +104,7 @@ function errorText(error: unknown): string {
 
 export function ArchivePreviewPane({
   archiveClient,
+  modelRuntimeClient,
   namingClient,
   profileClient,
   onCommittedItems,
@@ -130,6 +137,12 @@ export function ArchivePreviewPane({
   const [undoneOperationIds, setUndoneOperationIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
+  const [semanticResults, setSemanticResults] = useState<
+    Readonly<Record<string, FileSemanticComparison>>
+  >({});
+  const [semanticAdoptions, setSemanticAdoptions] = useState<
+    Readonly<Record<string, string>>
+  >({});
 
   useEffect(() => {
     proposalId.current = proposal.proposalId;
@@ -150,6 +163,8 @@ export function ArchivePreviewPane({
     setUndoConfirmed(false);
     setUndoResult(null);
     setUndoneOperationIds(new Set());
+    setSemanticResults({});
+    setSemanticAdoptions({});
   }, [proposal.proposalId]);
 
   function invalidatePlan(): void {
@@ -199,6 +214,58 @@ export function ArchivePreviewPane({
         [field]: value,
       },
     }));
+    setSemanticAdoptions((current) => {
+      const { [itemId]: _removed, ...remaining } = current;
+      return remaining;
+    });
+    invalidateClassification();
+  }
+
+  function applySemanticSuggestion(
+    itemId: string,
+    comparison: FileSemanticComparison,
+  ): void {
+    const suggestion = comparison.resolvedSuggestion;
+    if (suggestion === null || suggestion.categoryId === null) {
+      return;
+    }
+    const factValues = new Map<string, string>();
+    for (const fact of suggestion.namingFacts) {
+      if (factValues.has(fact.kind)) {
+        return;
+      }
+      factValues.set(fact.kind, fact.value);
+    }
+    const cited = new Set([
+      ...suggestion.categoryEvidenceIds,
+      ...suggestion.namingFacts.flatMap((fact) => fact.evidenceIds),
+    ]);
+    const excerpts = comparison.envelope.evidence.excerpts.filter((excerpt) =>
+      cited.has(excerpt.evidenceId)
+    );
+    if (excerpts.length === 0) {
+      return;
+    }
+    setEvidence((current) => {
+      const draft = current[itemId] ?? emptyEvidence;
+      return {
+        ...current,
+        [itemId]: {
+          ...draft,
+          project: factValues.get("project") ?? draft.project,
+          model: factValues.get("model") ?? draft.model,
+          regulation: factValues.get("regulation") ?? draft.regulation,
+          version: factValues.get("version") ?? draft.version,
+          subject: factValues.get("subject") ?? draft.subject,
+          classificationText: excerpts.map((excerpt) => excerpt.text).join("\n\n"),
+          evidenceLocation: excerpts.map((excerpt) => excerpt.location).join(", "),
+        },
+      };
+    });
+    setSemanticAdoptions((current) => ({
+      ...current,
+      [itemId]: comparison.comparisonId,
+    }));
     invalidateClassification();
   }
 
@@ -236,10 +303,28 @@ export function ArchivePreviewPane({
     setPlan(null);
     setResult(null);
     try {
+      const useSemanticDecisions = selectedItems.every((item) => {
+        const comparison = semanticResults[item.itemId];
+        const suggestion = comparison?.resolvedSuggestion;
+        return (
+          suggestion !== null &&
+          suggestion !== undefined &&
+          suggestion.categoryId !== null &&
+          semanticAdoptions[item.itemId] === comparison.comparisonId
+        );
+      });
       const batch = await profileClient.createClassificationBatch({
         proposalId: proposal.proposalId,
         items: selectedItems.map((item) => {
           const draft = evidence[item.itemId] ?? emptyEvidence;
+          const semantic = semanticResults[item.itemId];
+          if (useSemanticDecisions && semantic !== undefined) {
+            return {
+              itemId: item.itemId,
+              references: [],
+              semanticComparisonId: semantic.comparisonId,
+            };
+          }
           return {
             itemId: item.itemId,
             references: [
@@ -249,6 +334,7 @@ export function ArchivePreviewPane({
                 text: draft.classificationText.trim(),
               },
             ],
+            semanticComparisonId: null,
           };
         }),
       });
@@ -625,6 +711,29 @@ export function ArchivePreviewPane({
         </li>
       </ul>
 
+      {modelRuntimeClient === undefined ? null : (
+        <FileSemanticReview
+          adoptedComparisonIds={semanticAdoptions}
+          client={modelRuntimeClient}
+          disabled={pending !== null || committed}
+          items={selectedItems}
+          onApply={applySemanticSuggestion}
+          onResult={(itemId, comparison) => {
+            setSemanticResults((current) => ({
+              ...current,
+              [itemId]: comparison,
+            }));
+            setSemanticAdoptions((current) => {
+              const { [itemId]: _removed, ...remaining } = current;
+              return remaining;
+            });
+          }}
+          proposalId={proposal.proposalId}
+          results={semanticResults}
+          vaultSelected={vault !== null}
+        />
+      )}
+
       {selectedItems.length === 0 ? null : (
         <section
           aria-label="Local naming evidence"
@@ -753,7 +862,11 @@ export function ArchivePreviewPane({
               )}
               <dl>
                 <dt>Rules</dt>
-                <dd>{item.proposal.ruleIds.join(", ") || "None"}</dd>
+                <dd>
+                  {item.proposal.ruleIds.join(", ") ||
+                    item.proposal.semanticDecisionId ||
+                    "None"}
+                </dd>
                 <dt>Evidence</dt>
                 <dd>
                   {item.proposal.evidence

@@ -273,9 +273,11 @@ invariants and remain deterministic.
 **Purpose.** Compare independent semantic proposals while keeping one
 accountable Agent decision and a deterministic safety boundary.
 
-**Inputs.** The identical file identity, rule snapshot, and evidence for a
-desktop model and an Agent-side model; both independently produced proposals;
-applicable permissions and safety state.
+**Inputs.** The identical file identity, exact approved profile/policy snapshot,
+and bounded extracted evidence for a desktop model and an Agent-side model;
+both independently produced proposals; applicable permissions and safety
+state. Knowledge-relation comparisons use the exact committed Markdown
+revision and rule snapshot.
 
 File identity consists of the recorded `SHA-256` algorithm identifier and
 digest.
@@ -298,6 +300,12 @@ probabilistic semantic judge or replace Agent adjudication.
 produces a visible review or failure state and cannot trigger a filesystem
 change. A failed deterministic safety check blocks execution regardless of the
 semantic decision.
+
+For file classification and naming, the desktop persists the validated
+comparison as an immutable Vault record. Only `accept` and `revise` decisions
+produce a resolved suggestion. A classification batch records the semantic
+comparison ID separately from rule IDs; the two evidence modes cannot be mixed
+or substituted for one another.
 
 **Measurable acceptance tests.**
 

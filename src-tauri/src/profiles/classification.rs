@@ -1,8 +1,11 @@
 use super::proposal::{classify, ClassificationProposal, EvidencePacket, EvidenceReference};
-use super::schema::{DeclarativeProfile, ProfileStatus};
+use super::proposal::{EvidenceCitation, ProposalStatus};
+use super::schema::{DeclarativeProfile, EvidenceKind, ProfileStatus};
 use crate::discovery::ReviewedSource;
+use crate::model_runtime::file_semantics::FileSemanticComparison;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::io::Cursor;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
@@ -14,6 +17,8 @@ const MAX_OPAQUE_ID_BYTES: usize = 128;
 pub struct ClassificationItemInput {
     pub item_id: String,
     pub references: Vec<EvidenceReference>,
+    #[serde(default)]
+    pub semantic_comparison_id: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -97,6 +102,9 @@ impl ClassificationBatchRegistry {
         }
         let mut items = Vec::with_capacity(inputs.len());
         for input in inputs {
+            if input.semantic_comparison_id.is_some() {
+                return Err("Rule classification cannot consume a semantic comparison".to_owned());
+            }
             let source = source_by_id
                 .remove(&input.item_id)
                 .ok_or_else(|| "Classification reviewed source is missing".to_owned())?;
@@ -113,6 +121,122 @@ impl ClassificationBatchRegistry {
             });
         }
         items.sort_by(|left, right| left.item_id.cmp(&right.item_id));
+        self.store_batch(discovery_proposal_id, profile, items, now, wall_time)
+    }
+
+    pub(crate) fn create_semantic_at(
+        &self,
+        discovery_proposal_id: &str,
+        profile: &DeclarativeProfile,
+        sources: Vec<ReviewedSource>,
+        comparisons: Vec<FileSemanticComparison>,
+        now: Instant,
+        wall_time: SystemTime,
+    ) -> Result<ClassificationBatch, String> {
+        validate_id(discovery_proposal_id, "discovery proposal")?;
+        profile.validate()?;
+        if profile.status != ProfileStatus::Approved {
+            return Err("Classification requires the active approved profile".to_owned());
+        }
+        if comparisons.is_empty() || comparisons.len() > 1_000 || comparisons.len() != sources.len()
+        {
+            return Err(
+                "Semantic classification selection is empty, mismatched, or too large".to_owned(),
+            );
+        }
+        let mut source_by_id = sources
+            .into_iter()
+            .map(|source| (source.item_id.clone(), source))
+            .collect::<HashMap<_, _>>();
+        if source_by_id.len() != comparisons.len() {
+            return Err("Semantic classification contains duplicate sources".to_owned());
+        }
+        let profile_json = serde_json::to_vec(profile)
+            .map_err(|error| format!("Active profile cannot be serialized: {error}"))?;
+        let profile_identity =
+            crate::identity::ContentIdentity::from_reader(Cursor::new(profile_json))
+                .map_err(|error| format!("Active profile cannot be hashed: {error}"))?;
+        let mut items = Vec::with_capacity(comparisons.len());
+        for comparison in comparisons {
+            comparison.validate()?;
+            let suggestion = comparison
+                .resolved_suggestion
+                .as_ref()
+                .ok_or_else(|| "Semantic comparison has no Agent-resolved suggestion".to_owned())?;
+            let category_id = suggestion
+                .category_id
+                .as_deref()
+                .ok_or_else(|| "Semantic comparison has no resolved category".to_owned())?;
+            let source = source_by_id
+                .remove(&comparison.envelope.item_id)
+                .ok_or_else(|| {
+                    "Semantic comparison does not match the reviewed selection".to_owned()
+                })?;
+            if comparison.envelope.source_identity != source.identity
+                || comparison.envelope.profile.profile_id != profile.profile_id
+                || comparison.envelope.profile.version != profile.version
+                || comparison.envelope.profile.identity != profile_identity
+            {
+                return Err(
+                    "Semantic comparison is not bound to the exact source and profile".to_owned(),
+                );
+            }
+            let category = profile
+                .categories
+                .iter()
+                .find(|category| category.category_id == category_id)
+                .ok_or_else(|| "Semantic category is absent from the active profile".to_owned())?;
+            let cited_ids = suggestion
+                .category_evidence_ids
+                .iter()
+                .map(String::as_str)
+                .collect::<HashSet<_>>();
+            let evidence = comparison
+                .envelope
+                .evidence
+                .excerpts
+                .iter()
+                .filter(|excerpt| cited_ids.contains(excerpt.evidence_id.as_str()))
+                .map(|excerpt| EvidenceCitation {
+                    kind: EvidenceKind::DocumentText,
+                    location: excerpt.location.clone(),
+                })
+                .collect::<Vec<_>>();
+            if evidence.len() != cited_ids.len() || evidence.is_empty() {
+                return Err("Semantic category evidence is incomplete".to_owned());
+            }
+            items.push(ClassificationBatchItem {
+                item_id: source.item_id,
+                proposal: ClassificationProposal {
+                    proposal_id: Uuid::new_v4().simple().to_string(),
+                    source_identity: source.identity,
+                    profile_id: profile.profile_id.clone(),
+                    profile_version: profile.version.clone(),
+                    status: ProposalStatus::Proposed,
+                    rule_ids: Vec::new(),
+                    semantic_decision_id: Some(comparison.comparison_id),
+                    evidence,
+                    destination: Some(category.path.clone()),
+                    review_reason: None,
+                    committable: true,
+                },
+            });
+        }
+        if !source_by_id.is_empty() {
+            return Err("Semantic classification did not cover every reviewed source".to_owned());
+        }
+        items.sort_by(|left, right| left.item_id.cmp(&right.item_id));
+        self.store_batch(discovery_proposal_id, profile, items, now, wall_time)
+    }
+
+    fn store_batch(
+        &self,
+        discovery_proposal_id: &str,
+        profile: &DeclarativeProfile,
+        items: Vec<ClassificationBatchItem>,
+        now: Instant,
+        wall_time: SystemTime,
+    ) -> Result<ClassificationBatch, String> {
         let expires_at_unix_ms = wall_time
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "System clock is before the Unix epoch".to_owned())?
@@ -259,6 +383,7 @@ mod tests {
                 location: "page:1".to_owned(),
                 text: text.to_owned(),
             }],
+            semantic_comparison_id: None,
         }
     }
 

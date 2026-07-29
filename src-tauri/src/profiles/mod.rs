@@ -76,6 +76,41 @@ pub(crate) fn create_classification_batch(
     let sources = reviewed_sources.resolve_selection_at(&request.proposal_id, &item_ids, now)?;
     let vault = current_vault(vaults.inner())?;
     let profile = profiles.active_approved_profile(&vault)?;
+    let semantic_count = request
+        .items
+        .iter()
+        .filter(|item| item.semantic_comparison_id.is_some())
+        .count();
+    if semantic_count > 0 {
+        if semantic_count != request.items.len()
+            || request.items.iter().any(|item| !item.references.is_empty())
+        {
+            return Err(
+                "A classification batch cannot mix semantic decisions with supplied evidence"
+                    .to_owned(),
+            );
+        }
+        let comparisons = request
+            .items
+            .iter()
+            .map(|item| {
+                crate::model_runtime::file_semantics::load_file_semantic_comparison(
+                    &vault,
+                    item.semantic_comparison_id
+                        .as_deref()
+                        .expect("semantic comparison exists"),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        return batches.create_semantic_at(
+            &request.proposal_id,
+            &profile,
+            sources,
+            comparisons,
+            now,
+            SystemTime::now(),
+        );
+    }
     batches.create_at(
         &request.proposal_id,
         &profile,

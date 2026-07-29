@@ -5,7 +5,7 @@ import {
 } from "./modelRuntimeClient";
 
 describe("model runtime client", () => {
-  test("invokes only the four explicit native model boundaries", async () => {
+  test("invokes only the explicit native model boundaries", async () => {
     const invoke = vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] });
     const client = createTauriModelRuntimeClient(invoke);
     const config = {
@@ -30,12 +30,26 @@ describe("model runtime client", () => {
     await client.upsert(config);
     await client.remove({ configId: config.configId });
     await client.runComparison(comparison);
+    await client.runFileSemanticComparison({
+      proposalId: "proposal-1",
+      itemId: "item-1",
+      desktopConfigId: "local-ollama",
+      agentConfigId: "remote-reasoner",
+    });
 
     expect(invoke.mock.calls).toEqual([
       ["inspect_model_runtime"],
       ["upsert_model_config", { request: config }],
       ["remove_model_config", { request: { configId: "local-ollama" } }],
       ["run_model_comparison", { request: comparison }],
+      ["run_file_semantic_comparison", {
+        request: {
+          proposalId: "proposal-1",
+          itemId: "item-1",
+          desktopConfigId: "local-ollama",
+          agentConfigId: "remote-reasoner",
+        },
+      }],
     ]);
   });
 
@@ -58,6 +72,12 @@ describe("model runtime client", () => {
       operationId: "operation",
       knowledgeRevision: 1,
       evidenceRanges: [{ startLine: 1, endLine: 1 }],
+      desktopConfigId: "desktop",
+      agentConfigId: "agent",
+    })).rejects.toThrow(expected);
+    await expect(client.runFileSemanticComparison({
+      proposalId: "proposal",
+      itemId: "item",
       desktopConfigId: "desktop",
       agentConfigId: "agent",
     })).rejects.toThrow(expected);

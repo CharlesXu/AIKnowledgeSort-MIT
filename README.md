@@ -383,9 +383,21 @@ retain final review authority:
 There is no MCP move, rename, delete, archive commit, cleanup execution,
 arbitrary command, ambient path, or automatic grant reactivation.
 
+Desktop file review can now send one exact, SHA-256-bound evidence envelope to
+two distinct configured models for independent classification and canonical
+naming suggestions. UTF-8 text/Markdown/HTML/JSON and common source formats,
+DOCX document text, and text PDFs are extracted locally with bounded excerpts;
+scanned PDFs and unsupported formats stop with an OCR/reviewed-evidence
+requirement. Both proposals and the Agent adjudication are validated against
+the exact approved profile taxonomy and persisted immutably under
+`.aiks/file-semantic-comparisons/`. Only an Agent-accepted or Agent-revised
+result can be applied to the editable review form or bound to a classification
+batch. It cannot rename, move, archive, or delete a source without the existing
+separate plan review and explicit confirmation.
+
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
-model-generated classification or naming, physical source renaming,
+physical source renaming,
 user-controlled cleanup undo, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG

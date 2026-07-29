@@ -198,6 +198,7 @@ export function AppShell({
       <section aria-label="Knowledge workspace" className="knowledge-workspace">
         <ArchivePreviewPane
           archiveClient={archiveClient}
+          modelRuntimeClient={modelRuntimeClient}
           namingClient={namingClient}
           profileClient={profileClient}
           onCommittedItems={(items, vault) => {

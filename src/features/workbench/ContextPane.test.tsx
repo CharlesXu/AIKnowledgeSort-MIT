@@ -52,6 +52,7 @@ describe("ContextPane", () => {
       upsert: vi.fn(),
       remove: vi.fn(),
       runComparison: vi.fn(),
+      runFileSemanticComparison: vi.fn(),
     };
     render(
       <ContextPane

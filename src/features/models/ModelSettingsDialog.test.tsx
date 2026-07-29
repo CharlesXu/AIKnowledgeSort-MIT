@@ -24,6 +24,7 @@ function client(): ModelRuntimeClient {
     upsert: vi.fn().mockResolvedValue(state),
     remove: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
     runComparison: vi.fn(),
+    runFileSemanticComparison: vi.fn(),
   };
 }
 

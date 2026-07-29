@@ -112,6 +112,7 @@ export interface ClassificationProposal {
   readonly profileVersion: string;
   readonly status: "proposed" | "classificationReview";
   readonly ruleIds: readonly string[];
+  readonly semanticDecisionId?: string | null;
   readonly evidence: readonly {
     readonly kind: EvidenceKind;
     readonly location: string;
@@ -138,6 +139,7 @@ export interface CreateClassificationBatchRequest {
   readonly items: readonly {
     readonly itemId: string;
     readonly references: readonly ClassificationEvidenceReference[];
+    readonly semanticComparisonId?: string | null;
   }[];
 }
 

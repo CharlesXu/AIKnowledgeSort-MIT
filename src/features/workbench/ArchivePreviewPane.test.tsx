@@ -14,6 +14,10 @@ import type {
   ClassificationBatch,
   ProfileClient,
 } from "../profiles/types";
+import type {
+  FileSemanticComparison,
+  ModelRuntimeClient,
+} from "../models/types";
 import { ArchivePreviewPane } from "./ArchivePreviewPane";
 
 const proposal: DiscoveryProposal = {
@@ -229,7 +233,182 @@ function profileClient(
   };
 }
 
+function modelRuntimeClient(): ModelRuntimeClient {
+  const comparison = {
+    schemaVersion: 1,
+    comparisonId: "comparison-1",
+    envelope: {
+      itemId: "item-1",
+      originalName: "notes.md",
+      profile: {
+        profileId: "ninebot",
+        version: "0.9.0",
+        categories: [
+          {
+            categoryId: "research.reliability",
+            label: "Reliability",
+            depth: 2,
+            parentId: "research",
+            path: ["1-Research", "Reliability"],
+            aliases: [],
+          },
+        ],
+      },
+      evidence: {
+        excerpts: [
+          {
+            evidenceId: "evidence-1",
+            location: "line:1-3",
+            text: "MCU reset reliability validation",
+          },
+        ],
+      },
+    },
+    desktopConfigId: "desktop",
+    agentConfigId: "agent",
+    desktopOutcome: {
+      status: "succeeded",
+      model: "desktop-model",
+      suggestion: {
+        summary: "Reliability research",
+        categoryId: "research.reliability",
+        categoryEvidenceIds: ["evidence-1"],
+        namingFacts: [
+          {
+            kind: "subject",
+            value: "MCU reset reliability",
+            evidenceIds: ["evidence-1"],
+          },
+        ],
+        uncertaintyReason: null,
+      },
+      failureReason: null,
+    },
+    agentOutcome: {
+      status: "succeeded",
+      model: "agent-model",
+      suggestion: {
+        summary: "Reliability research",
+        categoryId: "research.reliability",
+        categoryEvidenceIds: ["evidence-1"],
+        namingFacts: [],
+        uncertaintyReason: null,
+      },
+      failureReason: null,
+    },
+    adjudication: {
+      decision: "accept",
+      reason: "The desktop result preserves the supported subject fact.",
+      evidenceIds: ["evidence-1"],
+      selectedSide: "desktop",
+      revisedSuggestion: null,
+    },
+    adjudicationFailure: null,
+    resolvedSuggestion: {
+      summary: "Reliability research",
+      categoryId: "research.reliability",
+      categoryEvidenceIds: ["evidence-1"],
+      namingFacts: [
+        {
+          kind: "subject",
+          value: "MCU reset reliability",
+          evidenceIds: ["evidence-1"],
+        },
+      ],
+      uncertaintyReason: null,
+    },
+    status: "completed",
+  } as unknown as FileSemanticComparison;
+  return {
+    inspect: vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      configs: [
+        {
+          configId: "desktop",
+          label: "Desktop",
+          location: "local",
+          endpointUrl: "http://127.0.0.1/v1/chat/completions",
+          model: "desktop-model",
+          timeoutMs: 30_000,
+          authenticated: false,
+          credentialEnvironment: null,
+        },
+        {
+          configId: "agent",
+          label: "Agent",
+          location: "remote",
+          endpointUrl: "https://example.test/v1/chat/completions",
+          model: "agent-model",
+          timeoutMs: 30_000,
+          authenticated: true,
+          credentialEnvironment: "AIKS_MODEL_API_KEY_AGENT",
+        },
+      ],
+    }),
+    upsert: vi.fn(),
+    remove: vi.fn(),
+    runComparison: vi.fn(),
+    runFileSemanticComparison: vi.fn().mockResolvedValue(comparison),
+  };
+}
+
 describe("archive preview", () => {
+  test("applies only an Agent-resolved semantic suggestion to the editable review form", async () => {
+    const models = modelRuntimeClient();
+    const archiveClient = client();
+    const profiles = profileClient();
+    render(
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        modelRuntimeClient={models}
+        namingClient={namingClient()}
+        profileClient={profiles}
+        proposal={proposal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /notes\.md/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+    await screen.findByText("/Knowledge Vault");
+    expect(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+    ).toHaveValue("");
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Compare notes.md with two models" }),
+    );
+
+    expect(await screen.findByText("Agent accepted Desktop")).toBeInTheDocument();
+    expect(screen.getByText("1-Research / Reliability")).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+    ).toHaveValue("");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply reviewed suggestion for notes.md" }),
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+    ).toHaveValue("MCU reset reliability");
+    expect(
+      screen.getByRole("textbox", { name: "Classification evidence for notes.md" }),
+    ).toHaveValue("MCU reset reliability validation");
+    fireEvent.click(screen.getByRole("button", { name: "Review classification" }));
+    await screen.findByRole("region", { name: "Classification review" });
+    expect(profiles.createClassificationBatch).toHaveBeenCalledWith({
+      proposalId: "proposal-1",
+      items: [
+        {
+          itemId: "item-1",
+          references: [],
+          semanticComparisonId: "comparison-1",
+        },
+      ],
+    });
+    expect(archiveClient.createPlan).not.toHaveBeenCalled();
+    expect(archiveClient.confirmPlan).not.toHaveBeenCalled();
+  });
+
   test("requires an exact reviewed plan before a source-preserving commit", async () => {
     const archiveClient = client();
     const names = namingClient();

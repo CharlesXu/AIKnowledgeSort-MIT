@@ -120,6 +120,7 @@ function client(): ModelRuntimeClient {
     upsert: vi.fn(),
     remove: vi.fn(),
     runComparison: vi.fn().mockResolvedValue(record),
+    runFileSemanticComparison: vi.fn(),
   };
 }
 

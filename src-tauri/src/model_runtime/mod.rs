@@ -1,4 +1,5 @@
 mod config;
+pub(crate) mod file_semantics;
 mod openai_compatible;
 mod protocol;
 mod store;
@@ -7,8 +8,9 @@ pub(crate) use config::ModelConfigSummary;
 #[cfg(test)]
 pub(crate) use config::ModelLocation;
 use config::{ModelConfigInput, ModelConfigStore, ModelRuntimeState};
+pub(crate) use file_semantics::FileSemanticComparison;
 pub(crate) use openai_compatible::complete_json;
-use openai_compatible::OpenAiCompatibleTransport;
+use openai_compatible::{OpenAiCompatibleTransport, OpenAiFileSemanticTransport};
 pub(crate) use protocol::{
     AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
     ProviderOutcome,
@@ -114,7 +116,7 @@ impl ModelRuntimeAuthority {
             .lock()
             .map_err(|_| "Model comparison registry is unavailable".to_owned())?;
         if !active.insert(key.clone()) {
-            return Err("This knowledge document already has a comparison in progress".to_owned());
+            return Err("This semantic target already has a comparison in progress".to_owned());
         }
         Ok(ComparisonPermit {
             key,
@@ -279,6 +281,15 @@ pub struct RunModelComparisonRequest {
     agent_config_id: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct RunFileSemanticComparisonRequest {
+    proposal_id: String,
+    item_id: String,
+    desktop_config_id: String,
+    agent_config_id: String,
+}
+
 pub(crate) fn app_config_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
@@ -339,4 +350,50 @@ pub async fn run_model_comparison(
     })
     .await
     .map_err(|error| format!("Model comparison worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub(crate) async fn run_file_semantic_comparison(
+    request: RunFileSemanticComparisonRequest,
+    app: tauri::AppHandle,
+    reviewed_sources: tauri::State<'_, crate::discovery::ReviewedSourceRegistry>,
+    vaults: tauri::State<'_, crate::vault::VaultAuthorityRegistry>,
+    profiles: tauri::State<'_, crate::profiles::ProfileAuthority>,
+    authority: tauri::State<'_, ModelRuntimeAuthority>,
+) -> Result<FileSemanticComparison, String> {
+    let permit = authority.acquire_comparison(&request.proposal_id, &request.item_id)?;
+    let now = std::time::Instant::now();
+    let source = reviewed_sources
+        .resolve_selection_at(
+            &request.proposal_id,
+            std::slice::from_ref(&request.item_id),
+            now,
+        )?
+        .into_iter()
+        .next()
+        .ok_or_else(|| "Reviewed source is unavailable".to_owned())?;
+    let summary = vaults.current_summary()?;
+    let vault = vaults.lease(&summary.authority_id)?;
+    let profile = profiles.active_approved_profile_read_only(&vault)?;
+    let (desktop_config, agent_config) = authority.load_pair(
+        app_config_directory(&app)?,
+        &request.desktop_config_id,
+        &request.agent_config_id,
+    )?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        let bytes = file_semantics::read_reviewed_source_bytes(&source)?;
+        let comparison = file_semantics::run_file_semantic_comparison(
+            &source,
+            &bytes,
+            &profile,
+            &desktop_config,
+            &agent_config,
+            &OpenAiFileSemanticTransport,
+        )?;
+        file_semantics::persist_file_semantic_comparison(&vault, &comparison)?;
+        Ok(comparison)
+    })
+    .await
+    .map_err(|error| format!("File semantic comparison worker failed: {error}"))?
 }

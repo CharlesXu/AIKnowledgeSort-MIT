@@ -10,6 +10,7 @@ const modelClient: ModelRuntimeClient = {
   upsert: vi.fn(),
   remove: vi.fn(),
   runComparison: vi.fn(),
+  runFileSemanticComparison: vi.fn(),
 };
 
 const agentClient: AgentAccessClient = {

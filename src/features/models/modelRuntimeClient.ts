@@ -5,6 +5,8 @@ import type {
   ModelRuntimeState,
   RunModelComparisonRequest,
   ComparisonRecord,
+  FileSemanticComparison,
+  RunFileSemanticComparisonRequest,
 } from "./types";
 
 type Invoke = <T>(
@@ -28,6 +30,11 @@ export function createTauriModelRuntimeClient(
     runComparison(request: RunModelComparisonRequest) {
       return invoke<ComparisonRecord>("run_model_comparison", { request });
     },
+    runFileSemanticComparison(request: RunFileSemanticComparisonRequest) {
+      return invoke<FileSemanticComparison>("run_file_semantic_comparison", {
+        request,
+      });
+    },
   };
 }
 
@@ -43,5 +50,6 @@ export function createBrowserModelRuntimeClient(): ModelRuntimeClient {
     upsert: desktopRuntimeRequired,
     remove: desktopRuntimeRequired,
     runComparison: desktopRuntimeRequired,
+    runFileSemanticComparison: desktopRuntimeRequired,
   };
 }

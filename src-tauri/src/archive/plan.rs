@@ -196,6 +196,8 @@ impl ArchivePlanRegistry {
                             || proposal.status != ProposalStatus::Proposed
                             || !proposal.committable
                             || proposal.destination.is_none()
+                            || proposal.evidence.is_empty()
+                            || !classification_binding_valid(proposal)
                     })
                 {
                     return Err(
@@ -357,6 +359,22 @@ fn validate_opaque_id(value: &str, label: &str) -> Result<(), String> {
     }
 }
 
+fn classification_binding_valid(proposal: &ClassificationProposal) -> bool {
+    match (
+        &proposal.rule_ids[..],
+        proposal.semantic_decision_id.as_deref(),
+    ) {
+        ([], Some(value)) => {
+            value.len() == 32
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        }
+        (rules, None) => !rules.is_empty(),
+        _ => false,
+    }
+}
+
 fn validate_original_name(name: &str) -> Result<(), String> {
     let mut components = Path::new(name).components();
     if name.is_empty()
@@ -489,6 +507,7 @@ mod tests {
                     profile_version: "1.0.0".to_owned(),
                     status: ProposalStatus::Proposed,
                     rule_ids: vec!["semiconductor-reliability".to_owned()],
+                    semantic_decision_id: None,
                     evidence: vec![EvidenceCitation {
                         kind: EvidenceKind::DocumentText,
                         location: "page:1".to_owned(),

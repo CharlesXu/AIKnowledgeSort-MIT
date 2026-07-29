@@ -1116,7 +1116,7 @@ fn validate_classification_record(record: &OperationRecord) -> Result<(), String
         || classification.source_identity != record.identity
         || classification.profile_id.is_empty()
         || classification.profile_version.is_empty()
-        || classification.rule_ids.is_empty()
+        || !classification_binding_valid(classification)
         || classification.evidence.is_empty()
     {
         return Err(
@@ -1230,6 +1230,22 @@ fn validate_operation_id(value: &str) -> Result<(), String> {
         return Err("Archive operation ID is invalid".to_owned());
     }
     Ok(())
+}
+
+fn classification_binding_valid(classification: &ClassificationProposal) -> bool {
+    match (
+        &classification.rule_ids[..],
+        classification.semantic_decision_id.as_deref(),
+    ) {
+        ([], Some(value)) => {
+            value.len() == 32
+                && value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        }
+        (rules, None) => !rules.is_empty(),
+        _ => false,
+    }
 }
 
 fn transaction_failure_text(failure: TransactionFailure) -> String {
@@ -1354,6 +1370,7 @@ mod tests {
             profile_version: "1.0.0".to_owned(),
             status: ProposalStatus::Proposed,
             rule_ids: vec!["semiconductor-reliability".to_owned()],
+            semantic_decision_id: None,
             evidence: vec![EvidenceCitation {
                 kind: EvidenceKind::DocumentText,
                 location: "page:1".to_owned(),

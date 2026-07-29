@@ -850,6 +850,134 @@ input:focus-visible,
   margin-bottom: 0;
 }
 
+.archive-preview__model-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  padding: 7px 9px;
+  border-bottom: 1px solid var(--divider);
+  background: #fafafa;
+}
+
+.archive-preview__model-pair label {
+  display: grid;
+  gap: 2px;
+  color: #7f838a;
+  font-size: 8px;
+  font-weight: 650;
+}
+
+.archive-preview__model-pair select {
+  min-width: 0;
+  height: 24px;
+  border: 1px solid #d8d9de;
+  border-radius: 4px;
+  color: #454a52;
+  background: #fff;
+  font: inherit;
+  font-size: 9px;
+}
+
+.archive-preview__semantic-review {
+  padding: 8px 9px;
+  border-bottom: 1px solid var(--divider);
+  background: #fff;
+}
+
+.archive-preview__semantic-review > header,
+.archive-preview__semantic-review > article > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.archive-preview__semantic-review > header {
+  margin-bottom: 7px;
+}
+
+.archive-preview__semantic-review > header strong,
+.archive-preview__semantic-review > article > header strong {
+  overflow: hidden;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-preview__semantic-review > header span {
+  color: #7f838a;
+  font-size: 8px;
+}
+
+.archive-preview__semantic-review > article {
+  display: grid;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid #dcd7e7;
+  border-radius: 5px;
+  background: #f6f3fa;
+}
+
+.archive-preview__semantic-controls {
+  display: grid;
+  gap: 5px;
+}
+
+.archive-preview__semantic-controls > strong {
+  color: #655b7e;
+  font-size: 9px;
+}
+
+.archive-preview__semantic-controls > p {
+  margin: 0;
+  color: #555a63;
+  font-size: 9px;
+}
+
+.archive-preview__semantic-providers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+}
+
+.archive-preview__semantic-providers section {
+  min-width: 0;
+  padding: 5px;
+  border: 1px solid #e1dde9;
+  border-radius: 4px;
+  background: #fff;
+}
+
+.archive-preview__semantic-providers strong,
+.archive-preview__semantic-providers span {
+  display: block;
+  overflow: hidden;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.archive-preview__semantic-providers span {
+  color: #898d94;
+}
+
+.archive-preview__semantic-providers p {
+  margin: 3px 0 0;
+  color: #666b73;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+.archive-preview__semantic-error {
+  margin: 0;
+  padding: 6px 9px;
+  border-bottom: 1px solid #efd3d3;
+  color: #9a4545;
+  background: #fff6f6;
+  font-size: 9px;
+}
+
 .archive-preview__evidence legend {
   max-width: 170px;
   overflow: hidden;

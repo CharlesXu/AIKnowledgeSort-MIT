@@ -7,6 +7,7 @@ mod archive;
 mod cleanup;
 #[path = "discovery/mod.rs"]
 mod discovery;
+mod evidence_extraction;
 mod graph;
 pub mod identity;
 mod knowledge;
@@ -115,6 +116,7 @@ pub fn run() {
             model_runtime::upsert_model_config,
             model_runtime::remove_model_config,
             model_runtime::run_model_comparison,
+            model_runtime::run_file_semantic_comparison,
             profiles::inspect_profile_state,
             profiles::create_classification_batch,
             profiles::import_local_profile_candidate,
