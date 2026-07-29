@@ -112,4 +112,4 @@ jobs:
 
       - name: Run Rust library tests serially
         if: runner.os == 'Windows'
-        run: cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1 --nocapture
