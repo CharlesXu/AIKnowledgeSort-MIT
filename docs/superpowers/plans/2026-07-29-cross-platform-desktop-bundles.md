@@ -217,7 +217,7 @@ include:
 Keep the existing platform tests. Add Node setup and `npm ci`, then run:
 
 ```bash
-npm run tauri build -- --bundles ${{ matrix.bundles }}
+npm run tauri build -- --ci --no-sign --bundles ${{ matrix.bundles }}
 node scripts/run-desktop-smoke.mjs ${{ matrix.executable }}
 ```
 

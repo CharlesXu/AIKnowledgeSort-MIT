@@ -57,7 +57,7 @@ for (const [os, bundles, artifactName] of platformContracts) {
 requireText(
   violations,
   workflow,
-  /npm run tauri build -- --bundles \$\{\{ matrix\.bundles \}\}/,
+  /npm run tauri build -- --ci --no-sign --bundles \$\{\{ matrix\.bundles \}\}/,
   "matrix bundle build command is missing",
 );
 requireText(
