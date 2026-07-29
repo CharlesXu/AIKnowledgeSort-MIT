@@ -16,7 +16,9 @@ use uuid::Uuid;
 
 const MAX_OPERATION_RECORDS: usize = 10_000;
 const LEGACY_OPERATION_SCHEMA_VERSION: u32 = 1;
-const OPERATION_SCHEMA_VERSION: u32 = 2;
+const NAMING_OPERATION_SCHEMA_VERSION: u32 = 2;
+const OPERATION_SCHEMA_VERSION: u32 = 3;
+const AUDIT_ANCHOR_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -83,6 +85,10 @@ impl OperationState {
             Self::Abandoned => "abandoned",
         }
     }
+
+    fn is_terminal(self) -> bool {
+        matches!(self, Self::Committed | Self::Failed | Self::Abandoned)
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -94,6 +100,12 @@ struct OperationRecord {
     state: OperationState,
     actor: String,
     recorded_at_unix_ms: u64,
+    #[serde(default)]
+    action: String,
+    #[serde(default)]
+    selected_scope: Vec<String>,
+    #[serde(default)]
+    decision: String,
     plan_id: String,
     confirmation_binding_sha256: String,
     authority_id: String,
@@ -113,6 +125,20 @@ struct OperationRecord {
     invariant_result: String,
     outcome: String,
     failure_reason: Option<String>,
+    #[serde(default)]
+    previous_record_sha256: Option<String>,
+    #[serde(default)]
+    record_sha256: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct OperationAuditAnchor {
+    schema_version: u32,
+    operation_id: String,
+    terminal_sequence: u32,
+    terminal_state: OperationState,
+    terminal_record_sha256: String,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -227,6 +253,16 @@ fn commit_one(
 ) -> ArchiveItemResult {
     let operation_id = Uuid::new_v4().simple().to_string();
     let mut context = OperationContext::new(plan, &item, operation_id.clone());
+    if let Err(reason) = seal_initial_record(&mut context.record) {
+        return ArchiveItemResult {
+            operation_id,
+            item_id: item.item_id,
+            destination_path: item.destination_path,
+            identity: item.identity,
+            status: ArchiveItemStatus::Failed,
+            failure_reason: Some(reason),
+        };
+    }
     if let Err(reason) = persist_operation(vault, &context.record) {
         return ArchiveItemResult {
             operation_id,
@@ -295,6 +331,9 @@ impl OperationContext {
                 state: OperationState::Proposed,
                 actor: "desktop-user".to_owned(),
                 recorded_at_unix_ms: unix_time_ms(),
+                action: "archive-original-with-canonical-name".to_owned(),
+                selected_scope: vec![item.source_path.clone(), item.destination_path.clone()],
+                decision: "desktop-user-confirmed-reviewed-plan".to_owned(),
                 plan_id: plan.plan_id.clone(),
                 confirmation_binding_sha256: confirmation_binding_sha256(plan, item),
                 authority_id: plan.authority_id.clone(),
@@ -310,6 +349,8 @@ impl OperationContext {
                 invariant_result: "pending".to_owned(),
                 outcome: "proposed".to_owned(),
                 failure_reason: None,
+                previous_record_sha256: None,
+                record_sha256: None,
             },
         }
     }
@@ -566,6 +607,7 @@ fn promote_registration(vault: &VaultLease, context: &OperationContext) -> Resul
 }
 
 fn persist_operation(vault: &VaultLease, record: &OperationRecord) -> Result<(), String> {
+    verify_record_digest(record)?;
     let path = operation_record_path(record);
     write_new_json(&vault.directory, &path, record)
 }
@@ -587,13 +629,97 @@ fn transition_required(
     outcome: &str,
     failure_reason: Option<&str>,
 ) -> Result<(), TransactionFailure> {
+    let previous_record_sha256 = record.record_sha256.clone().ok_or_else(|| {
+        TransactionFailure::Rejected("Archive operation audit predecessor is missing".to_owned())
+    })?;
     record.sequence = record.sequence.saturating_add(1);
     record.state = state;
     record.recorded_at_unix_ms = unix_time_ms();
     record.invariant_result = invariant_result.to_owned();
     record.outcome = outcome.to_owned();
     record.failure_reason = failure_reason.map(bounded_failure);
-    persist_operation(vault, record).map_err(TransactionFailure::Rejected)
+    record.previous_record_sha256 = Some(previous_record_sha256);
+    record.record_sha256 =
+        Some(operation_record_digest(record).map_err(TransactionFailure::Rejected)?);
+    persist_operation(vault, record).map_err(TransactionFailure::Rejected)?;
+    if state.is_terminal() {
+        persist_terminal_anchor(vault, record).map_err(TransactionFailure::Rejected)?;
+    }
+    Ok(())
+}
+
+fn seal_initial_record(record: &mut OperationRecord) -> Result<(), String> {
+    if record.schema_version != OPERATION_SCHEMA_VERSION
+        || record.sequence != 0
+        || record.previous_record_sha256.is_some()
+    {
+        return Err("Archive operation initial audit state is invalid".to_owned());
+    }
+    record.record_sha256 = Some(operation_record_digest(record)?);
+    Ok(())
+}
+
+fn operation_record_digest(record: &OperationRecord) -> Result<String, String> {
+    let mut unsigned = record.clone();
+    unsigned.record_sha256 = None;
+    let bytes = serde_json::to_vec(&unsigned)
+        .map_err(|error| format!("Archive operation audit cannot be serialized: {error}"))?;
+    Ok(format!("{:x}", Sha256::digest(bytes)))
+}
+
+fn verify_record_digest(record: &OperationRecord) -> Result<(), String> {
+    let recorded = record
+        .record_sha256
+        .as_deref()
+        .ok_or_else(|| "Archive operation audit digest is missing".to_owned())?;
+    if operation_record_digest(record)? != recorded {
+        return Err("Archive operation audit digest is invalid".to_owned());
+    }
+    Ok(())
+}
+
+fn audit_anchor_path(operation_id: &str) -> PathBuf {
+    Path::new(".aiks/archive-audit-anchors").join(format!("{operation_id}.json"))
+}
+
+fn terminal_anchor(record: &OperationRecord) -> Result<OperationAuditAnchor, String> {
+    if !record.state.is_terminal() {
+        return Err("Archive operation audit anchor requires a terminal record".to_owned());
+    }
+    Ok(OperationAuditAnchor {
+        schema_version: AUDIT_ANCHOR_SCHEMA_VERSION,
+        operation_id: record.operation_id.clone(),
+        terminal_sequence: record.sequence,
+        terminal_state: record.state,
+        terminal_record_sha256: record
+            .record_sha256
+            .clone()
+            .ok_or_else(|| "Archive operation terminal audit digest is missing".to_owned())?,
+    })
+}
+
+fn persist_terminal_anchor(vault: &VaultLease, record: &OperationRecord) -> Result<(), String> {
+    let expected = terminal_anchor(record)?;
+    let path = audit_anchor_path(&record.operation_id);
+    match vault.directory.symlink_metadata(&path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err("Archive operation audit anchor is not a regular file".to_owned())
+        }
+        Ok(_) => {
+            let existing: OperationAuditAnchor = read_json(&vault.directory, &path)?;
+            if existing == expected {
+                Ok(())
+            } else {
+                Err("Archive operation audit terminal anchor does not match".to_owned())
+            }
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            write_new_json(&vault.directory, &path, &expected)
+        }
+        Err(error) => Err(format!(
+            "Archive operation audit anchor cannot be inspected: {error}"
+        )),
+    }
 }
 
 fn transition(
@@ -779,7 +905,7 @@ fn latest_operation_records(
         .directory
         .read_dir(".aiks/operations")
         .map_err(|error| format!("Archive operation journal is unreadable: {error}"))?;
-    let mut latest = HashMap::<String, OperationRecord>::new();
+    let mut streams = HashMap::<String, Vec<(PathBuf, OperationRecord)>>::new();
     for (index, entry) in entries.enumerate() {
         if index >= MAX_OPERATION_RECORDS {
             return Err("Archive operation journal exceeds the reconciliation limit".to_owned());
@@ -805,18 +931,88 @@ fn latest_operation_records(
         let record: OperationRecord = read_json(&vault.directory, &relative)?;
         if !matches!(
             record.schema_version,
-            LEGACY_OPERATION_SCHEMA_VERSION | OPERATION_SCHEMA_VERSION
+            LEGACY_OPERATION_SCHEMA_VERSION
+                | NAMING_OPERATION_SCHEMA_VERSION
+                | OPERATION_SCHEMA_VERSION
         ) {
             return Err("Archive operation record schema is unsupported".to_owned());
         }
-        match latest.get(&record.operation_id) {
-            Some(existing) if existing.sequence >= record.sequence => {}
-            _ => {
-                latest.insert(record.operation_id.clone(), record);
-            }
+        streams
+            .entry(record.operation_id.clone())
+            .or_default()
+            .push((relative, record));
+    }
+    let mut latest = HashMap::with_capacity(streams.len());
+    for (operation_id, mut records) in streams {
+        records.sort_by_key(|(_, record)| record.sequence);
+        if records
+            .iter()
+            .any(|(_, record)| record.schema_version == OPERATION_SCHEMA_VERSION)
+        {
+            verify_operation_audit_stream(vault, &operation_id, &records)?;
         }
+        let record = records
+            .pop()
+            .ok_or_else(|| "Archive operation audit stream is empty".to_owned())?
+            .1;
+        latest.insert(operation_id, record);
     }
     Ok(latest)
+}
+
+fn verify_operation_audit_stream(
+    vault: &VaultLease,
+    operation_id: &str,
+    records: &[(PathBuf, OperationRecord)],
+) -> Result<(), String> {
+    validate_operation_id(operation_id)?;
+    let mut previous = None::<String>;
+    for (index, (path, record)) in records.iter().enumerate() {
+        if record.schema_version != OPERATION_SCHEMA_VERSION
+            || record.operation_id != operation_id
+            || record.sequence as usize != index
+            || *path != operation_record_path(record)
+            || record.previous_record_sha256 != previous
+            || record.actor != "desktop-user"
+            || record.action != "archive-original-with-canonical-name"
+            || record.decision != "desktop-user-confirmed-reviewed-plan"
+            || record.selected_scope
+                != [record.source_path.clone(), record.destination_path.clone()]
+        {
+            return Err(
+                "Archive operation audit is truncated, reordered, or incorrectly bound".to_owned(),
+            );
+        }
+        verify_record_digest(record)?;
+        previous = record.record_sha256.clone();
+    }
+    let latest = &records
+        .last()
+        .ok_or_else(|| "Archive operation audit stream is empty".to_owned())?
+        .1;
+    let anchor_path = audit_anchor_path(operation_id);
+    match vault.directory.symlink_metadata(&anchor_path) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_file() => {
+            Err("Archive operation audit anchor is not a regular file".to_owned())
+        }
+        Ok(_) => {
+            let anchor: OperationAuditAnchor = read_json(&vault.directory, &anchor_path)?;
+            if anchor != terminal_anchor(latest)? {
+                return Err(
+                    "Archive operation audit is truncated or its terminal anchor changed"
+                        .to_owned(),
+                );
+            }
+            Ok(())
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound && latest.state.is_terminal() => {
+            persist_terminal_anchor(vault, latest)
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(format!(
+            "Archive operation audit anchor cannot be inspected: {error}"
+        )),
+    }
 }
 
 fn validate_naming_record(record: &OperationRecord) -> Result<(), String> {
@@ -1097,7 +1293,7 @@ mod tests {
         let plan = plan(&source, &summary.authority_id);
         let destination = vault_path.join(&plan.items[0].destination_path);
 
-        let result = commit_plan_with_faults(plan, &lease, TransactionFaults::default());
+        let result = commit_plan_with_faults(plan.clone(), &lease, TransactionFaults::default());
 
         assert_eq!(result.items[0].status, ArchiveItemStatus::Committed);
         assert_eq!(fs::read(&source).expect("read source"), SOURCE_BYTES);
@@ -1131,7 +1327,28 @@ mod tests {
             serde_json::from_slice(&fs::read(committed_path).expect("read operation"))
                 .expect("parse operation");
         assert_eq!(operation["namingBatchId"], "naming-batch");
+        assert_eq!(operation["actor"], "desktop-user");
+        assert!(operation["recordedAtUnixMs"].as_u64().unwrap_or_default() > 0);
+        assert_eq!(operation["action"], "archive-original-with-canonical-name");
+        assert_eq!(
+            operation["decision"],
+            "desktop-user-confirmed-reviewed-plan"
+        );
+        assert_eq!(
+            operation["selectedScope"][0].as_str(),
+            Some(source.to_string_lossy().as_ref())
+        );
+        assert_eq!(
+            operation["selectedScope"][1],
+            plan.items[0].destination_path
+        );
+        assert_eq!(operation["identity"]["algorithm"], "SHA-256");
         assert_eq!(operation["naming"]["appliedRule"], "ordered-cited-facts-v1");
+        assert_eq!(
+            operation["invariantResult"],
+            "registered-original-preserved"
+        );
+        assert_eq!(operation["outcome"], "committed");
         let nonce_only = ContentIdentity::from_reader(Cursor::new(b"single-use-confirmation"))
             .expect("hash nonce");
         assert_ne!(
@@ -1192,6 +1409,74 @@ mod tests {
             first_context.record.confirmation_binding_sha256,
             second_context.record.confirmation_binding_sha256
         );
+    }
+
+    #[test]
+    fn archive_audit_detects_a_deterministically_altered_history_field() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let vault_path = tree.vault();
+        let vaults = VaultAuthorityRegistry::default();
+        let summary = vaults
+            .authorize_path(&vault_path)
+            .expect("authorize generated Vault");
+        let lease = vaults
+            .lease(&summary.authority_id)
+            .expect("lease generated Vault");
+        commit_plan_with_faults(
+            plan(&source, &summary.authority_id),
+            &lease,
+            TransactionFaults::default(),
+        );
+        let copying_path = vault_path
+            .join(".aiks/operations")
+            .read_dir()
+            .expect("read operation journal")
+            .filter_map(Result::ok)
+            .find(|entry| entry.file_name().to_string_lossy().contains("copying"))
+            .expect("copying operation record")
+            .path();
+        let mut record: serde_json::Value =
+            serde_json::from_slice(&fs::read(&copying_path).expect("read operation"))
+                .expect("parse operation");
+        record["outcome"] = serde_json::Value::String("altered".to_owned());
+        fs::write(
+            &copying_path,
+            serde_json::to_vec(&record).expect("serialize altered record"),
+        )
+        .expect("alter operation record");
+
+        assert!(reconcile_vault(&lease).is_err());
+    }
+
+    #[test]
+    fn archive_audit_detects_a_truncated_terminal_sequence() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let vault_path = tree.vault();
+        let vaults = VaultAuthorityRegistry::default();
+        let summary = vaults
+            .authorize_path(&vault_path)
+            .expect("authorize generated Vault");
+        let lease = vaults
+            .lease(&summary.authority_id)
+            .expect("lease generated Vault");
+        commit_plan_with_faults(
+            plan(&source, &summary.authority_id),
+            &lease,
+            TransactionFaults::default(),
+        );
+        let committed_path = vault_path
+            .join(".aiks/operations")
+            .read_dir()
+            .expect("read operation journal")
+            .filter_map(Result::ok)
+            .find(|entry| entry.file_name().to_string_lossy().contains("committed"))
+            .expect("committed operation record")
+            .path();
+        fs::remove_file(committed_path).expect("truncate operation sequence");
+
+        assert!(reconcile_vault(&lease).is_err());
     }
 
     #[test]

@@ -106,6 +106,17 @@ and canonical names, paths, policy/version, applied rule, cited facts, evidence
 locations, confirmation binding, identity, and outcome. Existing v1 archive
 journals remain readable during recovery.
 
+Every new archive-and-canonical-name operation also writes a versioned SHA-256
+audit chain. Each record binds its predecessor, actor, time, action, selected
+source and destination scope, content identity, reviewed naming evidence,
+confirmation decision, invariant result, outcome, and failure reason. Terminal
+states create a separate immutable anchor for the final sequence and digest.
+Vault authorization verifies the complete chain and terminal anchor before
+accepting any registered original, so a changed historical field, reordered
+record, missing sequence, or truncated terminal record is visibly rejected.
+Legacy version 1 and 2 journals remain readable but are not represented as
+retroactively sealed evidence.
+
 The compact local-evidence and canonical-name review lives in the archive side
 pane; it does not replace the Markdown, Mermaid, and code workspace. Browser
 preview clients fail visibly and never simulate naming, Vault selection, archive
