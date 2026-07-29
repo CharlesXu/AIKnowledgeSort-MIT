@@ -12,6 +12,29 @@ milestones described below.
 
 License: MIT
 
+## Cross-platform desktop build evidence
+
+Every pull request and `main` push now builds unsigned Tauri desktop bundles on
+the three supported operating-system runners:
+
+- macOS produces an application bundle and DMG;
+- Ubuntu produces DEB and AppImage packages;
+- Windows produces an NSIS installer.
+
+Each runner then starts the compiled application through the same plugins,
+managed authorities, window setup, and command registrations used by the
+normal desktop entry point. A bounded smoke mode exits successfully only after
+the Tauri runtime emits its ready event; a 30-second parent-process deadline
+turns a stalled startup into a failed job. Exact platform bundle outputs are
+uploaded as 14-day GitHub Actions artifacts, and a missing output fails the
+matrix entry.
+
+These artifacts are build and startup evidence, not signed public releases.
+The workflow has read-only repository permission, explicitly disables signing,
+and does not create a tag or release. Signing, Apple notarization, updater
+publication, and hands-on installation acceptance remain separate release
+work.
+
 ## Drop discovery platform scope
 
 Local drop discovery opens operating-system drop roots once in Rust and then
