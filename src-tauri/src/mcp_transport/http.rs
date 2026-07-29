@@ -1,6 +1,7 @@
 use super::auth::credentials_from_headers;
 use super::service::GovernedMcpService;
 use crate::agent_access::authority::AgentAccessAuthority;
+use crate::profiles::ProfileAuthority;
 use axum::extract::{Request, State};
 use axum::http::{Method, StatusCode};
 use axum::middleware::{self, Next};
@@ -54,6 +55,7 @@ impl McpTransportAuthority {
     pub async fn start(
         &self,
         authority: AgentAccessAuthority,
+        profiles: ProfileAuthority,
         config_root: PathBuf,
         port: u16,
     ) -> Result<McpTransportState, String> {
@@ -74,6 +76,7 @@ impl McpTransportAuthority {
         let url = format!("http://127.0.0.1:{}/mcp", address.port());
         let cancellation = CancellationToken::new();
         let factory_authority = authority.clone();
+        let factory_profiles = profiles.clone();
         let factory_config_root = config_root.clone();
         let mut server_config = StreamableHttpServerConfig::default()
             .with_cancellation_token(cancellation.child_token());
@@ -86,6 +89,7 @@ impl McpTransportAuthority {
                 move || {
                     Ok(GovernedMcpService::new(
                         factory_authority.clone(),
+                        factory_profiles.clone(),
                         factory_config_root.clone(),
                     ))
                 },
@@ -281,7 +285,12 @@ mod tests {
             .unwrap();
         let transport = McpTransportAuthority::default();
         let state = transport
-            .start(agent_access.clone(), config.0.clone(), 0)
+            .start(
+                agent_access.clone(),
+                crate::profiles::ProfileAuthority::default(),
+                config.0.clone(),
+                0,
+            )
             .await
             .unwrap();
         let url = state.url.unwrap();
@@ -289,7 +298,12 @@ mod tests {
         let port = url::Url::parse(&url).unwrap().port().unwrap();
         let collision = McpTransportAuthority::default();
         assert!(collision
-            .start(agent_access.clone(), config.0.clone(), port)
+            .start(
+                agent_access.clone(),
+                crate::profiles::ProfileAuthority::default(),
+                config.0.clone(),
+                port,
+            )
             .await
             .is_err());
 

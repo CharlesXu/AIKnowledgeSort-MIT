@@ -5,16 +5,18 @@ mod store;
 
 use config::{ModelConfigInput, ModelConfigStore, ModelConfigSummary, ModelRuntimeState};
 use openai_compatible::OpenAiCompatibleTransport;
-use protocol::{
+pub(crate) use protocol::{
     AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
     ProviderOutcome,
 };
+#[cfg(test)]
+pub(crate) use protocol::{ProposalSide, RelationSuggestion};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use store::{
+pub(crate) use store::{
     build_comparison_envelope, persist_comparison_record, EvidenceRange, PreparedComparison,
 };
 use tauri::Manager;

@@ -1,5 +1,12 @@
 use crate::agent_access::authority::AuthorizedRequest;
 use crate::agent_access::schema::{AgentGrantSummary, AgentToolDescriptor};
+use crate::identity::ContentIdentity;
+use crate::model_runtime::{
+    build_comparison_envelope, AgentAdjudication, AgentDecision, EvidenceRange, ModelProposal,
+};
+use crate::profiles::proposal::{classify, EvidencePacket, EvidenceReference};
+use crate::profiles::ProfileAuthority;
+use crate::vault::VaultLease;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
 use cap_std::fs::{Dir, OpenOptions};
 use rmcp::model::{JsonObject, Tool, ToolAnnotations};
@@ -51,9 +58,13 @@ pub fn tool_definition(descriptor: AgentToolDescriptor) -> Tool {
                 "additionalProperties": false
             })),
         ),
-        "comparison.run" | "classification.propose" => (
-            "Reserved semantic-advice adapter. It returns notReady until the governed desktop workflow is connected.",
-            object(json!({"type": "object", "additionalProperties": false})),
+        "classification.propose" => (
+            "Propose one evidence-cited primary classification from the active approved profile in a granted Vault. No archive mutation is available.",
+            classification_schema(),
+        ),
+        "comparison.run" => (
+            "Validate two model outputs against one verified knowledge revision and apply the Agent-supplied adjudication. No graph mutation is available.",
+            comparison_schema(),
         ),
         _ => ("Unsupported governed tool.", object(json!({"type": "object"}))),
     };
@@ -70,6 +81,7 @@ pub fn tool_definition(descriptor: AgentToolDescriptor) -> Tool {
 }
 
 pub fn dispatch(
+    profiles: &ProfileAuthority,
     grant: &AgentGrantSummary,
     authorized: AuthorizedRequest,
     arguments: Option<JsonObject>,
@@ -103,12 +115,15 @@ pub fn dispatch(
             json!({"scopeId": request.scope_id, "relativePath": request.relative_path, "graph": graph})
         }
         "cleanup.suggest" => cleanup_suggestions(decode(arguments)?)?,
-        "comparison.run" | "classification.propose" => json!({
-            "status": "notReady",
-            "toolId": authorized.tool.tool_id,
-            "executionAvailable": false,
-            "message": "The governed desktop adapter is not implemented. No model or classification output was fabricated."
-        }),
+        "classification.propose" => classification_proposal(
+            profiles,
+            required_directory(authorized.directory)?,
+            decode(arguments)?,
+        )?,
+        "comparison.run" => comparison_advice(
+            required_directory(authorized.directory)?,
+            decode(arguments)?,
+        )?,
         _ => return Err("Unsupported governed Agent tool".to_owned()),
     };
     let response_size = serde_json::to_vec(&result)
@@ -125,8 +140,8 @@ pub fn requested_scope_id(
     arguments: &Option<JsonObject>,
 ) -> Result<Option<String>, String> {
     match tool_id {
-        "knowledge.read" | "graph.read" => {
-            let request: ReadRequest =
+        "knowledge.read" | "graph.read" | "classification.propose" | "comparison.run" => {
+            let request: ScopedRequest =
                 decode(Value::Object(arguments.clone().unwrap_or_default()))?;
             Ok(Some(request.scope_id))
         }
@@ -142,9 +157,35 @@ struct ReadRequest {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ScopedRequest {
+    scope_id: String,
+}
+
+#[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 struct CleanupRequest {
     facts: Vec<CleanupFact>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ClassificationRequest {
+    scope_id: String,
+    source_identity: ContentIdentity,
+    references: Vec<EvidenceReference>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ComparisonRequest {
+    scope_id: String,
+    operation_id: String,
+    knowledge_revision: u32,
+    evidence_ranges: Vec<EvidenceRange>,
+    desktop_proposal: ModelProposal,
+    agent_proposal: ModelProposal,
+    adjudication: AgentAdjudication,
 }
 
 #[derive(Clone, Deserialize)]
@@ -205,6 +246,202 @@ fn cleanup_suggestions(request: CleanupRequest) -> Result<Value, String> {
         "policy": "reviewOnly",
         "suggestions": suggestions
     }))
+}
+
+fn classification_proposal(
+    profiles: &ProfileAuthority,
+    directory: Dir,
+    request: ClassificationRequest,
+) -> Result<Value, String> {
+    let vault = VaultLease::from_granted_scope(directory)?;
+    let profile = profiles.active_approved_profile_read_only(&vault)?;
+    let proposal = classify(
+        &profile,
+        EvidencePacket {
+            source_identity: request.source_identity,
+            references: request.references,
+        },
+    )?;
+    Ok(json!({
+        "scopeId": request.scope_id,
+        "executionAvailable": false,
+        "requiresDesktopReview": true,
+        "proposal": proposal
+    }))
+}
+
+fn comparison_advice(directory: Dir, request: ComparisonRequest) -> Result<Value, String> {
+    let vault = VaultLease::from_granted_scope(directory)?;
+    let prepared = build_comparison_envelope(
+        &vault,
+        &request.operation_id,
+        request.knowledge_revision,
+        &request.evidence_ranges,
+    )?;
+    request.desktop_proposal.validate(&prepared.envelope)?;
+    request.agent_proposal.validate(&prepared.envelope)?;
+    request.adjudication.validate(&prepared.envelope)?;
+    let status = if request.adjudication.decision == AgentDecision::Review {
+        "review"
+    } else {
+        "completed"
+    };
+    Ok(json!({
+        "scopeId": request.scope_id,
+        "executionAvailable": false,
+        "requiresDesktopGraphReview": true,
+        "status": status,
+        "envelopeIdentity": prepared.identity,
+        "envelope": prepared.envelope,
+        "desktopProposal": request.desktop_proposal,
+        "agentProposal": request.agent_proposal,
+        "adjudication": request.adjudication
+    }))
+}
+
+fn classification_schema() -> Arc<JsonObject> {
+    object(json!({
+        "type": "object",
+        "properties": {
+            "scopeId": {"type": "string"},
+            "sourceIdentity": {
+                "type": "object",
+                "properties": {
+                    "algorithm": {"const": "SHA-256"},
+                    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+                },
+                "required": ["algorithm", "digest"],
+                "additionalProperties": false
+            },
+            "references": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 256,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "enum": [
+                                "documentText",
+                                "ocrText",
+                                "transcript",
+                                "reliableCompanion"
+                            ]
+                        },
+                        "location": {"type": "string", "maxLength": 256},
+                        "text": {"type": "string", "maxLength": 65536}
+                    },
+                    "required": ["kind", "location", "text"],
+                    "additionalProperties": false
+                }
+            }
+        },
+        "required": ["scopeId", "sourceIdentity", "references"],
+        "additionalProperties": false
+    }))
+}
+
+fn comparison_schema() -> Arc<JsonObject> {
+    object(json!({
+        "type": "object",
+        "properties": {
+            "scopeId": {"type": "string"},
+            "operationId": {"type": "string"},
+            "knowledgeRevision": {"type": "integer", "minimum": 1},
+            "evidenceRanges": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "startLine": {"type": "integer", "minimum": 1},
+                        "endLine": {"type": "integer", "minimum": 1}
+                    },
+                    "required": ["startLine", "endLine"],
+                    "additionalProperties": false
+                }
+            },
+            "desktopProposal": model_proposal_schema(),
+            "agentProposal": model_proposal_schema(),
+            "adjudication": adjudication_schema()
+        },
+        "required": [
+            "scopeId",
+            "operationId",
+            "knowledgeRevision",
+            "evidenceRanges",
+            "desktopProposal",
+            "agentProposal",
+            "adjudication"
+        ],
+        "additionalProperties": false
+    }))
+}
+
+fn model_proposal_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "summary": {"type": "string", "maxLength": 2048},
+            "relations": {
+                "type": "array",
+                "maxItems": 64,
+                "items": relation_schema()
+            }
+        },
+        "required": ["summary", "relations"],
+        "additionalProperties": false
+    })
+}
+
+fn relation_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "source": {"type": "string", "maxLength": 512},
+            "relationType": {"type": "string", "maxLength": 512},
+            "target": {"type": "string", "maxLength": 512},
+            "evidenceIds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {"type": "string"}
+            }
+        },
+        "required": ["source", "relationType", "target", "evidenceIds"],
+        "additionalProperties": false
+    })
+}
+
+fn adjudication_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "decision": {"enum": ["accept", "revise", "reject", "review"]},
+            "reason": {"type": "string", "maxLength": 2048},
+            "evidenceIds": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 16,
+                "items": {"type": "string"}
+            },
+            "selectedSide": {"type": ["string", "null"], "enum": ["desktop", "agent", null]},
+            "revisedRelations": {
+                "type": "array",
+                "maxItems": 64,
+                "items": relation_schema()
+            }
+        },
+        "required": [
+            "decision",
+            "reason",
+            "evidenceIds",
+            "selectedSide",
+            "revisedRelations"
+        ],
+        "additionalProperties": false
+    })
 }
 
 fn read_schema(label: &str) -> Arc<JsonObject> {
@@ -310,3 +547,7 @@ fn validate_name(value: &str) -> Result<(), String> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "tools_tests.rs"]
+mod tests;

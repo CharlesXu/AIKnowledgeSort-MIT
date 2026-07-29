@@ -4,6 +4,7 @@ use crate::agent_access::authority::AgentAccessAuthority;
 use crate::agent_access::schema::{
     AgentGrantSummary, AuthorizeRequest, Denial, DenialCode, IssuedSession, OpenSessionRequest,
 };
+use crate::profiles::ProfileAuthority;
 use http::HeaderMap;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, InitializeRequestParams, InitializeResult,
@@ -33,14 +34,20 @@ pub enum CallFailure {
 #[derive(Clone)]
 pub struct GovernedMcpService {
     authority: AgentAccessAuthority,
+    profiles: ProfileAuthority,
     config_root: PathBuf,
     session: Arc<Mutex<Option<AuthenticatedSession>>>,
 }
 
 impl GovernedMcpService {
-    pub fn new(authority: AgentAccessAuthority, config_root: PathBuf) -> Self {
+    pub fn new(
+        authority: AgentAccessAuthority,
+        profiles: ProfileAuthority,
+        config_root: PathBuf,
+    ) -> Self {
         Self {
             authority,
+            profiles,
             config_root,
             session: Arc::new(Mutex::new(None)),
         }
@@ -184,7 +191,13 @@ impl GovernedMcpService {
                 now,
             )
             .map_err(CallFailure::Denied)?;
-        dispatch(&session.grant, authorized, request.arguments).map_err(CallFailure::Invalid)
+        dispatch(
+            &self.profiles,
+            &session.grant,
+            authorized,
+            request.arguments,
+        )
+        .map_err(CallFailure::Invalid)
     }
 
     fn verify_request(
@@ -454,7 +467,11 @@ mod tests {
     #[test]
     fn authenticates_once_and_lists_only_fixed_granted_tools() {
         let (config, _scope, authority, _issued, headers) = setup();
-        let service = GovernedMcpService::new(authority, config.0.clone());
+        let service = GovernedMcpService::new(
+            authority,
+            crate::profiles::ProfileAuthority::default(),
+            config.0.clone(),
+        );
         assert!(service
             .initialize_from_headers(&HeaderMap::new(), now())
             .is_err());
@@ -482,9 +499,13 @@ mod tests {
     }
 
     #[test]
-    fn dispatches_bounded_reads_not_ready_advice_and_rejects_replay() {
+    fn dispatches_bounded_reads_semantic_validation_and_rejects_replay() {
         let (config, _scope, authority, issued, headers) = setup();
-        let service = GovernedMcpService::new(authority, config.0.clone());
+        let service = GovernedMcpService::new(
+            authority,
+            crate::profiles::ProfileAuthority::default(),
+            config.0.clone(),
+        );
         service.initialize_from_headers(&headers, now()).unwrap();
 
         let knowledge = service
@@ -514,16 +535,28 @@ mod tests {
             Err(CallFailure::Denied(ref denial)) if denial.code == DenialCode::ReplayedRequest
         ));
 
-        let not_ready = service
-            .call_tool_from_headers(
-                &headers,
-                "request-2",
-                CallToolRequestParams::new("classification.propose"),
-                now(),
-            )
-            .unwrap();
-        assert_eq!(not_ready["status"], "notReady");
-        assert_eq!(not_ready["executionAvailable"], false);
+        let unavailable = service.call_tool_from_headers(
+            &headers,
+            "request-2",
+            CallToolRequestParams::new("classification.propose").with_arguments(args(json!({
+                "scopeId": issued.grant.scopes[0].scope_id,
+                "sourceIdentity": {
+                    "algorithm": "SHA-256",
+                    "digest": "a".repeat(64)
+                },
+                "references": [{
+                    "kind": "documentText",
+                    "location": "page:1",
+                    "text": "Evidence"
+                }]
+            }))),
+            now(),
+        );
+        assert!(matches!(
+            unavailable,
+            Err(CallFailure::Invalid(ref message))
+                if message == "Granted scope is not an initialized Vault"
+        ));
 
         let cleanup = service
             .call_tool_from_headers(
@@ -583,7 +616,11 @@ mod tests {
     #[test]
     fn rechecks_headers_and_revocation_for_every_request() {
         let (config, _scope, authority, issued, headers) = setup();
-        let service = GovernedMcpService::new(authority.clone(), config.0.clone());
+        let service = GovernedMcpService::new(
+            authority.clone(),
+            crate::profiles::ProfileAuthority::default(),
+            config.0.clone(),
+        );
         service.initialize_from_headers(&headers, now()).unwrap();
 
         let mut spoofed = headers.clone();
@@ -604,7 +641,11 @@ mod tests {
     #[test]
     fn rejects_replayed_tool_listing_requests() {
         let (config, _scope, authority, _issued, headers) = setup();
-        let service = GovernedMcpService::new(authority, config.0.clone());
+        let service = GovernedMcpService::new(
+            authority,
+            crate::profiles::ProfileAuthority::default(),
+            config.0.clone(),
+        );
         service.initialize_from_headers(&headers, now()).unwrap();
 
         service

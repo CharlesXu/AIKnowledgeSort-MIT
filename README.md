@@ -91,10 +91,9 @@ knowledge nodes, and link-only generated indexes.
 The bundled discussion profile has zero executable rules and remains visibly
 draft, inactive, and non-committable. Dictionary terms are candidate-recall
 vocabulary, not deterministic keyword placement rules. Model-assisted
-conversion of future notices and drafts, the governed semantic classification
-MCP adapter, and activation of any unapproved profile are not implemented or
-claimed. The supplied discussion material is not represented as EMT-approved
-or effective company policy.
+conversion of future notices and drafts and activation of any unapproved
+profile are not implemented or claimed. The supplied discussion material is
+not represented as EMT-approved or effective company policy.
 
 ## Canonical naming and source-preserving archive
 
@@ -302,10 +301,69 @@ stateful session routing. Every tool call still crosses the same Rust grant,
 session, scope, replay, expiry, revocation, request-count, and byte-budget
 authorization boundary. `capabilities.read`, bounded no-follow `knowledge.read`,
 parsed bounded `graph.read`, and exact-SHA-256 review-only `cleanup.suggest` are
-implemented. `comparison.run` and `classification.propose` return a structured
-`notReady` result until dedicated governed adapters exist; no semantic output is
-fabricated. There is no MCP move, rename, delete, archive commit, cleanup
-execution, arbitrary command, ambient path, or automatic grant reactivation.
+implemented.
+
+`classification.propose` requires an explicitly granted initialized Vault, its
+exact active approved profile, one SHA-256 source identity, and bounded semantic
+evidence references. It returns the cited profile/version/rules, destination or
+dedicated review reason, and `requiresDesktopReview: true`. It does not create a
+classification batch or make an archive action available:
+
+```json
+{
+  "scopeId": "<granted-vault-scope>",
+  "sourceIdentity": {
+    "algorithm": "SHA-256",
+    "digest": "<64-lowercase-hex>"
+  },
+  "references": [
+    {
+      "kind": "documentText",
+      "location": "page:3",
+      "text": "Bounded semantic evidence from the reviewed source"
+    }
+  ]
+}
+```
+
+`comparison.run` reads one exact committed Markdown revision and evidence range,
+then validates two already-produced model proposals and the Agent-supplied
+adjudication against the same deterministic envelope. It does not call a model
+endpoint, persist a comparison record, or write a graph relation. The returned
+envelope identity and `requiresDesktopGraphReview: true` allow the desktop to
+retain final review authority:
+
+```json
+{
+  "scopeId": "<granted-vault-scope>",
+  "operationId": "<committed-operation-id>",
+  "knowledgeRevision": 1,
+  "evidenceRanges": [{ "startLine": 2, "endLine": 4 }],
+  "desktopProposal": {
+    "summary": "First model output",
+    "relations": [{
+      "source": "A",
+      "relationType": "supports",
+      "target": "B",
+      "evidenceIds": ["line-2-4"]
+    }]
+  },
+  "agentProposal": {
+    "summary": "Second model output",
+    "relations": []
+  },
+  "adjudication": {
+    "decision": "accept",
+    "reason": "The selected output is supported by the cited revision.",
+    "evidenceIds": ["line-2-4"],
+    "selectedSide": "desktop",
+    "revisedRelations": []
+  }
+}
+```
+
+There is no MCP move, rename, delete, archive commit, cleanup execution,
+arbitrary command, ambient path, or automatic grant reactivation.
 
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,

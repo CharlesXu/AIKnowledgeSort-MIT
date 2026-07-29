@@ -62,7 +62,12 @@ async fn direct_http_and_stdio_share_one_revocable_desktop_authority() {
         .unwrap();
     let transport = McpTransportAuthority::default();
     let broker = transport
-        .start(authority.clone(), config.0.clone(), 0)
+        .start(
+            authority.clone(),
+            ai_knowledge_sort_lib::profiles::ProfileAuthority::default(),
+            config.0.clone(),
+            0,
+        )
         .await
         .unwrap();
     let url = broker.url.unwrap();

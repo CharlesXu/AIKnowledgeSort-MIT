@@ -28,12 +28,14 @@ pub async fn inspect_mcp_transport(
 pub async fn start_mcp_transport(
     app: tauri::AppHandle,
     agent_access: tauri::State<'_, AgentAccessAuthority>,
+    profiles: tauri::State<'_, crate::profiles::ProfileAuthority>,
     transport: tauri::State<'_, McpTransportAuthority>,
     request: StartMcpTransportRequest,
 ) -> Result<McpTransportState, String> {
     transport
         .start(
             agent_access.inner().clone(),
+            profiles.inner().clone(),
             app_config_directory(&app)?,
             request.port,
         )

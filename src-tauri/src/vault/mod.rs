@@ -62,6 +62,31 @@ pub(crate) struct VaultLease {
 }
 
 impl VaultLease {
+    pub(crate) fn from_granted_scope(directory: Dir) -> Result<Self, String> {
+        let path = Path::new(VAULT_AUTHORITY_RECORD);
+        let metadata = directory
+            .symlink_metadata(path)
+            .map_err(|_| "Granted scope is not an initialized Vault".to_owned())?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err("Granted Vault authority record is not a regular file".to_owned());
+        }
+        let record: VaultAuthorityRecord = records::read_json(&directory, path)?;
+        if record.schema_version != VAULT_AUTHORITY_SCHEMA_VERSION
+            || record.authority_id.is_empty()
+            || record.authority_id.len() > 128
+        {
+            return Err("Granted Vault authority record has an unsupported schema".to_owned());
+        }
+        Ok(Self {
+            summary: VaultSummary {
+                authority_id: record.authority_id,
+                display_path: "granted-vault-scope".to_owned(),
+                status: VaultStatus::Authoritative,
+            },
+            directory,
+        })
+    }
+
     pub(crate) fn occupied_names_for_digest(
         &self,
         digest: &str,
