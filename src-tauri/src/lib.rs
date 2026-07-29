@@ -30,6 +30,7 @@ pub fn run() {
         .manage(archive::ArchiveUndoPlanRegistry::default())
         .manage(cleanup::CleanupPlanRegistry::default())
         .manage(naming::NamingBatchRegistry::default())
+        .manage(profiles::ClassificationBatchRegistry::default())
         .manage(knowledge::KnowledgeWriteRegistry::default())
         .manage(graph::GraphWriteRegistry::default())
         .manage(model_runtime::ModelRuntimeAuthority::default())
@@ -115,6 +116,7 @@ pub fn run() {
             model_runtime::remove_model_config,
             model_runtime::run_model_comparison,
             profiles::inspect_profile_state,
+            profiles::create_classification_batch,
             profiles::import_local_profile_candidate,
             profiles::import_url_profile_candidate,
             profiles::decide_profile_candidate

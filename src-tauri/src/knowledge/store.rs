@@ -364,6 +364,7 @@ mod tests {
             plan_version: 2,
             proposal_id: "knowledge-proposal".to_owned(),
             naming_batch_id: "knowledge-naming".to_owned(),
+            classification_batch_id: None,
             authority_id: summary.authority_id,
             vault_path: vault_path.to_string_lossy().into_owned(),
             expires_at_unix_ms: u64::MAX,
@@ -375,6 +376,7 @@ mod tests {
                 destination_path: format!("Originals/{}/Knowledge-source.txt", identity.digest),
                 original_name: "source.txt".to_owned(),
                 canonical_name: "Knowledge-source.txt".to_owned(),
+                classification: None,
                 naming: NamingDecisionEvidence {
                     naming_proposal_id: "knowledge-name".to_owned(),
                     original_name: "source.txt".to_owned(),

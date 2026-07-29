@@ -72,6 +72,54 @@ export interface DecideProfileCandidateRequest {
   readonly decision: ProfileDecision;
 }
 
+export type EvidenceKind =
+  | "documentText"
+  | "ocrText"
+  | "transcript"
+  | "reliableCompanion";
+
+export interface ClassificationEvidenceReference {
+  readonly kind: EvidenceKind;
+  readonly location: string;
+  readonly text: string;
+}
+
+export interface ClassificationProposal {
+  readonly proposalId: string;
+  readonly sourceIdentity: ContentIdentity;
+  readonly profileId: string;
+  readonly profileVersion: string;
+  readonly status: "proposed" | "classificationReview";
+  readonly ruleIds: readonly string[];
+  readonly evidence: readonly {
+    readonly kind: EvidenceKind;
+    readonly location: string;
+  }[];
+  readonly destination: readonly string[] | null;
+  readonly reviewReason: "missingEvidence" | "conflictingRules" | null;
+  readonly committable: boolean;
+}
+
+export interface ClassificationBatch {
+  readonly batchId: string;
+  readonly discoveryProposalId: string;
+  readonly profileId: string;
+  readonly profileVersion: string;
+  readonly expiresAtUnixMs: number;
+  readonly items: readonly {
+    readonly itemId: string;
+    readonly proposal: ClassificationProposal;
+  }[];
+}
+
+export interface CreateClassificationBatchRequest {
+  readonly proposalId: string;
+  readonly items: readonly {
+    readonly itemId: string;
+    readonly references: readonly ClassificationEvidenceReference[];
+  }[];
+}
+
 export interface ProfileClient {
   inspect(): Promise<ProfileStateSummary>;
   importLocalCandidate(): Promise<ProfileCandidateRecord | null>;
@@ -79,4 +127,7 @@ export interface ProfileClient {
   decideCandidate(
     request: DecideProfileCandidateRequest,
   ): Promise<ProfileStateSummary>;
+  createClassificationBatch(
+    request: CreateClassificationBatchRequest,
+  ): Promise<ClassificationBatch>;
 }

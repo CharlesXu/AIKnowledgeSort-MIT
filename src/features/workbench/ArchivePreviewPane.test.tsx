@@ -10,6 +10,10 @@ import type {
   NamingBatch,
   NamingClient,
 } from "../naming/types";
+import type {
+  ClassificationBatch,
+  ProfileClient,
+} from "../profiles/types";
 import { ArchivePreviewPane } from "./ArchivePreviewPane";
 
 const proposal: DiscoveryProposal = {
@@ -44,9 +48,10 @@ const vault: VaultSummary = {
 
 const plan: ArchivePlan = {
   planId: "plan-1",
-  planVersion: 2,
+  planVersion: 3,
   proposalId: "proposal-1",
   namingBatchId: "naming-batch-1",
+  classificationBatchId: "classification-batch-1",
   authorityId: "vault-1",
   vaultPath: "/Knowledge Vault",
   expiresAtUnixMs: Date.now() + 300_000,
@@ -75,8 +80,34 @@ const plan: ArchivePlan = {
           },
         ],
       },
+      classification: {
+        proposalId: "classification-proposal-1",
+        sourceIdentity: proposal.items[0].identity,
+        profileId: "ninebot",
+        profileVersion: "1.0.0",
+        status: "proposed",
+        ruleIds: ["semiconductor-reliability"],
+        evidence: [{ kind: "documentText", location: "page:1" }],
+        destination: ["Research", "Semiconductors", "Reliability"],
+        reviewReason: null,
+        committable: true,
+      },
       byteSize: 12,
       identity: proposal.items[0].identity,
+    },
+  ],
+};
+
+const classificationBatch: ClassificationBatch = {
+  batchId: "classification-batch-1",
+  discoveryProposalId: "proposal-1",
+  profileId: "ninebot",
+  profileVersion: "1.0.0",
+  expiresAtUnixMs: Date.now() + 300_000,
+  items: [
+    {
+      itemId: "item-1",
+      proposal: plan.items[0].classification!,
     },
   ],
 };
@@ -185,6 +216,18 @@ function namingClient(batch: NamingBatch = namingBatch): NamingClient {
   };
 }
 
+function profileClient(
+  batch: ClassificationBatch = classificationBatch,
+): ProfileClient {
+  return {
+    inspect: vi.fn(),
+    importLocalCandidate: vi.fn(),
+    importUrlCandidate: vi.fn(),
+    decideCandidate: vi.fn(),
+    createClassificationBatch: vi.fn().mockResolvedValue(batch),
+  };
+}
+
 describe("archive preview", () => {
   test("requires an exact reviewed plan before a source-preserving commit", async () => {
     const archiveClient = client();
@@ -194,6 +237,7 @@ describe("archive preview", () => {
       <ArchivePreviewPane
         archiveClient={archiveClient}
         namingClient={names}
+        profileClient={profileClient()}
         onCommittedItems={onCommittedItems}
         proposal={proposal}
       />,
@@ -228,8 +272,24 @@ describe("archive preview", () => {
       }),
       { target: { value: "page:1" } },
     );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Classification evidence for notes.md",
+      }),
+      { target: { value: "MCU semiconductor reset reliability" } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
     await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review classification" }),
+    );
+    const classificationReview = await screen.findByRole("region", {
+      name: "Classification review",
+    });
+    expect(classificationReview).toHaveTextContent(
+      "Research / Semiconductors / Reliability",
+    );
+    expect(classificationReview).toHaveTextContent("ninebot · 1.0.0");
     fireEvent.click(
       screen.getByRole("button", { name: "Review canonical names" }),
     );
@@ -247,6 +307,7 @@ describe("archive preview", () => {
       expect(archiveClient.createPlan).toHaveBeenCalledWith({
         proposalId: "proposal-1",
         itemIds: ["item-1"],
+        classificationBatchId: "classification-batch-1",
         namingBatchId: "naming-batch-1",
       }),
     );
@@ -333,6 +394,7 @@ describe("archive preview", () => {
       <ArchivePreviewPane
         archiveClient={archiveClient}
         namingClient={namingClient()}
+        profileClient={profileClient()}
         onUndoneOperation={onUndoneOperation}
         proposal={proposal}
       />,
@@ -348,8 +410,18 @@ describe("archive preview", () => {
       }),
       { target: { value: "page:1" } },
     );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Classification evidence for notes.md",
+      }),
+      { target: { value: "MCU semiconductor reset reliability" } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
     await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review classification" }),
+    );
+    await screen.findByRole("region", { name: "Classification review" });
     fireEvent.click(
       screen.getByRole("button", { name: "Review canonical names" }),
     );
@@ -402,6 +474,67 @@ describe("archive preview", () => {
     ).toBeNull();
   });
 
+  test("blocks naming and archive planning when classification needs review", async () => {
+    const reviewBatch: ClassificationBatch = {
+      ...classificationBatch,
+      items: [
+        {
+          ...classificationBatch.items[0],
+          proposal: {
+            ...classificationBatch.items[0].proposal,
+            status: "classificationReview",
+            destination: null,
+            reviewReason: "missingEvidence",
+            committable: false,
+          },
+        },
+      ],
+    };
+    const archiveClient = client();
+    render(
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={namingClient()}
+        profileClient={profileClient(reviewBatch)}
+        proposal={proposal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /notes\.md/i }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+      { target: { value: "Reset reliability" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Classification evidence for notes.md",
+      }),
+      { target: { value: "Unmatched semantic evidence" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Evidence location for notes.md",
+      }),
+      { target: { value: "page:1" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+    await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review classification" }),
+    );
+
+    expect(
+      await screen.findByText("Missing semantic evidence"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Review canonical names" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Review archive plan" }),
+    ).toBeDisabled();
+    expect(archiveClient.createPlan).not.toHaveBeenCalled();
+  });
+
   test("blocks archive planning when canonical naming needs review", async () => {
     const reviewBatch: NamingBatch = {
       ...namingBatch,
@@ -419,6 +552,7 @@ describe("archive preview", () => {
       <ArchivePreviewPane
         archiveClient={archiveClient}
         namingClient={namingClient(reviewBatch)}
+        profileClient={profileClient()}
         proposal={proposal}
       />,
     );
@@ -434,8 +568,18 @@ describe("archive preview", () => {
       }),
       { target: { value: "page:1" } },
     );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Classification evidence for notes.md",
+      }),
+      { target: { value: "MCU semiconductor reset reliability" } },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
     await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review classification" }),
+    );
+    await screen.findByRole("region", { name: "Classification review" });
     fireEvent.click(
       screen.getByRole("button", { name: "Review canonical names" }),
     );
@@ -456,6 +600,7 @@ describe("archive preview", () => {
       <ArchivePreviewPane
         archiveClient={archiveClient}
         namingClient={namingClient()}
+        profileClient={profileClient()}
         proposal={proposal}
       />,
     );

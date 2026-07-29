@@ -74,6 +74,7 @@ function client(): ProfileClient {
         status: "approved",
       }],
     }),
+    createClassificationBatch: vi.fn(),
   };
 }
 
@@ -196,6 +197,7 @@ describe("ProfileReview", () => {
       importLocalCandidate: vi.fn(),
       importUrlCandidate: vi.fn(),
       decideCandidate: vi.fn(),
+      createClassificationBatch: vi.fn(),
     };
     render(<ProfileReview client={unavailable} />);
 

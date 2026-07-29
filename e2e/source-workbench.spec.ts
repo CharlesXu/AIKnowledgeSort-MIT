@@ -101,7 +101,7 @@ test("keeps archive operations honest in the browser fixture", async ({
   await expect(page.getByText(/Saved revision/)).toHaveCount(0);
 });
 
-test("keeps canonical naming non-mutating in the browser fixture", async ({
+test("keeps classification and canonical naming non-mutating in the browser fixture", async ({
   page,
 }) => {
   const archive = page.getByRole("region", { name: "Archive preview" });
@@ -116,14 +116,22 @@ test("keeps canonical naming non-mutating in the browser fixture", async ({
       name: "Evidence location for meeting-notes.md",
     })
     .fill("section:summary");
+  await archive
+    .getByRole("textbox", {
+      name: "Classification evidence for meeting-notes.md",
+    })
+    .fill("Meeting notes semantic evidence");
 
   await archive
-    .getByRole("button", { name: "Review canonical names" })
+    .getByRole("button", { name: "Review classification" })
     .click();
 
   await expect(archive.getByRole("alert")).toContainText(
-    "Desktop runtime is required for naming operations.",
+    "Desktop runtime is required for profile operations.",
   );
+  await expect(
+    archive.getByRole("button", { name: "Review canonical names" }),
+  ).toBeDisabled();
   await expect(archive).toContainText("meeting-notes.md");
   await expect(
     archive.getByRole("region", { name: "Exact archive plan" }),

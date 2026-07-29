@@ -1,16 +1,21 @@
+mod classification;
 mod ninebot;
 pub mod proposal;
 mod remote;
 pub mod schema;
 mod store;
 
-use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
+use crate::discovery::{open_trusted_drop_root, CapabilityRoot, ReviewedSourceRegistry};
 use crate::vault::VaultAuthorityRegistry;
 use schema::MAX_PROFILE_BYTES;
 use serde::Deserialize;
 use std::io::Read;
 use std::time::SystemTime;
 
+pub use classification::{
+    ClassificationBatch, ClassificationBatchItem, ClassificationBatchRegistry,
+    ClassificationItemInput,
+};
 pub use store::{
     CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
     ProfileDecisionSummary, ProfileDiff, ProfileSourceKind, ProfileStateSummary, ProfileSummary,
@@ -31,6 +36,13 @@ pub struct ImportUrlProfileCandidateRequest {
     url: String,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct CreateClassificationBatchRequest {
+    proposal_id: String,
+    items: Vec<ClassificationItemInput>,
+}
+
 fn current_vault(registry: &VaultAuthorityRegistry) -> Result<crate::vault::VaultLease, String> {
     let summary = registry.current_summary()?;
     registry.lease(&summary.authority_id)
@@ -43,6 +55,33 @@ pub fn inspect_profile_state(
 ) -> Result<ProfileStateSummary, String> {
     let vault = current_vault(vaults.inner())?;
     profiles.inspect(&vault)
+}
+
+#[tauri::command]
+pub(crate) fn create_classification_batch(
+    request: CreateClassificationBatchRequest,
+    reviewed_sources: tauri::State<'_, ReviewedSourceRegistry>,
+    vaults: tauri::State<'_, VaultAuthorityRegistry>,
+    profiles: tauri::State<'_, ProfileAuthority>,
+    batches: tauri::State<'_, ClassificationBatchRegistry>,
+) -> Result<ClassificationBatch, String> {
+    let now = std::time::Instant::now();
+    let item_ids = request
+        .items
+        .iter()
+        .map(|item| item.item_id.clone())
+        .collect::<Vec<_>>();
+    let sources = reviewed_sources.resolve_selection_at(&request.proposal_id, &item_ids, now)?;
+    let vault = current_vault(vaults.inner())?;
+    let profile = profiles.active_approved_profile(&vault)?;
+    batches.create_at(
+        &request.proposal_id,
+        &profile,
+        sources,
+        request.items,
+        now,
+        SystemTime::now(),
+    )
 }
 
 #[tauri::command]

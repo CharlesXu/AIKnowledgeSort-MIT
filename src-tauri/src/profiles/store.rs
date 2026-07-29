@@ -156,6 +156,30 @@ pub struct ProfileAuthority {
 }
 
 impl ProfileAuthority {
+    pub(crate) fn active_approved_profile(
+        &self,
+        vault: &VaultLease,
+    ) -> Result<DeclarativeProfile, String> {
+        let _operation = self
+            .operation
+            .lock()
+            .map_err(|_| "Profile authority is unavailable".to_owned())?;
+        ensure_bundled_ninebot_draft(vault)?;
+        reconcile_approved_decisions(vault)?;
+        let state = load_state(vault)?;
+        let active = state
+            .active
+            .ok_or_else(|| "No approved classification profile is active".to_owned())?;
+        let profile: DeclarativeProfile = read_json(
+            &vault.directory,
+            &installed_profile_path(&active.profile_id, &active.version),
+        )?;
+        if profile.status != ProfileStatus::Approved {
+            return Err("Active classification profile is not approved".to_owned());
+        }
+        Ok(profile)
+    }
+
     pub(crate) fn inspect(&self, vault: &VaultLease) -> Result<ProfileStateSummary, String> {
         let _operation = self
             .operation

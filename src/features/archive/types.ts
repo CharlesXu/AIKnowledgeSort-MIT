@@ -1,5 +1,6 @@
 import type { ContentIdentity } from "../drop/types";
 import type { NamingFact } from "../naming/types";
+import type { ClassificationProposal } from "../profiles/types";
 
 export interface NamingDecisionEvidence {
   readonly namingProposalId: string;
@@ -24,6 +25,7 @@ export interface ArchivePlanItem {
   readonly originalName: string;
   readonly canonicalName: string;
   readonly naming: NamingDecisionEvidence;
+  readonly classification?: ClassificationProposal;
   readonly byteSize: number;
   readonly identity: ContentIdentity;
 }
@@ -33,6 +35,7 @@ export interface ArchivePlan {
   readonly planVersion: number;
   readonly proposalId: string;
   readonly namingBatchId: string;
+  readonly classificationBatchId?: string;
   readonly authorityId: string;
   readonly vaultPath: string;
   readonly expiresAtUnixMs: number;
@@ -60,6 +63,7 @@ export interface CreateArchivePlanRequest {
   readonly proposalId: string;
   readonly itemIds: readonly string[];
   readonly namingBatchId: string;
+  readonly classificationBatchId: string;
 }
 
 export interface ConfirmArchivePlanRequest {

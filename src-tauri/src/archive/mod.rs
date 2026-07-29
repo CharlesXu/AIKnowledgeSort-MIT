@@ -4,6 +4,7 @@ pub(crate) mod undo;
 
 use crate::discovery::ReviewedSourceRegistry;
 use crate::naming::NamingBatchRegistry;
+use crate::profiles::ClassificationBatchRegistry;
 use crate::vault::VaultAuthorityRegistry;
 use serde::Deserialize;
 use std::time::{Instant, SystemTime};
@@ -23,6 +24,7 @@ pub use undo::ArchiveUndoPlanRegistry;
 pub struct CreateArchivePlanRequest {
     proposal_id: String,
     item_ids: Vec<String>,
+    classification_batch_id: String,
     naming_batch_id: String,
 }
 
@@ -37,6 +39,7 @@ pub struct ConfirmArchivePlanRequest {
 pub fn create_archive_plan(
     request: CreateArchivePlanRequest,
     reviewed_sources: tauri::State<'_, ReviewedSourceRegistry>,
+    classification_batches: tauri::State<'_, ClassificationBatchRegistry>,
     naming_batches: tauri::State<'_, NamingBatchRegistry>,
     vaults: tauri::State<'_, VaultAuthorityRegistry>,
     plans: tauri::State<'_, ArchivePlanRegistry>,
@@ -45,19 +48,28 @@ pub fn create_archive_plan(
     let sources =
         reviewed_sources.resolve_selection_at(&request.proposal_id, &request.item_ids, now)?;
     let vault = vaults.current_summary()?;
+    let classification_batch = classification_batches.consume_at(
+        &request.classification_batch_id,
+        &request.proposal_id,
+        &request.item_ids,
+        now,
+    )?;
     let naming_batch = naming_batches.consume_at(
         &request.naming_batch_id,
         &request.proposal_id,
         &request.item_ids,
         now,
     )?;
-    plans.create_named_at(
+    plans.create_classified_named_at(
         &request.proposal_id,
         sources,
+        classification_batch,
         naming_batch,
         vault,
-        now,
-        SystemTime::now(),
+        plan::PlanClock {
+            monotonic: now,
+            wall: SystemTime::now(),
+        },
     )
 }
 

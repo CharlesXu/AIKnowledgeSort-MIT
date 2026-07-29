@@ -2,6 +2,7 @@ use super::plan::{ArchivePlan, ArchivePlanItem};
 use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
 use crate::identity::ContentIdentity;
 use crate::naming::schema::NamingDecisionEvidence;
+use crate::profiles::proposal::{ClassificationProposal, ProposalStatus};
 use crate::vault::records::{read_json, validate_relative_path, write_new_json};
 use crate::vault::VaultLease;
 use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt};
@@ -17,7 +18,8 @@ use uuid::Uuid;
 const MAX_OPERATION_RECORDS: usize = 10_000;
 const LEGACY_OPERATION_SCHEMA_VERSION: u32 = 1;
 const NAMING_OPERATION_SCHEMA_VERSION: u32 = 2;
-const OPERATION_SCHEMA_VERSION: u32 = 3;
+const AUDITED_OPERATION_SCHEMA_VERSION: u32 = 3;
+const CLASSIFIED_OPERATION_SCHEMA_VERSION: u32 = 4;
 const AUDIT_ANCHOR_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -120,6 +122,10 @@ struct OperationRecord {
     canonical_name: Option<String>,
     #[serde(default)]
     naming: Option<NamingDecisionEvidence>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    classification_batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    classification: Option<ClassificationProposal>,
     byte_size: u64,
     identity: ContentIdentity,
     invariant_result: String,
@@ -157,6 +163,10 @@ struct OriginalRegistration {
     canonical_name: Option<String>,
     #[serde(default)]
     naming: Option<NamingDecisionEvidence>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    classification_batch_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    classification: Option<ClassificationProposal>,
     original_format: String,
     byte_size: u64,
     identity: ContentIdentity,
@@ -325,7 +335,11 @@ impl OperationContext {
             destination_path,
             target_exposed: false,
             record: OperationRecord {
-                schema_version: OPERATION_SCHEMA_VERSION,
+                schema_version: if item.classification.is_some() {
+                    CLASSIFIED_OPERATION_SCHEMA_VERSION
+                } else {
+                    AUDITED_OPERATION_SCHEMA_VERSION
+                },
                 operation_id,
                 sequence: 0,
                 state: OperationState::Proposed,
@@ -344,6 +358,8 @@ impl OperationContext {
                 original_name: Some(item.original_name.clone()),
                 canonical_name: Some(item.canonical_name.clone()),
                 naming: Some(item.naming.clone()),
+                classification_batch_id: plan.classification_batch_id.clone(),
+                classification: item.classification.clone(),
                 byte_size: item.byte_size,
                 identity: item.identity.clone(),
                 invariant_result: "pending".to_owned(),
@@ -379,6 +395,16 @@ fn confirmation_binding_sha256(plan: &ArchivePlan, item: &ArchivePlanItem) -> St
         serde_json::to_vec(&item.naming)
             .expect("in-memory naming evidence serialization cannot fail"),
     );
+    if let Some(batch_id) = &plan.classification_batch_id {
+        hasher.update(batch_id.as_bytes());
+        hasher.update([0]);
+    }
+    if let Some(classification) = &item.classification {
+        hasher.update(
+            serde_json::to_vec(classification)
+                .expect("in-memory classification evidence serialization cannot fail"),
+        );
+    }
     format!("{:x}", hasher.finalize())
 }
 
@@ -389,6 +415,8 @@ fn execute_operation(
 ) -> Result<(), TransactionFailure> {
     validate_destination(&context.destination_path, &context.record.identity)
         .map_err(TransactionFailure::Rejected)?;
+    validate_naming_record(&context.record).map_err(TransactionFailure::Rejected)?;
+    validate_classification_record(&context.record).map_err(TransactionFailure::Rejected)?;
     let mut source = open_verified_source(&context.record).map_err(TransactionFailure::Rejected)?;
     transition_required(
         vault,
@@ -649,8 +677,10 @@ fn transition_required(
 }
 
 fn seal_initial_record(record: &mut OperationRecord) -> Result<(), String> {
-    if record.schema_version != OPERATION_SCHEMA_VERSION
-        || record.sequence != 0
+    if !matches!(
+        record.schema_version,
+        AUDITED_OPERATION_SCHEMA_VERSION | CLASSIFIED_OPERATION_SCHEMA_VERSION
+    ) || record.sequence != 0
         || record.previous_record_sha256.is_some()
     {
         return Err("Archive operation initial audit state is invalid".to_owned());
@@ -760,6 +790,8 @@ fn registration_from_record(record: &OperationRecord) -> OriginalRegistration {
         original_name: record.original_name.clone(),
         canonical_name: record.canonical_name.clone(),
         naming: record.naming.clone(),
+        classification_batch_id: record.classification_batch_id.clone(),
+        classification: record.classification.clone(),
         original_format,
         byte_size: record.byte_size,
         identity: record.identity.clone(),
@@ -811,6 +843,7 @@ pub(crate) fn reconcile_vault(vault: &VaultLease) -> Result<ReconciliationReport
         record.identity.validate()?;
         validate_destination(Path::new(&record.destination_path), &record.identity)?;
         validate_naming_record(&record)?;
+        validate_classification_record(&record)?;
         let context = context_from_record(record.clone());
         match record.state {
             OperationState::Committed => {
@@ -933,7 +966,8 @@ fn latest_operation_records(
             record.schema_version,
             LEGACY_OPERATION_SCHEMA_VERSION
                 | NAMING_OPERATION_SCHEMA_VERSION
-                | OPERATION_SCHEMA_VERSION
+                | AUDITED_OPERATION_SCHEMA_VERSION
+                | CLASSIFIED_OPERATION_SCHEMA_VERSION
         ) {
             return Err("Archive operation record schema is unsupported".to_owned());
         }
@@ -945,10 +979,12 @@ fn latest_operation_records(
     let mut latest = HashMap::with_capacity(streams.len());
     for (operation_id, mut records) in streams {
         records.sort_by_key(|(_, record)| record.sequence);
-        if records
-            .iter()
-            .any(|(_, record)| record.schema_version == OPERATION_SCHEMA_VERSION)
-        {
+        if records.iter().any(|(_, record)| {
+            matches!(
+                record.schema_version,
+                AUDITED_OPERATION_SCHEMA_VERSION | CLASSIFIED_OPERATION_SCHEMA_VERSION
+            )
+        }) {
             verify_operation_audit_stream(vault, &operation_id, &records)?;
         }
         let record = records
@@ -967,8 +1003,16 @@ fn verify_operation_audit_stream(
 ) -> Result<(), String> {
     validate_operation_id(operation_id)?;
     let mut previous = None::<String>;
+    let stream_schema = records
+        .first()
+        .ok_or_else(|| "Archive operation audit stream is empty".to_owned())?
+        .1
+        .schema_version;
     for (index, (path, record)) in records.iter().enumerate() {
-        if record.schema_version != OPERATION_SCHEMA_VERSION
+        if !matches!(
+            record.schema_version,
+            AUDITED_OPERATION_SCHEMA_VERSION | CLASSIFIED_OPERATION_SCHEMA_VERSION
+        ) || record.schema_version != stream_schema
             || record.operation_id != operation_id
             || record.sequence as usize != index
             || *path != operation_record_path(record)
@@ -1044,6 +1088,41 @@ fn validate_naming_record(record: &OperationRecord) -> Result<(), String> {
             != Some(canonical_name)
     {
         return Err("Archive operation naming evidence does not match its destination".to_owned());
+    }
+    Ok(())
+}
+
+fn validate_classification_record(record: &OperationRecord) -> Result<(), String> {
+    if record.schema_version < CLASSIFIED_OPERATION_SCHEMA_VERSION {
+        if record.classification_batch_id.is_some() || record.classification.is_some() {
+            return Err(
+                "Legacy archive operation unexpectedly contains classification evidence".to_owned(),
+            );
+        }
+        return Ok(());
+    }
+    let batch_id = record
+        .classification_batch_id
+        .as_deref()
+        .ok_or_else(|| "Archive operation classification batch is missing".to_owned())?;
+    let classification = record
+        .classification
+        .as_ref()
+        .ok_or_else(|| "Archive operation classification evidence is missing".to_owned())?;
+    if batch_id.is_empty()
+        || classification.status != ProposalStatus::Proposed
+        || !classification.committable
+        || classification.destination.is_none()
+        || classification.source_identity != record.identity
+        || classification.profile_id.is_empty()
+        || classification.profile_version.is_empty()
+        || classification.rule_ids.is_empty()
+        || classification.evidence.is_empty()
+    {
+        return Err(
+            "Archive operation classification evidence is not committable or correctly bound"
+                .to_owned(),
+        );
     }
     Ok(())
 }
@@ -1168,6 +1247,8 @@ mod tests {
     use crate::archive::plan::{ArchivePlan, ArchivePlanItem};
     use crate::identity::ContentIdentity;
     use crate::naming::schema::{NamingDecisionEvidence, NamingFact, NamingFactKind};
+    use crate::profiles::proposal::{ClassificationProposal, EvidenceCitation, ProposalStatus};
+    use crate::profiles::schema::EvidenceKind;
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
     use std::io::Cursor;
@@ -1230,6 +1311,7 @@ mod tests {
             plan_version: 2,
             proposal_id: "reviewed-proposal".to_owned(),
             naming_batch_id: "naming-batch".to_owned(),
+            classification_batch_id: None,
             authority_id: authority_id.to_owned(),
             vault_path: "trusted-vault".to_owned(),
             expires_at_unix_ms: u64::MAX,
@@ -1241,6 +1323,7 @@ mod tests {
                 destination_path: format!("Originals/{}/Canonical-source.txt", identity.digest),
                 original_name: "source.txt".to_owned(),
                 canonical_name: "Canonical-source.txt".to_owned(),
+                classification: None,
                 naming: NamingDecisionEvidence {
                     naming_proposal_id: "naming-proposal".to_owned(),
                     original_name: "source.txt".to_owned(),
@@ -1258,6 +1341,32 @@ mod tests {
                 identity,
             }],
         }
+    }
+
+    fn classified_plan(source: &Path, authority_id: &str) -> ArchivePlan {
+        let mut plan = plan(source, authority_id);
+        plan.plan_version = 3;
+        plan.classification_batch_id = Some("classification-batch".to_owned());
+        plan.items[0].classification = Some(ClassificationProposal {
+            proposal_id: "classification-proposal".to_owned(),
+            source_identity: plan.items[0].identity.clone(),
+            profile_id: "ninebot".to_owned(),
+            profile_version: "1.0.0".to_owned(),
+            status: ProposalStatus::Proposed,
+            rule_ids: vec!["semiconductor-reliability".to_owned()],
+            evidence: vec![EvidenceCitation {
+                kind: EvidenceKind::DocumentText,
+                location: "page:1".to_owned(),
+            }],
+            destination: Some(vec![
+                "Research".to_owned(),
+                "Semiconductors".to_owned(),
+                "Reliability".to_owned(),
+            ]),
+            review_reason: None,
+            committable: true,
+        });
+        plan
     }
 
     fn directory_is_empty(path: &Path) -> bool {
@@ -1358,6 +1467,46 @@ mod tests {
     }
 
     #[test]
+    fn commits_classification_as_v4_tamper_evident_registration_evidence() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let vault_path = tree.vault();
+        let vaults = VaultAuthorityRegistry::default();
+        let summary = vaults
+            .authorize_path(&vault_path)
+            .expect("authorize generated Vault");
+        let lease = vaults
+            .lease(&summary.authority_id)
+            .expect("lease generated Vault");
+        let plan = classified_plan(&source, &summary.authority_id);
+
+        let result = commit_plan_with_faults(plan, &lease, TransactionFaults::default());
+
+        assert_eq!(result.items[0].status, ArchiveItemStatus::Committed);
+        let registration = read_only_json(&vault_path.join(".aiks/registrations"));
+        assert_eq!(registration["schemaVersion"], 4);
+        assert_eq!(
+            registration["classificationBatchId"],
+            "classification-batch"
+        );
+        assert_eq!(registration["classification"]["profileId"], "ninebot");
+        assert_eq!(registration["classification"]["profileVersion"], "1.0.0");
+        assert_eq!(
+            registration["classification"]["ruleIds"][0],
+            "semiconductor-reliability"
+        );
+        assert_eq!(
+            registration["classification"]["evidence"][0]["location"],
+            "page:1"
+        );
+        assert_eq!(
+            registration["classification"]["destination"][2],
+            "Reliability"
+        );
+        reconcile_vault(&lease).expect("verify classified audit stream");
+    }
+
+    #[test]
     fn verified_registered_original_requires_a_current_sha256_valid_commit() {
         let tree = TempTree::new();
         let source = tree.source();
@@ -1399,6 +1548,30 @@ mod tests {
         let first = plan(&source, "authority");
         let mut second = first.clone();
         second.items[0].naming.facts[0].evidence_location = "page:2".to_owned();
+
+        let first_context =
+            OperationContext::new(&first, &first.items[0], "operation-1".to_owned());
+        let second_context =
+            OperationContext::new(&second, &second.items[0], "operation-2".to_owned());
+
+        assert_ne!(
+            first_context.record.confirmation_binding_sha256,
+            second_context.record.confirmation_binding_sha256
+        );
+    }
+
+    #[test]
+    fn confirmation_binding_changes_with_exact_classification_evidence() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let first = classified_plan(&source, "authority");
+        let mut second = first.clone();
+        second.items[0]
+            .classification
+            .as_mut()
+            .expect("classification")
+            .evidence[0]
+            .location = "page:2".to_owned();
 
         let first_context =
             OperationContext::new(&first, &first.items[0], "operation-1".to_owned());

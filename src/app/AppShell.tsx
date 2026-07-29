@@ -199,6 +199,7 @@ export function AppShell({
         <ArchivePreviewPane
           archiveClient={archiveClient}
           namingClient={namingClient}
+          profileClient={profileClient}
           onCommittedItems={(items, vault) => {
             const next = items.map((item) => ({
               authorityId: vault.authorityId,

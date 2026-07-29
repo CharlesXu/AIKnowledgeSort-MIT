@@ -5,13 +5,14 @@ import {
 } from "./profileClient";
 
 describe("profile client", () => {
-  test("invokes only the four explicit native profile boundaries", async () => {
+  test("invokes only the five explicit native profile boundaries", async () => {
     const invoke = vi
       .fn()
       .mockResolvedValueOnce({ installed: [], active: null, candidates: [] })
       .mockResolvedValueOnce({ candidateId: "candidate-1" })
       .mockResolvedValueOnce({ candidateId: "candidate-2" })
-      .mockResolvedValueOnce({ installed: [], active: null, candidates: [] });
+      .mockResolvedValueOnce({ installed: [], active: null, candidates: [] })
+      .mockResolvedValueOnce({ batchId: "classification-batch-1" });
     const client = createTauriProfileClient(invoke);
 
     await client.inspect();
@@ -23,6 +24,21 @@ describe("profile client", () => {
       candidateId: "candidate-1",
       reviewedDigest: "a".repeat(64),
       decision: "approve",
+    });
+    await client.createClassificationBatch({
+      proposalId: "proposal-1",
+      items: [
+        {
+          itemId: "item-1",
+          references: [
+            {
+              kind: "documentText",
+              location: "page:1",
+              text: "MCU reset reliability",
+            },
+          ],
+        },
+      ],
     });
 
     expect(invoke.mock.calls).toEqual([
@@ -43,6 +59,26 @@ describe("profile client", () => {
             candidateId: "candidate-1",
             reviewedDigest: "a".repeat(64),
             decision: "approve",
+          },
+        },
+      ],
+      [
+        "create_classification_batch",
+        {
+          request: {
+            proposalId: "proposal-1",
+            items: [
+              {
+                itemId: "item-1",
+                references: [
+                  {
+                    kind: "documentText",
+                    location: "page:1",
+                    text: "MCU reset reliability",
+                  },
+                ],
+              },
+            ],
           },
         },
       ],
@@ -70,6 +106,25 @@ describe("profile client", () => {
         candidateId: "candidate-1",
         reviewedDigest: "a".repeat(64),
         decision: "reject",
+      }),
+    ).rejects.toThrow(
+      "Desktop runtime is required for profile operations.",
+    );
+    await expect(
+      client.createClassificationBatch({
+        proposalId: "proposal-1",
+        items: [
+          {
+            itemId: "item-1",
+            references: [
+              {
+                kind: "documentText",
+                location: "page:1",
+                text: "MCU reset reliability",
+              },
+            ],
+          },
+        ],
       }),
     ).rejects.toThrow(
       "Desktop runtime is required for profile operations.",

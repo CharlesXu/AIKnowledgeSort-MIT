@@ -64,6 +64,15 @@ proposals; missing or conflicting semantic evidence is routed to
 the browser preview fail visibly instead of simulating persistence or
 activation.
 
+The archive workbench binds one five-minute, single-use classification batch to
+the exact reviewed source identities, active approved profile ID and version,
+matched rule IDs, cited evidence locations, and one primary category. Only
+committable proposals can continue through canonical naming and the reviewed
+archive plan. The physical original remains content-addressed; its primary
+classification is authoritative registration metadata. The classification
+batch and evidence are included in the v4 operation hash chain, terminal audit
+anchor, confirmation binding, and immutable original registration.
+
 Profile schema version 2 adds a bounded parent-linked taxonomy and declarative
 governance policy while preserving schema version 1 candidate compatibility.
 Candidate diffs separately report added, removed, and changed taxonomy nodes
@@ -83,7 +92,7 @@ The bundled discussion profile has zero executable rules and remains visibly
 draft, inactive, and non-committable. Dictionary terms are candidate-recall
 vocabulary, not deterministic keyword placement rules. Model-assisted
 conversion of future notices and drafts, the governed semantic classification
-adapter, and activation of any unapproved profile are not implemented or
+MCP adapter, and activation of any unapproved profile are not implemented or
 claimed. The supplied discussion material is not represented as EMT-approved
 or effective company policy.
 
@@ -300,8 +309,8 @@ execution, arbitrary command, ambient path, or automatic grant reactivation.
 
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
-automatic classification or naming, physical source renaming, user-controlled
-cleanup undo, classified destination paths, automatic graph inference,
+model-generated classification or naming, physical source renaming,
+user-controlled cleanup undo, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG
 indexing/retrieval, a 3D graph, secure keychain integration, and URL profile

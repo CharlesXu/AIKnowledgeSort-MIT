@@ -2,6 +2,8 @@ use crate::discovery::ReviewedSource;
 use crate::identity::ContentIdentity;
 use crate::naming::schema::{canonical_policy, NamingDecisionEvidence, NamingStatus};
 use crate::naming::NamingBatch;
+use crate::profiles::proposal::{ClassificationProposal, ProposalStatus};
+use crate::profiles::ClassificationBatch;
 use crate::vault::VaultSummary;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -13,6 +15,11 @@ use uuid::Uuid;
 const PLAN_VERSION: u32 = 2;
 const MAX_OPAQUE_ID_BYTES: usize = 128;
 
+pub(crate) struct PlanClock {
+    pub monotonic: Instant,
+    pub wall: SystemTime,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ArchivePlanItem {
@@ -22,6 +29,8 @@ pub struct ArchivePlanItem {
     pub original_name: String,
     pub canonical_name: String,
     pub naming: NamingDecisionEvidence,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classification: Option<ClassificationProposal>,
     pub byte_size: u64,
     pub identity: ContentIdentity,
 }
@@ -33,6 +42,8 @@ pub struct ArchivePlan {
     pub plan_version: u32,
     pub proposal_id: String,
     pub naming_batch_id: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub classification_batch_id: Option<String>,
     pub authority_id: String,
     pub vault_path: String,
     pub expires_at_unix_ms: u64,
@@ -83,6 +94,7 @@ impl ArchivePlanRegistry {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn create_named_at(
         &self,
         proposal_id: &str,
@@ -91,6 +103,47 @@ impl ArchivePlanRegistry {
         vault: VaultSummary,
         now: Instant,
         wall_time: SystemTime,
+    ) -> Result<ArchivePlan, String> {
+        self.create_with_classification_at(
+            proposal_id,
+            sources,
+            None,
+            naming_batch,
+            vault,
+            PlanClock {
+                monotonic: now,
+                wall: wall_time,
+            },
+        )
+    }
+
+    pub(crate) fn create_classified_named_at(
+        &self,
+        proposal_id: &str,
+        sources: Vec<ReviewedSource>,
+        classification_batch: ClassificationBatch,
+        naming_batch: NamingBatch,
+        vault: VaultSummary,
+        clock: PlanClock,
+    ) -> Result<ArchivePlan, String> {
+        self.create_with_classification_at(
+            proposal_id,
+            sources,
+            Some(classification_batch),
+            naming_batch,
+            vault,
+            clock,
+        )
+    }
+
+    fn create_with_classification_at(
+        &self,
+        proposal_id: &str,
+        sources: Vec<ReviewedSource>,
+        classification_batch: Option<ClassificationBatch>,
+        naming_batch: NamingBatch,
+        vault: VaultSummary,
+        clock: PlanClock,
     ) -> Result<ArchivePlan, String> {
         validate_opaque_id(proposal_id, "discovery proposal")?;
         validate_opaque_id(&naming_batch.batch_id, "naming batch")?;
@@ -119,6 +172,41 @@ impl ArchivePlanRegistry {
         if proposals.len() != sources.len() {
             return Err("Naming batch contains duplicate items".to_owned());
         }
+        let classification_batch_id = classification_batch
+            .as_ref()
+            .map(|batch| batch.batch_id.clone());
+        let mut classifications = match classification_batch {
+            Some(batch) => {
+                validate_opaque_id(&batch.batch_id, "classification batch")?;
+                if batch.discovery_proposal_id != proposal_id || batch.items.len() != sources.len()
+                {
+                    return Err(
+                        "Classification batch does not match the discovery proposal".to_owned()
+                    );
+                }
+                let proposals = batch
+                    .items
+                    .into_iter()
+                    .map(|item| (item.item_id, item.proposal))
+                    .collect::<HashMap<_, _>>();
+                if proposals.len() != sources.len()
+                    || proposals.values().any(|proposal| {
+                        proposal.profile_id != batch.profile_id
+                            || proposal.profile_version != batch.profile_version
+                            || proposal.status != ProposalStatus::Proposed
+                            || !proposal.committable
+                            || proposal.destination.is_none()
+                    })
+                {
+                    return Err(
+                        "Classification batch contains review-only or mismatched proposals"
+                            .to_owned(),
+                    );
+                }
+                Some(proposals)
+            }
+            None => None,
+        };
 
         let mut seen_item_ids = HashSet::with_capacity(sources.len());
         let mut seen_destinations = HashSet::with_capacity(sources.len());
@@ -162,6 +250,20 @@ impl ArchivePlanRegistry {
                 applied_rule: proposal.applied_rule,
                 facts: proposal.facts,
             };
+            let classification = match classifications.as_mut() {
+                Some(proposals) => {
+                    let proposal = proposals.remove(&source.item_id).ok_or_else(|| {
+                        "Classification batch is missing a reviewed item".to_owned()
+                    })?;
+                    if proposal.source_identity != source.identity {
+                        return Err(
+                            "Classification identity does not match the reviewed source".to_owned()
+                        );
+                    }
+                    Some(proposal)
+                }
+                None => None,
+            };
             items.push(ArchivePlanItem {
                 item_id: source.item_id,
                 source_path: source.path.to_string_lossy().into_owned(),
@@ -169,13 +271,15 @@ impl ArchivePlanRegistry {
                 original_name: source.name,
                 canonical_name,
                 naming,
+                classification,
                 byte_size: source.byte_size,
                 identity: source.identity,
             });
         }
         items.sort_by(|left, right| left.item_id.cmp(&right.item_id));
 
-        let expires_at_unix_ms = wall_time
+        let expires_at_unix_ms = clock
+            .wall
             .duration_since(UNIX_EPOCH)
             .map_err(|_| "System clock is before the Unix epoch".to_owned())?
             .checked_add(self.limits.ttl)
@@ -187,16 +291,21 @@ impl ArchivePlanRegistry {
             .plans
             .lock()
             .map_err(|_| "Archive plan registry is unavailable".to_owned())?;
-        plans.retain(|_, stored| stored.expires_at > now);
+        plans.retain(|_, stored| stored.expires_at > clock.monotonic);
         if plans.len() >= self.limits.max_plans {
             return Err("Too many active archive plans".to_owned());
         }
         let plan_id = unique_plan_id(&plans);
         let plan = ArchivePlan {
             plan_id: plan_id.clone(),
-            plan_version: PLAN_VERSION,
+            plan_version: if classification_batch_id.is_some() {
+                PLAN_VERSION + 1
+            } else {
+                PLAN_VERSION
+            },
             proposal_id: proposal_id.to_owned(),
             naming_batch_id: naming_batch.batch_id,
+            classification_batch_id,
             authority_id: vault.authority_id,
             vault_path: vault.display_path,
             expires_at_unix_ms,
@@ -207,7 +316,7 @@ impl ArchivePlanRegistry {
         plans.insert(
             plan_id,
             StoredPlan {
-                expires_at: now + self.limits.ttl,
+                expires_at: clock.monotonic + self.limits.ttl,
                 plan: plan.clone(),
             },
         );
@@ -292,13 +401,18 @@ fn unique_plan_id(plans: &HashMap<String, StoredPlan>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{ArchivePlanRegistry, PlanRegistryLimits};
+    use super::{ArchivePlanRegistry, PlanClock, PlanRegistryLimits};
     use crate::discovery::ReviewedSource;
     use crate::identity::ContentIdentity;
     use crate::naming::schema::{
         NamingFact, NamingFactKind, NamingProposal, NamingReviewReason, NamingStatus,
     };
     use crate::naming::NamingBatch;
+    use crate::profiles::proposal::{
+        ClassificationProposal, EvidenceCitation, ProposalStatus, ReviewReason,
+    };
+    use crate::profiles::schema::EvidenceKind;
+    use crate::profiles::{ClassificationBatch, ClassificationBatchItem};
     use crate::vault::{VaultStatus, VaultSummary};
     use std::path::PathBuf;
     use std::time::{Duration, Instant, SystemTime};
@@ -359,6 +473,38 @@ mod tests {
         }
     }
 
+    fn classification_batch(item_id: &str, identity: ContentIdentity) -> ClassificationBatch {
+        ClassificationBatch {
+            batch_id: "classification-batch".to_owned(),
+            discovery_proposal_id: "reviewed-proposal".to_owned(),
+            profile_id: "ninebot".to_owned(),
+            profile_version: "1.0.0".to_owned(),
+            expires_at_unix_ms: u64::MAX,
+            items: vec![ClassificationBatchItem {
+                item_id: item_id.to_owned(),
+                proposal: ClassificationProposal {
+                    proposal_id: "classification-proposal".to_owned(),
+                    source_identity: identity,
+                    profile_id: "ninebot".to_owned(),
+                    profile_version: "1.0.0".to_owned(),
+                    status: ProposalStatus::Proposed,
+                    rule_ids: vec!["semiconductor-reliability".to_owned()],
+                    evidence: vec![EvidenceCitation {
+                        kind: EvidenceKind::DocumentText,
+                        location: "page:1".to_owned(),
+                    }],
+                    destination: Some(vec![
+                        "Research".to_owned(),
+                        "Semiconductors".to_owned(),
+                        "Reliability".to_owned(),
+                    ]),
+                    review_reason: None,
+                    committable: true,
+                },
+            }],
+        }
+    }
+
     #[test]
     fn binds_the_canonical_name_from_one_exact_naming_batch() {
         let now = Instant::now();
@@ -382,6 +528,79 @@ mod tests {
             "Originals/0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0/Reset-reliability.md"
         );
         assert_eq!(plan.items[0].naming.policy_id, "canonical-v1");
+    }
+
+    #[test]
+    fn binds_exact_classification_and_naming_evidence_into_one_plan() {
+        let now = Instant::now();
+        let registry = ArchivePlanRegistry::default();
+        let reviewed = source("item-one", "000123.md");
+        let plan = registry
+            .create_classified_named_at(
+                "reviewed-proposal",
+                vec![reviewed.clone()],
+                classification_batch("item-one", reviewed.identity),
+                naming_batch("item-one", "000123.md", "Reset-reliability.md"),
+                vault(),
+                PlanClock {
+                    monotonic: now,
+                    wall: SystemTime::UNIX_EPOCH,
+                },
+            )
+            .expect("create classified named archive plan");
+
+        assert_eq!(plan.plan_version, 3);
+        assert_eq!(
+            plan.classification_batch_id.as_deref(),
+            Some("classification-batch")
+        );
+        let classification = plan.items[0]
+            .classification
+            .as_ref()
+            .expect("classification evidence");
+        assert_eq!(classification.profile_id, "ninebot");
+        assert_eq!(classification.profile_version, "1.0.0");
+        assert_eq!(
+            classification.destination.as_deref(),
+            Some(
+                [
+                    "Research".to_owned(),
+                    "Semiconductors".to_owned(),
+                    "Reliability".to_owned(),
+                ]
+                .as_slice()
+            )
+        );
+        assert_eq!(
+            plan.items[0].destination_path,
+            "Originals/0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0/Reset-reliability.md"
+        );
+    }
+
+    #[test]
+    fn rejects_review_only_classification_from_archive_plans() {
+        let now = Instant::now();
+        let registry = ArchivePlanRegistry::default();
+        let reviewed = source("item-one", "000123.md");
+        let mut classification = classification_batch("item-one", reviewed.identity.clone());
+        classification.items[0].proposal.status = ProposalStatus::ClassificationReview;
+        classification.items[0].proposal.review_reason = Some(ReviewReason::MissingEvidence);
+        classification.items[0].proposal.destination = None;
+        classification.items[0].proposal.committable = false;
+
+        assert!(registry
+            .create_classified_named_at(
+                "reviewed-proposal",
+                vec![reviewed],
+                classification,
+                naming_batch("item-one", "000123.md", "Reset-reliability.md"),
+                vault(),
+                PlanClock {
+                    monotonic: now,
+                    wall: SystemTime::UNIX_EPOCH,
+                },
+            )
+            .is_err());
     }
 
     #[test]

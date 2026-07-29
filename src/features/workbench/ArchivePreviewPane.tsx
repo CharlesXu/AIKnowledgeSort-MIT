@@ -18,11 +18,16 @@ import type {
   NamingFactKind,
   NamingReviewReason,
 } from "../naming/types";
+import type {
+  ClassificationBatch,
+  ProfileClient,
+} from "../profiles/types";
 import { Icon } from "../../ui/Icon";
 
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
   readonly namingClient: NamingClient;
+  readonly profileClient: ProfileClient;
   readonly onCommittedItems?: (
     items: readonly ArchiveItemResult[],
     vault: VaultSummary,
@@ -33,6 +38,7 @@ interface ArchivePreviewPaneProps {
 
 type PendingAction =
   | "vault"
+  | "classification"
   | "naming"
   | "plan"
   | "commit"
@@ -49,6 +55,7 @@ interface EvidenceDraft {
   readonly regulation: string;
   readonly version: string;
   readonly subject: string;
+  readonly classificationText: string;
   readonly evidenceLocation: string;
 }
 
@@ -58,6 +65,7 @@ const emptyEvidence: EvidenceDraft = {
   regulation: "",
   version: "",
   subject: "",
+  classificationText: "",
   evidenceLocation: "",
 };
 
@@ -79,6 +87,11 @@ const reviewReasonLabels: Record<NamingReviewReason, string> = {
   collision: "Unresolved name collision",
 };
 
+const classificationReviewReasonLabels = {
+  missingEvidence: "Missing semantic evidence",
+  conflictingRules: "Conflicting classification rules",
+} as const;
+
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
@@ -86,6 +99,7 @@ function errorText(error: unknown): string {
 export function ArchivePreviewPane({
   archiveClient,
   namingClient,
+  profileClient,
   onCommittedItems,
   onUndoneOperation,
   proposal,
@@ -99,6 +113,8 @@ export function ArchivePreviewPane({
     Readonly<Record<string, EvidenceDraft>>
   >({});
   const [namingBatch, setNamingBatch] = useState<NamingBatch | null>(null);
+  const [classificationBatch, setClassificationBatch] =
+    useState<ClassificationBatch | null>(null);
   const [plan, setPlan] = useState<ArchivePlan | null>(null);
   const [result, setResult] = useState<ArchiveCommitResult | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -120,6 +136,7 @@ export function ArchivePreviewPane({
     setSelectedIds(new Set());
     setEvidence({});
     setNamingBatch(null);
+    setClassificationBatch(null);
     setPlan(null);
     setResult(null);
     setConfirmed(false);
@@ -147,6 +164,11 @@ export function ArchivePreviewPane({
     invalidatePlan();
   }
 
+  function invalidateClassification(): void {
+    setClassificationBatch(null);
+    invalidateNaming();
+  }
+
   function toggleItem(itemId: string): void {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -162,7 +184,7 @@ export function ArchivePreviewPane({
         ? { ...current, [itemId]: emptyEvidence }
         : current,
     );
-    invalidateNaming();
+    invalidateClassification();
   }
 
   function updateEvidence(
@@ -177,7 +199,7 @@ export function ArchivePreviewPane({
         [field]: value,
       },
     }));
-    invalidateNaming();
+    invalidateClassification();
   }
 
   async function chooseVault(): Promise<void> {
@@ -190,7 +212,50 @@ export function ArchivePreviewPane({
         return;
       }
       setVault(selected);
-      invalidateNaming();
+      invalidateClassification();
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function reviewClassification(): Promise<void> {
+    if (!evidenceComplete) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("classification");
+    setError(null);
+    setClassificationBatch(null);
+    setNamingBatch(null);
+    setPlan(null);
+    setResult(null);
+    try {
+      const batch = await profileClient.createClassificationBatch({
+        proposalId: proposal.proposalId,
+        items: selectedItems.map((item) => {
+          const draft = evidence[item.itemId] ?? emptyEvidence;
+          return {
+            itemId: item.itemId,
+            references: [
+              {
+                kind: "documentText",
+                location: draft.evidenceLocation.trim(),
+                text: draft.classificationText.trim(),
+              },
+            ],
+          };
+        }),
+      });
+      if (proposalId.current === activeProposal) {
+        setClassificationBatch(batch);
+        setConfirmed(false);
+      }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
         setError(errorText(nextError));
@@ -203,7 +268,7 @@ export function ArchivePreviewPane({
   }
 
   async function reviewNames(): Promise<void> {
-    if (!evidenceComplete) {
+    if (!evidenceComplete || classificationNeedsReview) {
       return;
     }
     const activeProposal = proposal.proposalId;
@@ -249,6 +314,8 @@ export function ArchivePreviewPane({
   async function reviewPlan(): Promise<void> {
     if (
       vault === null ||
+      classificationBatch === null ||
+      classificationNeedsReview ||
       namingBatch === null ||
       namingBatch.proposals.some((item) => item.status !== "proposed")
     ) {
@@ -262,6 +329,7 @@ export function ArchivePreviewPane({
       const reviewed = await archiveClient.createPlan({
         proposalId: proposal.proposalId,
         itemIds: [...selectedIds].sort(),
+        classificationBatchId: classificationBatch.batchId,
         namingBatchId: namingBatch.batchId,
       });
       if (proposalId.current === activeProposal) {
@@ -270,6 +338,7 @@ export function ArchivePreviewPane({
       }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
+        setClassificationBatch(null);
         setNamingBatch(null);
         setError(errorText(nextError));
       }
@@ -490,9 +559,17 @@ export function ArchivePreviewPane({
       const draft = evidence[item.itemId] ?? emptyEvidence;
       return (
         draft.subject.trim().length > 0 &&
+        draft.classificationText.trim().length > 0 &&
         draft.evidenceLocation.trim().length > 0
       );
     });
+  const classificationNeedsReview =
+    classificationBatch?.items.some(
+      (item) =>
+        item.proposal.status !== "proposed" ||
+        !item.proposal.committable ||
+        item.proposal.destination === null,
+    ) ?? true;
   const namingNeedsReview =
     namingBatch?.proposals.some((item) => item.status !== "proposed") ?? true;
   const statusLabel =
@@ -578,6 +655,23 @@ export function ArchivePreviewPane({
                   </label>
                 ))}
                 <label>
+                  <span>Classification evidence</span>
+                  <textarea
+                    aria-label={`Classification evidence for ${item.name}`}
+                    disabled={pending !== null || committed}
+                    onChange={(event) =>
+                      updateEvidence(
+                        item.itemId,
+                        "classificationText",
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Paste the source passage that supports its primary category"
+                    required
+                    value={draft.classificationText}
+                  />
+                </label>
+                <label>
                   <span>Evidence location</span>
                   <input
                     aria-label={`Evidence location for ${item.name}`}
@@ -603,9 +697,16 @@ export function ArchivePreviewPane({
 
       <div className="archive-preview__actions">
         <button
-          disabled={
-            !evidenceComplete || pending !== null || committed
-          }
+          disabled={!evidenceComplete || pending !== null || committed}
+          onClick={() => void reviewClassification()}
+          type="button"
+        >
+          {pending === "classification"
+            ? "Checking classification…"
+            : "Review classification"}
+        </button>
+        <button
+          disabled={classificationNeedsReview || pending !== null || committed}
           onClick={() => void reviewNames()}
           type="button"
         >
@@ -614,6 +715,8 @@ export function ArchivePreviewPane({
         <button
           disabled={
             vault === null ||
+            classificationBatch === null ||
+            classificationNeedsReview ||
             namingBatch === null ||
             namingNeedsReview ||
             pending !== null ||
@@ -625,6 +728,45 @@ export function ArchivePreviewPane({
           {pending === "plan" ? "Building plan…" : "Review archive plan"}
         </button>
       </div>
+
+      {classificationBatch === null ? null : (
+        <section
+          aria-label="Classification review"
+          className="archive-preview__classification-review"
+        >
+          <header>
+            <strong>Primary classification</strong>
+            <span>
+              {classificationBatch.profileId} ·{" "}
+              {classificationBatch.profileVersion}
+            </span>
+          </header>
+          {classificationBatch.items.map((item) => (
+            <article key={item.itemId}>
+              <p>
+                {item.proposal.destination?.join(" / ") ?? "Review required"}
+              </p>
+              {item.proposal.reviewReason === null ? null : (
+                <strong>
+                  {classificationReviewReasonLabels[item.proposal.reviewReason]}
+                </strong>
+              )}
+              <dl>
+                <dt>Rules</dt>
+                <dd>{item.proposal.ruleIds.join(", ") || "None"}</dd>
+                <dt>Evidence</dt>
+                <dd>
+                  {item.proposal.evidence
+                    .map((citation) => citation.location)
+                    .join(", ") || "None"}
+                </dd>
+                <dt>SHA-256</dt>
+                <dd>{item.proposal.sourceIdentity.digest}</dd>
+              </dl>
+            </article>
+          ))}
+        </section>
+      )}
 
       {namingBatch === null ? null : (
         <section
@@ -682,6 +824,17 @@ export function ArchivePreviewPane({
                 <dd>
                   {item.naming.policyId} · {item.naming.policyVersion}
                 </dd>
+                {item.classification === undefined ? null : (
+                  <>
+                    <dt>Primary category</dt>
+                    <dd>{item.classification.destination?.join(" / ")}</dd>
+                    <dt>Classification profile</dt>
+                    <dd>
+                      {item.classification.profileId} ·{" "}
+                      {item.classification.profileVersion}
+                    </dd>
+                  </>
+                )}
                 <dt>SHA-256</dt>
                 <dd>{item.identity.digest}</dd>
               </dl>

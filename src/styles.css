@@ -790,6 +790,7 @@ input:focus-visible,
 }
 
 .archive-preview__evidence,
+.archive-preview__classification-review,
 .archive-preview__naming-review,
 .archive-preview__cleanup {
   max-height: 42%;
@@ -800,6 +801,7 @@ input:focus-visible,
 }
 
 .archive-preview__evidence > header,
+.archive-preview__classification-review > header,
 .archive-preview__naming-review > header,
 .archive-preview__cleanup > header {
   display: flex;
@@ -810,12 +812,14 @@ input:focus-visible,
 }
 
 .archive-preview__evidence > header strong,
+.archive-preview__classification-review > header strong,
 .archive-preview__naming-review > header strong,
 .archive-preview__cleanup > header strong {
   font-size: 10.5px;
 }
 
 .archive-preview__evidence > header span,
+.archive-preview__classification-review > header span,
 .archive-preview__naming-review > header span,
 .archive-preview__cleanup > header span {
   color: #7f838a;
@@ -868,9 +872,9 @@ input:focus-visible,
   font-weight: 650;
 }
 
-.archive-preview__evidence input {
+.archive-preview__evidence input,
+.archive-preview__evidence textarea {
   min-width: 0;
-  height: 24px;
   padding: 0 6px;
   border: 1px solid #d8d9de;
   border-radius: 4px;
@@ -880,12 +884,24 @@ input:focus-visible,
   font-size: 9.5px;
 }
 
-.archive-preview__evidence input:focus {
+.archive-preview__evidence input {
+  height: 24px;
+}
+
+.archive-preview__evidence textarea {
+  min-height: 52px;
+  padding-block: 5px;
+  resize: vertical;
+}
+
+.archive-preview__evidence input:focus,
+.archive-preview__evidence textarea:focus {
   border-color: #877ba8;
   outline: 2px solid #e8e3f2;
   outline-offset: 0;
 }
 
+.archive-preview__classification-review article,
 .archive-preview__naming-review article {
   margin-top: 6px;
   padding: 7px;
@@ -894,6 +910,7 @@ input:focus-visible,
   background: #fafafa;
 }
 
+.archive-preview__classification-review article p,
 .archive-preview__naming-review article p {
   overflow-wrap: anywhere;
   margin: 0;
@@ -902,6 +919,7 @@ input:focus-visible,
   line-height: 1.4;
 }
 
+.archive-preview__classification-review article > strong,
 .archive-preview__naming-review article > strong {
   display: block;
   margin-top: 4px;
@@ -909,17 +927,20 @@ input:focus-visible,
   font-size: 9px;
 }
 
+.archive-preview__classification-review dl,
 .archive-preview__naming-review dl {
   display: grid;
   gap: 2px;
   margin: 5px 0 0;
 }
 
+.archive-preview__classification-review dt,
 .archive-preview__naming-review dt {
   color: #898d94;
   font-size: 8px;
 }
 
+.archive-preview__classification-review dd,
 .archive-preview__naming-review dd {
   overflow: hidden;
   margin: 0;
