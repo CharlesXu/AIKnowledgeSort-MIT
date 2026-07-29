@@ -93,6 +93,28 @@ export interface CleanupResult {
   readonly failureReason: string | null;
 }
 
+export interface ArchiveUndoPlan {
+  readonly undoId: string;
+  readonly planVersion: number;
+  readonly operationId: string;
+  readonly authorityId: string;
+  readonly sourcePath: string;
+  readonly archivedPath: string;
+  readonly archivedRelativePath: string;
+  readonly byteSize: number;
+  readonly identity: ContentIdentity;
+  readonly expiresAtUnixMs: number;
+  readonly confirmationNonce: string;
+  readonly confirmationBindingSha256: string;
+}
+
+export interface ArchiveUndoResult {
+  readonly undoId: string;
+  readonly operationId: string;
+  readonly status: "committed" | "failed";
+  readonly failureReason: string | null;
+}
+
 export interface ArchiveClient {
   chooseVault(): Promise<VaultSummary | null>;
   createPlan(request: CreateArchivePlanRequest): Promise<ArchivePlan>;
@@ -110,4 +132,11 @@ export interface ArchiveClient {
     readonly planId: string;
     readonly confirmationNonce: string;
   }): Promise<CleanupResult>;
+  createArchiveUndoPlan(request: {
+    readonly operationId: string;
+  }): Promise<ArchiveUndoPlan>;
+  confirmArchiveUndoPlan(request: {
+    readonly undoId: string;
+    readonly confirmationNonce: string;
+  }): Promise<ArchiveUndoResult>;
 }

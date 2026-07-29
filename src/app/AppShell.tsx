@@ -214,6 +214,11 @@ export function AppShell({
               ...next,
             ]);
           }}
+          onUndoneOperation={(operationId) => {
+            setKnowledgeTargets((current) =>
+              current.filter((target) => target.operationId !== operationId),
+            );
+          }}
           proposal={proposal}
         />
         <DocumentPane

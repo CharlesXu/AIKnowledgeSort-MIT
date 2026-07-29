@@ -154,6 +154,28 @@ function client(): ArchiveClient {
       removedPaths: ["/inbox/notes.md"],
       failureReason: null,
     }),
+    createArchiveUndoPlan: vi.fn().mockResolvedValue({
+      undoId: "undo-1",
+      planVersion: 1,
+      operationId: "operation-1",
+      authorityId: "vault-1",
+      sourcePath: "/inbox/notes.md",
+      archivedPath:
+        "/Knowledge Vault/Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Reset-reliability.md",
+      archivedRelativePath:
+        "Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Reset-reliability.md",
+      byteSize: 12,
+      identity: proposal.items[0].identity,
+      expiresAtUnixMs: Date.now() + 300_000,
+      confirmationNonce: "undo-confirmation",
+      confirmationBindingSha256: "c".repeat(64),
+    }),
+    confirmArchiveUndoPlan: vi.fn().mockResolvedValue({
+      undoId: "undo-1",
+      operationId: "operation-1",
+      status: "committed",
+      failureReason: null,
+    }),
   };
 }
 
@@ -302,6 +324,82 @@ describe("archive preview", () => {
       }),
     );
     expect(screen.getByText("Source cleanup committed")).toBeInTheDocument();
+  });
+
+  test("requires a separately reviewed bounded plan before archive undo", async () => {
+    const archiveClient = client();
+    const onUndoneOperation = vi.fn();
+    render(
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={namingClient()}
+        onUndoneOperation={onUndoneOperation}
+        proposal={proposal}
+      />,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /notes\.md/i }));
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Subject for notes.md" }),
+      { target: { value: "Reset reliability" } },
+    );
+    fireEvent.change(
+      screen.getByRole("textbox", {
+        name: "Evidence location for notes.md",
+      }),
+      { target: { value: "page:1" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+    await screen.findByText("/Knowledge Vault");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review canonical names" }),
+    );
+    await screen.findByRole("region", { name: "Canonical name review" });
+    fireEvent.click(screen.getByRole("button", { name: "Review archive plan" }));
+    await screen.findByRole("region", { name: "Exact archive plan" });
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /i reviewed every source, destination, and sha-256/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm verified archive" }),
+    );
+    await screen.findByText("Archive committed");
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: /review archive undo.*reset-reliability\.md/i,
+      }),
+    );
+    const review = await screen.findByRole("region", {
+      name: "Exact archive undo plan",
+    });
+    expect(review).toHaveTextContent("/inbox/notes.md");
+    expect(review).toHaveTextContent("/Knowledge Vault/Originals/");
+    expect(review).toHaveTextContent(/transaction staging/i);
+    expect(
+      screen.getByRole("button", { name: "Confirm archive undo" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /i reviewed the source, archive path, and sha-256/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm archive undo" }),
+    );
+
+    await waitFor(() =>
+      expect(archiveClient.confirmArchiveUndoPlan).toHaveBeenCalledWith({
+        undoId: "undo-1",
+        confirmationNonce: "undo-confirmation",
+      }),
+    );
+    expect(screen.getByText("Archive undo committed")).toBeInTheDocument();
+    expect(onUndoneOperation).toHaveBeenCalledWith("operation-1");
+    expect(
+      screen.queryByRole("region", { name: "Source cleanup" }),
+    ).toBeNull();
   });
 
   test("blocks archive planning when canonical naming needs review", async () => {

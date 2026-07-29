@@ -1,5 +1,6 @@
 mod plan;
 mod transaction;
+pub(crate) mod undo;
 
 use crate::discovery::ReviewedSourceRegistry;
 use crate::naming::NamingBatchRegistry;
@@ -14,6 +15,8 @@ pub use transaction::ArchiveCommitResult;
 #[cfg(test)]
 pub(crate) use transaction::{commit_plan_with_faults, TransactionFaults};
 pub(crate) use transaction::{reconcile_vault, verified_registered_original};
+pub(crate) use undo::reconcile_vault as reconcile_undo_vault;
+pub use undo::ArchiveUndoPlanRegistry;
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]

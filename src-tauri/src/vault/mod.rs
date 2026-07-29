@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 18] = [
+const PRODUCT_DIRECTORIES: [&str; 22] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/registrations",
@@ -17,6 +17,10 @@ const PRODUCT_DIRECTORIES: [&str; 18] = [
     ".aiks/knowledge",
     ".aiks/comparisons",
     ".aiks/cleanup",
+    ".aiks/archive-undo",
+    ".aiks/undo-staging",
+    ".aiks/undo-trash",
+    ".aiks/undone-registrations",
     ".aiks/graph",
     ".aiks/graph/relations",
     ".aiks/profiles",
@@ -198,6 +202,7 @@ impl VaultAuthorityRegistry {
                 .try_clone()
                 .map_err(|error| format!("Vault capability cannot be cloned: {error}"))?,
         };
+        crate::archive::reconcile_undo_vault(&lease)?;
         crate::archive::reconcile_vault(&lease)?;
         crate::cleanup::reconcile_vault(&lease)?;
         *authority = Some(VaultAuthority {

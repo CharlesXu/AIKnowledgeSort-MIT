@@ -4,6 +4,8 @@ import type {
   ArchiveCommitResult,
   ArchiveItemResult,
   ArchivePlan,
+  ArchiveUndoPlan,
+  ArchiveUndoResult,
   CleanupPlan,
   CleanupResult,
   VaultSummary,
@@ -25,6 +27,7 @@ interface ArchivePreviewPaneProps {
     items: readonly ArchiveItemResult[],
     vault: VaultSummary,
   ) => void;
+  readonly onUndoneOperation?: (operationId: string) => void;
   readonly proposal: DiscoveryProposal;
 }
 
@@ -36,6 +39,8 @@ type PendingAction =
   | "cleanupPlan"
   | "permanentCleanup"
   | "cleanupCommit"
+  | "undoPlan"
+  | "undoCommit"
   | null;
 
 interface EvidenceDraft {
@@ -82,6 +87,7 @@ export function ArchivePreviewPane({
   archiveClient,
   namingClient,
   onCommittedItems,
+  onUndoneOperation,
   proposal,
 }: ArchivePreviewPaneProps) {
   const proposalId = useRef(proposal.proposalId);
@@ -102,6 +108,12 @@ export function ArchivePreviewPane({
   const [cleanupPlan, setCleanupPlan] = useState<CleanupPlan | null>(null);
   const [cleanupConfirmed, setCleanupConfirmed] = useState(false);
   const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
+  const [undoPlan, setUndoPlan] = useState<ArchiveUndoPlan | null>(null);
+  const [undoConfirmed, setUndoConfirmed] = useState(false);
+  const [undoResult, setUndoResult] = useState<ArchiveUndoResult | null>(null);
+  const [undoneOperationIds, setUndoneOperationIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   useEffect(() => {
     proposalId.current = proposal.proposalId;
@@ -117,6 +129,10 @@ export function ArchivePreviewPane({
     setCleanupPlan(null);
     setCleanupConfirmed(false);
     setCleanupResult(null);
+    setUndoPlan(null);
+    setUndoConfirmed(false);
+    setUndoResult(null);
+    setUndoneOperationIds(new Set());
   }, [proposal.proposalId]);
 
   function invalidatePlan(): void {
@@ -303,7 +319,11 @@ export function ArchivePreviewPane({
       return;
     }
     const operationIds = result.items
-      .filter((item) => item.status === "committed")
+      .filter(
+        (item) =>
+          item.status === "committed" &&
+          !undoneOperationIds.has(item.operationId),
+      )
       .map((item) => item.operationId);
     if (operationIds.length === 0) {
       return;
@@ -386,7 +406,81 @@ export function ArchivePreviewPane({
     }
   }
 
+  async function reviewArchiveUndo(operationId: string): Promise<void> {
+    if (
+      undoneOperationIds.has(operationId) ||
+      cleanupPlan !== null ||
+      cleanupResult !== null
+    ) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("undoPlan");
+    setError(null);
+    setUndoResult(null);
+    try {
+      const reviewed = await archiveClient.createArchiveUndoPlan({
+        operationId,
+      });
+      if (proposalId.current === activeProposal) {
+        setUndoPlan(reviewed);
+        setUndoConfirmed(false);
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function confirmArchiveUndo(): Promise<void> {
+    if (undoPlan === null || !undoConfirmed) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("undoCommit");
+    setError(null);
+    try {
+      const completed = await archiveClient.confirmArchiveUndoPlan({
+        undoId: undoPlan.undoId,
+        confirmationNonce: undoPlan.confirmationNonce,
+      });
+      if (proposalId.current === activeProposal) {
+        setUndoResult(completed);
+        if (completed.status === "committed") {
+          setUndoneOperationIds((current) => {
+            const next = new Set(current);
+            next.add(completed.operationId);
+            return next;
+          });
+          setCleanupPlan(null);
+          setCleanupConfirmed(false);
+          setCleanupResult(null);
+          onUndoneOperation?.(completed.operationId);
+        }
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
   const committed = result?.status === "committed";
+  const activeCommittedItems =
+    result?.items.filter(
+      (item) =>
+        item.status === "committed" &&
+        !undoneOperationIds.has(item.operationId),
+    ) ?? [];
   const selectedItems = proposal.items.filter((item) =>
     selectedIds.has(item.itemId),
   );
@@ -637,7 +731,104 @@ export function ArchivePreviewPane({
         </section>
       )}
 
-      {result?.items.some((item) => item.status === "committed") ? (
+      {activeCommittedItems.length > 0 ? (
+        <section
+          aria-label="Archive undo"
+          className="archive-preview__cleanup"
+        >
+          <header>
+            <strong>Archive undo</strong>
+            <span>Bounded · Trash</span>
+          </header>
+          <p className="archive-preview__invariant">
+            Available only while the matching source remains a verified
+            original and no authoritative knowledge depends on the archive.
+          </p>
+          {activeCommittedItems.map((item) => (
+            <button
+              disabled={
+                pending !== null ||
+                undoPlan !== null ||
+                cleanupPlan !== null ||
+                cleanupResult !== null
+              }
+              key={item.operationId}
+              onClick={() => void reviewArchiveUndo(item.operationId)}
+              type="button"
+            >
+              {pending === "undoPlan"
+                ? "Rechecking undo…"
+                : `Review archive undo · ${
+                    item.destinationPath.split(/[\\/]/).pop() ??
+                    item.operationId
+                  }`}
+            </button>
+          ))}
+        </section>
+      ) : null}
+
+      {undoPlan === null ? null : (
+        <section
+          aria-label="Exact archive undo plan"
+          className="archive-preview__plan archive-preview__cleanup-plan"
+        >
+          <header>
+            <strong>Exact archive undo plan</strong>
+            <span>Operating-system trash</span>
+          </header>
+          <p className="archive-preview__invariant">
+            The external source is independently reverified before and after
+            the archived copy changes. An unsafe execution restores the Vault
+            original from transaction staging.
+          </p>
+          <dl>
+            <dt>Source original</dt>
+            <dd>{undoPlan.sourcePath}</dd>
+            <dt>Archived original</dt>
+            <dd>{undoPlan.archivedPath}</dd>
+            <dt>SHA-256</dt>
+            <dd>{undoPlan.identity.digest}</dd>
+          </dl>
+          <label className="archive-preview__confirmation">
+            <input
+              checked={undoConfirmed}
+              disabled={pending !== null || undoResult !== null}
+              onChange={(event) => setUndoConfirmed(event.target.checked)}
+              type="checkbox"
+            />
+            <span>I reviewed the source, archive path, and SHA-256.</span>
+          </label>
+          <button
+            disabled={!undoConfirmed || pending !== null || undoResult !== null}
+            onClick={() => void confirmArchiveUndo()}
+            type="button"
+          >
+            {pending === "undoCommit"
+              ? "Reverifying undo…"
+              : "Confirm archive undo"}
+          </button>
+        </section>
+      )}
+
+      {undoResult === null ? null : (
+        <section
+          aria-label="Archive undo result"
+          className={`archive-preview__result archive-preview__result--${undoResult.status}`}
+        >
+          <strong>
+            {undoResult.status === "committed"
+              ? "Archive undo committed"
+              : "Archive undo failed"}
+          </strong>
+          <span>
+            {undoResult.status === "committed"
+              ? "Source original preserved · archived registration deactivated"
+              : undoResult.failureReason}
+          </span>
+        </section>
+      )}
+
+      {activeCommittedItems.length > 0 ? (
         <section
           aria-label="Source cleanup"
           className="archive-preview__cleanup"

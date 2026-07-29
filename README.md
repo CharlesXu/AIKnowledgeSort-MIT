@@ -136,6 +136,24 @@ Partial mutation, changed source identity, missing retained evidence, invalid
 lifecycle ordering, or a record moved to another sequence is recorded as failed
 or rejects Vault activation without any further cleanup.
 
+## Bounded archive undo
+
+A committed archive item can be undone only through a separate five-minute,
+single-use plan bound to its operation, Vault authority, source and archive
+paths, byte size, SHA-256 identity, expiry, and nonce. Undo is refused when the
+matching external source is unavailable or changed, when authoritative
+knowledge already depends on the archive, or when the operation was already
+undone.
+
+Execution first creates a verified Vault staging link, then capability-moves the
+archive into an operation-specific quarantine before invoking the
+operating-system Trash. The source is reverified before and after archive
+registration deactivation. A source change, trash failure, or interrupted
+unsafe state restores the archived original and active registration without a
+partial undo. Vault authorization reconciles unconfirmed, quarantined,
+post-trash, committed, and rolled-back undo states before normal archive
+verification.
+
 ## Archive-gated authoritative Markdown
 
 Each successfully committed archive item can now become an explicit knowledge

@@ -20,7 +20,9 @@ describe("archive client", () => {
         planId: "cleanup-2",
         disposition: "permanentDelete",
       })
-      .mockResolvedValueOnce({ planId: "cleanup-1", status: "committed" });
+      .mockResolvedValueOnce({ planId: "cleanup-1", status: "committed" })
+      .mockResolvedValueOnce({ undoId: "undo-1" })
+      .mockResolvedValueOnce({ undoId: "undo-1", status: "committed" });
     const client = createTauriArchiveClient(invoke);
 
     await client.chooseVault();
@@ -45,6 +47,13 @@ describe("archive client", () => {
     await client.confirmCleanupPlan({
       planId: "cleanup-2",
       confirmationNonce: "cleanup-nonce-2",
+    });
+    await client.createArchiveUndoPlan({
+      operationId: "operation-1",
+    });
+    await client.confirmArchiveUndoPlan({
+      undoId: "undo-1",
+      confirmationNonce: "undo-nonce-1",
     });
 
     expect(invoke.mock.calls).toEqual([
@@ -96,6 +105,23 @@ describe("archive client", () => {
           },
         },
       ],
+      [
+        "create_archive_undo_plan",
+        {
+          request: {
+            operationId: "operation-1",
+          },
+        },
+      ],
+      [
+        "confirm_archive_undo_plan",
+        {
+          request: {
+            undoId: "undo-1",
+            confirmationNonce: "undo-nonce-1",
+          },
+        },
+      ],
     ]);
   });
 
@@ -135,6 +161,17 @@ describe("archive client", () => {
       client.confirmCleanupPlan({
         planId: "cleanup-1",
         confirmationNonce: "cleanup-nonce-1",
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
+    await expect(
+      client.createArchiveUndoPlan({
+        operationId: "operation-1",
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
+    await expect(
+      client.confirmArchiveUndoPlan({
+        undoId: "undo-1",
+        confirmationNonce: "undo-nonce-1",
       }),
     ).rejects.toThrow(/desktop runtime is required/i);
   });

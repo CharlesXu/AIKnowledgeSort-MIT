@@ -27,6 +27,7 @@ pub fn run() {
         .manage(discovery::DropWorkLimiter::default())
         .manage(vault::VaultAuthorityRegistry::default())
         .manage(archive::ArchivePlanRegistry::default())
+        .manage(archive::ArchiveUndoPlanRegistry::default())
         .manage(cleanup::CleanupPlanRegistry::default())
         .manage(naming::NamingBatchRegistry::default())
         .manage(knowledge::KnowledgeWriteRegistry::default())
@@ -98,6 +99,8 @@ pub fn run() {
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
             archive::confirm_archive_plan,
+            archive::undo::create_archive_undo_plan,
+            archive::undo::confirm_archive_undo_plan,
             cleanup::create_cleanup_plan,
             cleanup::authorize_permanent_cleanup,
             cleanup::confirm_cleanup_plan,

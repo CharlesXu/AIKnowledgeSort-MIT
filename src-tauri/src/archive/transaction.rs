@@ -688,7 +688,9 @@ pub(crate) fn reconcile_vault(vault: &VaultLease) -> Result<ReconciliationReport
         let context = context_from_record(record.clone());
         match record.state {
             OperationState::Committed => {
-                verify_committed(vault, &record)?;
+                if !super::undo::operation_is_undone(vault, &record.operation_id)? {
+                    verify_committed(vault, &record)?;
+                }
                 remove_file_if_present(&vault.directory, &context.staging_path)?;
                 remove_file_if_present(&vault.directory, &context.pending_registration_path)?;
             }
@@ -915,6 +917,9 @@ pub(crate) fn verified_registered_original(
     }
     if record.authority_id != vault.summary.authority_id {
         return Err("Registered original belongs to a different Vault authority".to_owned());
+    }
+    if super::undo::operation_is_undone(vault, operation_id)? {
+        return Err("Registered original archive was undone".to_owned());
     }
     verify_committed(vault, &record)?;
     let registration_path = Path::new(".aiks/registrations").join(format!("{operation_id}.json"));

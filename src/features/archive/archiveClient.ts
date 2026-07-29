@@ -3,6 +3,8 @@ import type {
   ArchiveClient,
   ArchiveCommitResult,
   ArchivePlan,
+  ArchiveUndoPlan,
+  ArchiveUndoResult,
   CleanupPlan,
   CleanupResult,
   ConfirmArchivePlanRequest,
@@ -37,6 +39,12 @@ export function createTauriArchiveClient(
     confirmCleanupPlan(request) {
       return invoke<CleanupResult>("confirm_cleanup_plan", { request });
     },
+    createArchiveUndoPlan(request) {
+      return invoke<ArchiveUndoPlan>("create_archive_undo_plan", { request });
+    },
+    confirmArchiveUndoPlan(request) {
+      return invoke<ArchiveUndoResult>("confirm_archive_undo_plan", { request });
+    },
   };
 }
 
@@ -54,5 +62,7 @@ export function createBrowserArchiveClient(): ArchiveClient {
     createCleanupPlan: desktopRuntimeRequired,
     authorizePermanentCleanup: desktopRuntimeRequired,
     confirmCleanupPlan: desktopRuntimeRequired,
+    createArchiveUndoPlan: desktopRuntimeRequired,
+    confirmArchiveUndoPlan: desktopRuntimeRequired,
   };
 }
