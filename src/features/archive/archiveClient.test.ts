@@ -5,7 +5,7 @@ import {
 } from "./archiveClient";
 
 describe("archive client", () => {
-  test("invokes only the three explicit native archive boundaries", async () => {
+  test("invokes the explicit native archive and cleanup boundaries", async () => {
     const invoke = vi
       .fn()
       .mockResolvedValueOnce({
@@ -14,7 +14,13 @@ describe("archive client", () => {
         status: "authoritative",
       })
       .mockResolvedValueOnce({ planId: "plan-1" })
-      .mockResolvedValueOnce({ planId: "plan-1", status: "committed", items: [] });
+      .mockResolvedValueOnce({ planId: "plan-1", status: "committed", items: [] })
+      .mockResolvedValueOnce({ planId: "cleanup-1", disposition: "trash" })
+      .mockResolvedValueOnce({
+        planId: "cleanup-2",
+        disposition: "permanentDelete",
+      })
+      .mockResolvedValueOnce({ planId: "cleanup-1", status: "committed" });
     const client = createTauriArchiveClient(invoke);
 
     await client.chooseVault();
@@ -26,6 +32,19 @@ describe("archive client", () => {
     await client.confirmPlan({
       planId: "plan-1",
       confirmationNonce: "nonce-1",
+    });
+    await client.createCleanupPlan({
+      authorityId: "vault-1",
+      operationIds: ["operation-1"],
+      cleanupEnabled: true,
+    });
+    await client.authorizePermanentCleanup({
+      planId: "cleanup-1",
+      confirmationNonce: "cleanup-nonce-1",
+    });
+    await client.confirmCleanupPlan({
+      planId: "cleanup-2",
+      confirmationNonce: "cleanup-nonce-2",
     });
 
     expect(invoke.mock.calls).toEqual([
@@ -49,6 +68,34 @@ describe("archive client", () => {
           },
         },
       ],
+      [
+        "create_cleanup_plan",
+        {
+          request: {
+            authorityId: "vault-1",
+            operationIds: ["operation-1"],
+            cleanupEnabled: true,
+          },
+        },
+      ],
+      [
+        "authorize_permanent_cleanup",
+        {
+          request: {
+            planId: "cleanup-1",
+            confirmationNonce: "cleanup-nonce-1",
+          },
+        },
+      ],
+      [
+        "confirm_cleanup_plan",
+        {
+          request: {
+            planId: "cleanup-2",
+            confirmationNonce: "cleanup-nonce-2",
+          },
+        },
+      ],
     ]);
   });
 
@@ -69,6 +116,25 @@ describe("archive client", () => {
       client.confirmPlan({
         planId: "plan-1",
         confirmationNonce: "nonce-1",
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
+    await expect(
+      client.createCleanupPlan({
+        authorityId: "vault-1",
+        operationIds: ["operation-1"],
+        cleanupEnabled: true,
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
+    await expect(
+      client.authorizePermanentCleanup({
+        planId: "cleanup-1",
+        confirmationNonce: "cleanup-nonce-1",
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
+    await expect(
+      client.confirmCleanupPlan({
+        planId: "cleanup-1",
+        confirmationNonce: "cleanup-nonce-1",
       }),
     ).rejects.toThrow(/desktop runtime is required/i);
   });

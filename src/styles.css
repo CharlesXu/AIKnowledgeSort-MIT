@@ -790,7 +790,8 @@ input:focus-visible,
 }
 
 .archive-preview__evidence,
-.archive-preview__naming-review {
+.archive-preview__naming-review,
+.archive-preview__cleanup {
   max-height: 42%;
   overflow: auto;
   padding: 8px 9px;
@@ -799,7 +800,8 @@ input:focus-visible,
 }
 
 .archive-preview__evidence > header,
-.archive-preview__naming-review > header {
+.archive-preview__naming-review > header,
+.archive-preview__cleanup > header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -808,14 +810,26 @@ input:focus-visible,
 }
 
 .archive-preview__evidence > header strong,
-.archive-preview__naming-review > header strong {
+.archive-preview__naming-review > header strong,
+.archive-preview__cleanup > header strong {
   font-size: 10.5px;
 }
 
 .archive-preview__evidence > header span,
-.archive-preview__naming-review > header span {
+.archive-preview__naming-review > header span,
+.archive-preview__cleanup > header span {
   color: #7f838a;
   font-size: 8.5px;
+}
+
+.archive-preview__cleanup > button {
+  width: 100%;
+}
+
+.archive-preview__cleanup-plan {
+  flex: 0 1 auto;
+  max-height: 320px;
+  border-top: 1px solid var(--divider);
 }
 
 .archive-preview__evidence fieldset {

@@ -4,6 +4,8 @@ import type {
   ArchiveCommitResult,
   ArchiveItemResult,
   ArchivePlan,
+  CleanupPlan,
+  CleanupResult,
   VaultSummary,
 } from "../archive/types";
 import type { DiscoveryProposal } from "../drop/types";
@@ -26,7 +28,15 @@ interface ArchivePreviewPaneProps {
   readonly proposal: DiscoveryProposal;
 }
 
-type PendingAction = "vault" | "naming" | "plan" | "commit" | null;
+type PendingAction =
+  | "vault"
+  | "naming"
+  | "plan"
+  | "commit"
+  | "cleanupPlan"
+  | "permanentCleanup"
+  | "cleanupCommit"
+  | null;
 
 interface EvidenceDraft {
   readonly project: string;
@@ -88,6 +98,10 @@ export function ArchivePreviewPane({
   const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState<PendingAction>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cleanupEnabled, setCleanupEnabled] = useState(false);
+  const [cleanupPlan, setCleanupPlan] = useState<CleanupPlan | null>(null);
+  const [cleanupConfirmed, setCleanupConfirmed] = useState(false);
+  const [cleanupResult, setCleanupResult] = useState<CleanupResult | null>(null);
 
   useEffect(() => {
     proposalId.current = proposal.proposalId;
@@ -99,6 +113,10 @@ export function ArchivePreviewPane({
     setConfirmed(false);
     setPending(null);
     setError(null);
+    setCleanupEnabled(false);
+    setCleanupPlan(null);
+    setCleanupConfirmed(false);
+    setCleanupResult(null);
   }, [proposal.proposalId]);
 
   function invalidatePlan(): void {
@@ -268,6 +286,94 @@ export function ArchivePreviewPane({
             onCommittedItems?.(eligible, vault);
           }
         }
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function reviewCleanup(): Promise<void> {
+    if (!cleanupEnabled || vault === null || result === null) {
+      return;
+    }
+    const operationIds = result.items
+      .filter((item) => item.status === "committed")
+      .map((item) => item.operationId);
+    if (operationIds.length === 0) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("cleanupPlan");
+    setError(null);
+    setCleanupResult(null);
+    try {
+      const reviewed = await archiveClient.createCleanupPlan({
+        authorityId: vault.authorityId,
+        operationIds,
+        cleanupEnabled: true,
+      });
+      if (proposalId.current === activeProposal) {
+        setCleanupPlan(reviewed);
+        setCleanupConfirmed(false);
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function requestPermanentCleanup(): Promise<void> {
+    if (cleanupPlan === null || cleanupPlan.disposition !== "trash") {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("permanentCleanup");
+    setError(null);
+    try {
+      const permanent = await archiveClient.authorizePermanentCleanup({
+        planId: cleanupPlan.planId,
+        confirmationNonce: cleanupPlan.confirmationNonce,
+      });
+      if (proposalId.current === activeProposal) {
+        setCleanupPlan(permanent);
+        setCleanupConfirmed(false);
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function confirmCleanup(): Promise<void> {
+    if (cleanupPlan === null || !cleanupConfirmed) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("cleanupCommit");
+    setError(null);
+    try {
+      const committedCleanup = await archiveClient.confirmCleanupPlan({
+        planId: cleanupPlan.planId,
+        confirmationNonce: cleanupPlan.confirmationNonce,
+      });
+      if (proposalId.current === activeProposal) {
+        setCleanupResult(committedCleanup);
       }
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
@@ -527,6 +633,136 @@ export function ArchivePreviewPane({
           <span>
             {result.items.filter((item) => item.status === "committed").length}
             /{result.items.length} verified · source preserved
+          </span>
+        </section>
+      )}
+
+      {result?.items.some((item) => item.status === "committed") ? (
+        <section
+          aria-label="Source cleanup"
+          className="archive-preview__cleanup"
+        >
+          <header>
+            <strong>Source cleanup</strong>
+            <span>Off by default</span>
+          </header>
+          <label className="archive-preview__confirmation">
+            <input
+              checked={cleanupEnabled}
+              disabled={pending !== null || cleanupResult?.status === "committed"}
+              onChange={(event) => {
+                setCleanupEnabled(event.target.checked);
+                setCleanupPlan(null);
+                setCleanupConfirmed(false);
+                setCleanupResult(null);
+              }}
+              type="checkbox"
+            />
+            <span>Enable cleanup for these archived sources.</span>
+          </label>
+          <button
+            disabled={
+              !cleanupEnabled ||
+              pending !== null ||
+              cleanupPlan !== null ||
+              cleanupResult !== null
+            }
+            onClick={() => void reviewCleanup()}
+            type="button"
+          >
+            {pending === "cleanupPlan" ? "Rechecking originals…" : "Review source cleanup"}
+          </button>
+        </section>
+      ) : null}
+
+      {cleanupPlan === null ? null : (
+        <section
+          aria-label="Exact cleanup plan"
+          className="archive-preview__plan archive-preview__cleanup-plan"
+        >
+          <header>
+            <strong>
+              Exact cleanup plan · {cleanupPlan.items.length}
+            </strong>
+            <span>
+              {cleanupPlan.disposition === "trash"
+                ? "Operating-system trash"
+                : "Permanent deletion"}
+            </span>
+          </header>
+          <p className="archive-preview__invariant">
+            A freshly verified retained original remains in the Vault for every
+            selected source.
+          </p>
+          {cleanupPlan.items.map((item) => (
+            <details key={item.operationId}>
+              <summary>{item.sourcePath.split(/[\\/]/).pop()}</summary>
+              <dl>
+                <dt>Source copy</dt>
+                <dd>{item.sourcePath}</dd>
+                <dt>Retained original</dt>
+                <dd>{item.retainedPath}</dd>
+                <dt>SHA-256</dt>
+                <dd>{item.identity.digest}</dd>
+              </dl>
+            </details>
+          ))}
+          {cleanupPlan.disposition === "permanentDelete" ? (
+            <p className="archive-preview__error">
+              Permanent deletion cannot be undone. This is the separate,
+              second confirmation.
+            </p>
+          ) : null}
+          <label className="archive-preview__confirmation">
+            <input
+              checked={cleanupConfirmed}
+              disabled={pending !== null || cleanupResult !== null}
+              onChange={(event) => setCleanupConfirmed(event.target.checked)}
+              type="checkbox"
+            />
+            <span>I reviewed every cleanup path and SHA-256.</span>
+          </label>
+          <div className="archive-preview__actions">
+            <button
+              disabled={!cleanupConfirmed || pending !== null || cleanupResult !== null}
+              onClick={() => void confirmCleanup()}
+              type="button"
+            >
+              {pending === "cleanupCommit"
+                ? "Reverifying…"
+                : cleanupPlan.disposition === "trash"
+                  ? "Confirm move to trash"
+                  : "Confirm permanent deletion"}
+            </button>
+            {cleanupPlan.disposition === "trash" ? (
+              <button
+                disabled={pending !== null || cleanupResult !== null}
+                onClick={() => void requestPermanentCleanup()}
+                type="button"
+              >
+                {pending === "permanentCleanup"
+                  ? "Preparing separate confirmation…"
+                  : "Request permanent deletion"}
+              </button>
+            ) : null}
+          </div>
+        </section>
+      )}
+
+      {cleanupResult === null ? null : (
+        <section
+          aria-label="Cleanup result"
+          className={`archive-preview__result archive-preview__result--${cleanupResult.status}`}
+        >
+          <strong>
+            {cleanupResult.status === "committed"
+              ? "Source cleanup committed"
+              : "Source cleanup failed"}
+          </strong>
+          <span>
+            {cleanupResult.removedPaths.length} source
+            {cleanupResult.removedPaths.length === 1 ? "" : "s"} handled ·
+            retained original preserved
           </span>
         </section>
       )}

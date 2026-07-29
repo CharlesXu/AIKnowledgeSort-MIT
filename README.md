@@ -111,6 +111,22 @@ pane; it does not replace the Markdown, Mermaid, and code workspace. Browser
 preview clients fail visibly and never simulate naming, Vault selection, archive
 planning, or archive commits.
 
+## User-controlled source cleanup
+
+Cleanup remains off by default and appears only for successfully archived
+sources. Enabling it creates a five-minute, single-use plan bound to the exact
+source path, retained Vault path, archive operation, authoritative Vault,
+disposition, and SHA-256 identity. Confirmation independently reopens and
+rehashes both the source and the registered retained original before changing
+the source.
+
+The default disposition uses the operating-system Trash or Recycle Bin.
+Permanent deletion cannot reuse that confirmation: requesting it consumes the
+reviewed trash plan and creates a new plan, nonce, audit lifecycle, warning, and
+second confirmation. Agent tools have no cleanup execution capability. A
+changed, unreadable, missing, linked, or no-longer-registered retained original
+rejects cleanup without source mutation.
+
 ## Archive-gated authoritative Markdown
 
 Each successfully committed archive item can now become an explicit knowledge
@@ -247,7 +263,7 @@ execution, arbitrary command, ambient path, or automatic grant reactivation.
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
 automatic classification or naming, physical source renaming, user-controlled
-original cleanup, classified destination paths, automatic graph inference,
+cleanup undo and crash reconciliation, classified destination paths, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG
 indexing/retrieval, a 3D graph, secure keychain integration, and URL profile

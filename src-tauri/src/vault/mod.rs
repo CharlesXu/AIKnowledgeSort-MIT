@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 17] = [
+const PRODUCT_DIRECTORIES: [&str; 18] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/registrations",
@@ -16,6 +16,7 @@ const PRODUCT_DIRECTORIES: [&str; 17] = [
     ".aiks/pending-registrations",
     ".aiks/knowledge",
     ".aiks/comparisons",
+    ".aiks/cleanup",
     ".aiks/graph",
     ".aiks/graph/relations",
     ".aiks/profiles",
@@ -337,6 +338,7 @@ mod tests {
             ".aiks/profiles/installed",
             ".aiks/profiles/activations",
             ".aiks/comparisons",
+            ".aiks/cleanup",
             "Originals",
         ] {
             assert!(vault.join(relative).is_dir(), "{relative} must exist");

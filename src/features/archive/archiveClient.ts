@@ -3,6 +3,8 @@ import type {
   ArchiveClient,
   ArchiveCommitResult,
   ArchivePlan,
+  CleanupPlan,
+  CleanupResult,
   ConfirmArchivePlanRequest,
   CreateArchivePlanRequest,
   VaultSummary,
@@ -26,6 +28,15 @@ export function createTauriArchiveClient(
     confirmPlan(request: ConfirmArchivePlanRequest) {
       return invoke<ArchiveCommitResult>("confirm_archive_plan", { request });
     },
+    createCleanupPlan(request) {
+      return invoke<CleanupPlan>("create_cleanup_plan", { request });
+    },
+    authorizePermanentCleanup(request) {
+      return invoke<CleanupPlan>("authorize_permanent_cleanup", { request });
+    },
+    confirmCleanupPlan(request) {
+      return invoke<CleanupResult>("confirm_cleanup_plan", { request });
+    },
   };
 }
 
@@ -40,5 +51,8 @@ export function createBrowserArchiveClient(): ArchiveClient {
     chooseVault: desktopRuntimeRequired,
     createPlan: desktopRuntimeRequired,
     confirmPlan: desktopRuntimeRequired,
+    createCleanupPlan: desktopRuntimeRequired,
+    authorizePermanentCleanup: desktopRuntimeRequired,
+    confirmCleanupPlan: desktopRuntimeRequired,
   };
 }

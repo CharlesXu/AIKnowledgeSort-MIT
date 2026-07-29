@@ -4,6 +4,7 @@ fn application_name() -> &'static str {
 
 pub mod agent_access;
 mod archive;
+mod cleanup;
 #[path = "discovery/mod.rs"]
 mod discovery;
 mod graph;
@@ -26,6 +27,7 @@ pub fn run() {
         .manage(discovery::DropWorkLimiter::default())
         .manage(vault::VaultAuthorityRegistry::default())
         .manage(archive::ArchivePlanRegistry::default())
+        .manage(cleanup::CleanupPlanRegistry::default())
         .manage(naming::NamingBatchRegistry::default())
         .manage(knowledge::KnowledgeWriteRegistry::default())
         .manage(graph::GraphWriteRegistry::default())
@@ -96,6 +98,9 @@ pub fn run() {
             vault::choose_authoritative_vault,
             archive::create_archive_plan,
             archive::confirm_archive_plan,
+            cleanup::create_cleanup_plan,
+            cleanup::authorize_permanent_cleanup,
+            cleanup::confirm_cleanup_plan,
             naming::create_naming_batch,
             knowledge::open_knowledge_document,
             knowledge::save_knowledge_document,

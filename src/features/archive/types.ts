@@ -67,8 +67,47 @@ export interface ConfirmArchivePlanRequest {
   readonly confirmationNonce: string;
 }
 
+export interface CleanupPlanItem {
+  readonly operationId: string;
+  readonly sourcePath: string;
+  readonly retainedPath: string;
+  readonly identity: ContentIdentity;
+}
+
+export interface CleanupPlan {
+  readonly planId: string;
+  readonly planVersion: number;
+  readonly authorityId: string;
+  readonly disposition: "trash" | "permanentDelete";
+  readonly items: readonly CleanupPlanItem[];
+  readonly expiresAtUnixMs: number;
+  readonly confirmationNonce: string;
+  readonly confirmationBindingSha256: string;
+}
+
+export interface CleanupResult {
+  readonly planId: string;
+  readonly status: "committed" | "failed";
+  readonly disposition: "trash" | "permanentDelete";
+  readonly removedPaths: readonly string[];
+  readonly failureReason: string | null;
+}
+
 export interface ArchiveClient {
   chooseVault(): Promise<VaultSummary | null>;
   createPlan(request: CreateArchivePlanRequest): Promise<ArchivePlan>;
   confirmPlan(request: ConfirmArchivePlanRequest): Promise<ArchiveCommitResult>;
+  createCleanupPlan(request: {
+    readonly authorityId: string;
+    readonly operationIds: readonly string[];
+    readonly cleanupEnabled: boolean;
+  }): Promise<CleanupPlan>;
+  authorizePermanentCleanup(request: {
+    readonly planId: string;
+    readonly confirmationNonce: string;
+  }): Promise<CleanupPlan>;
+  confirmCleanupPlan(request: {
+    readonly planId: string;
+    readonly confirmationNonce: string;
+  }): Promise<CleanupResult>;
 }

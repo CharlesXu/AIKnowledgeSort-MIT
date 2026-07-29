@@ -128,6 +128,32 @@ function client(): ArchiveClient {
         },
       ],
     }),
+    createCleanupPlan: vi.fn().mockResolvedValue({
+      planId: "cleanup-plan-1",
+      planVersion: 1,
+      authorityId: "vault-1",
+      disposition: "trash",
+      items: [
+        {
+          operationId: "operation-1",
+          sourcePath: "/inbox/notes.md",
+          retainedPath:
+            "/Knowledge Vault/Originals/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/Reset-reliability.md",
+          identity: proposal.items[0].identity,
+        },
+      ],
+      expiresAtUnixMs: Date.now() + 300_000,
+      confirmationNonce: "cleanup-confirmation",
+      confirmationBindingSha256: "b".repeat(64),
+    }),
+    authorizePermanentCleanup: vi.fn(),
+    confirmCleanupPlan: vi.fn().mockResolvedValue({
+      planId: "cleanup-plan-1",
+      status: "committed",
+      disposition: "trash",
+      removedPaths: ["/inbox/notes.md"],
+      failureReason: null,
+    }),
   };
 }
 
@@ -244,6 +270,38 @@ describe("archive preview", () => {
       })],
       vault,
     );
+
+    expect(
+      screen.getByRole("button", { name: "Review source cleanup" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /enable cleanup for these archived sources/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Review source cleanup" }),
+    );
+    const cleanupReview = await screen.findByRole("region", {
+      name: "Exact cleanup plan",
+    });
+    expect(cleanupReview).toHaveTextContent("/inbox/notes.md");
+    expect(cleanupReview).toHaveTextContent(/operating-system trash/i);
+    expect(cleanupReview).toHaveTextContent(/retained original/i);
+    expect(
+      screen.getByRole("button", { name: "Confirm move to trash" }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: /i reviewed every cleanup path and sha-256/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm move to trash" }),
+    );
+    await waitFor(() =>
+      expect(archiveClient.confirmCleanupPlan).toHaveBeenCalledWith({
+        planId: "cleanup-plan-1",
+        confirmationNonce: "cleanup-confirmation",
+      }),
+    );
+    expect(screen.getByText("Source cleanup committed")).toBeInTheDocument();
   });
 
   test("blocks archive planning when canonical naming needs review", async () => {
