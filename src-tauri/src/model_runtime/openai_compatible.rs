@@ -243,8 +243,9 @@ mod tests {
     use crate::model_runtime::config::{ModelConfigSummary, ModelLocation};
     use std::io::{Cursor, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn rejects_markdown_fenced_provider_content() {
@@ -305,6 +306,23 @@ mod tests {
         (format!("http://{address}/v1/chat/completions"), handle)
     }
 
+    fn serve_stalled() -> (String, mpsc::Sender<()>, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind stalled test server");
+        let address = listener
+            .local_addr()
+            .expect("read stalled test server address");
+        let (release, await_release) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let (_stream, _) = listener.accept().expect("accept stalled model request");
+            let _ = await_release.recv_timeout(Duration::from_secs(2));
+        });
+        (
+            format!("http://{address}/v1/chat/completions"),
+            release,
+            handle,
+        )
+    }
+
     #[test]
     fn rejects_non_success_declared_overflow_and_timeout() {
         let (endpoint, server) = serve(
@@ -324,11 +342,13 @@ mod tests {
         assert!(execute(&config(endpoint, 1_000), &serde_json::json!({})).is_err());
         server.join().expect("join overflow server");
 
-        let (endpoint, server) = serve(
-            "HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}".to_owned(),
-            Duration::from_millis(100),
-        );
-        assert!(execute(&config(endpoint, 20), &serde_json::json!({})).is_err());
+        let (endpoint, release, server) = serve_stalled();
+        let started = Instant::now();
+        let result = execute(&config(endpoint, 20), &serde_json::json!({}));
+        let elapsed = started.elapsed();
+        release.send(()).expect("release stalled server");
         server.join().expect("join timeout server");
+        assert!(result.is_err());
+        assert!(elapsed < Duration::from_millis(500));
     }
 }
