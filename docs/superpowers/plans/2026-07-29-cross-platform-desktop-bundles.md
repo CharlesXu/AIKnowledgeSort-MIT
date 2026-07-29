@@ -96,7 +96,15 @@ smoke mode from exact process arguments. Tests must prove:
 ```rust
 assert_eq!(mode(["app"]), ProcessMode::Desktop);
 assert_eq!(mode(["app", "--desktop-smoke"]), ProcessMode::DesktopSmoke);
-assert_eq!(mode(["app", "--mcp-stdio-relay"]), ProcessMode::McpStdioRelay);
+assert_eq!(
+    mode([
+        "app",
+        "--mcp-stdio-relay",
+        "--broker-url",
+        "http://127.0.0.1:3000/mcp"
+    ]),
+    ProcessMode::McpStdioRelay
+);
 assert!(mode(["app", "--desktop-smoke", "extra"]).is_err());
 assert!(mode(["app", "--desktop-smoke", "--mcp-stdio-relay"]).is_err());
 ```
@@ -113,8 +121,9 @@ Expected: FAIL because the mode parser does not exist.
 
 Expose only the enum and parser needed by `main.rs`. Existing relay environment
 validation remains owned by the relay. Unknown arguments continue into normal
-desktop mode only when no reserved AIKS process switch is present; conflicting
-or malformed reserved switches exit with code 2.
+desktop mode only when no reserved AIKS process switch is present. The existing
+exact relay shape `--mcp-stdio-relay --broker-url <url>` is preserved;
+conflicting or malformed reserved switches exit with code 2.
 
 - [ ] **Step 3: Build the same Tauri application in both desktop modes**
 

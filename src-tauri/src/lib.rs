@@ -1,5 +1,40 @@
+use std::ffi::{OsStr, OsString};
+
 fn application_name() -> &'static str {
     "AI Knowledge Sort"
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ProcessMode {
+    Desktop,
+    DesktopSmoke,
+    McpStdioRelay,
+}
+
+pub fn process_mode<I, S>(args: I) -> Result<ProcessMode, String>
+where
+    I: IntoIterator<Item = S>,
+    S: Into<OsString>,
+{
+    let arguments = args.into_iter().skip(1).map(Into::into).collect::<Vec<_>>();
+    let desktop_smoke = OsStr::new("--desktop-smoke");
+    let mcp_relay = OsStr::new("--mcp-stdio-relay");
+    let broker_url = OsStr::new("--broker-url");
+
+    match arguments.as_slice() {
+        [] => Ok(ProcessMode::Desktop),
+        [switch] if switch == desktop_smoke => Ok(ProcessMode::DesktopSmoke),
+        [relay, broker, _url] if relay == mcp_relay && broker == broker_url => {
+            Ok(ProcessMode::McpStdioRelay)
+        }
+        _ if arguments
+            .iter()
+            .any(|argument| argument == desktop_smoke || argument == mcp_relay) =>
+        {
+            Err("Reserved process mode arguments are malformed or conflicting".to_owned())
+        }
+        _ => Ok(ProcessMode::Desktop),
+    }
 }
 
 pub mod agent_access;
@@ -19,7 +54,15 @@ mod vault;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    run_application(false);
+}
+
+pub fn run_desktop_smoke() {
+    run_application(true);
+}
+
+fn run_application(exit_when_ready: bool) {
+    let application = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .manage(agent_access::authority::AgentAccessAuthority::default())
         .manage(mcp_transport::McpTransportAuthority::default())
@@ -124,14 +167,63 @@ pub fn run() {
             profiles::compile_local_profile_candidate,
             profiles::decide_profile_candidate
         ])
-        .run(tauri::generate_context!())
-        .unwrap_or_else(|error| panic!("error while running {}: {error}", application_name()));
+        .build(tauri::generate_context!())
+        .unwrap_or_else(|error| panic!("error while building {}: {error}", application_name()));
+    application.run(move |application, event| {
+        if exit_when_ready && matches!(event, tauri::RunEvent::Ready) {
+            application.exit(0);
+        }
+    });
 }
 
 #[cfg(test)]
 mod tests {
+    use super::{process_mode, ProcessMode};
+
     #[test]
     fn identifies_the_source_workbench() {
         assert_eq!(super::application_name(), "AI Knowledge Sort");
+    }
+
+    #[test]
+    fn process_mode_selects_each_reserved_entrypoint_exactly() {
+        assert_eq!(
+            process_mode(["app"].into_iter()).expect("normal desktop mode"),
+            ProcessMode::Desktop
+        );
+        assert_eq!(
+            process_mode(["app", "--desktop-smoke"].into_iter()).expect("desktop smoke mode"),
+            ProcessMode::DesktopSmoke
+        );
+        assert_eq!(
+            process_mode(
+                [
+                    "app",
+                    "--mcp-stdio-relay",
+                    "--broker-url",
+                    "http://127.0.0.1:3000/mcp",
+                ]
+                .into_iter()
+            )
+            .expect("MCP stdio relay mode"),
+            ProcessMode::McpStdioRelay
+        );
+    }
+
+    #[test]
+    fn process_mode_rejects_malformed_or_conflicting_reserved_switches() {
+        assert!(process_mode(["app", "--desktop-smoke", "extra"].into_iter()).is_err());
+        assert!(process_mode(["app", "--desktop-smoke", "--mcp-stdio-relay"].into_iter()).is_err());
+        assert!(process_mode(
+            [
+                "app",
+                "--mcp-stdio-relay",
+                "--broker-url",
+                "http://127.0.0.1:3000/mcp",
+                "extra",
+            ]
+            .into_iter()
+        )
+        .is_err());
     }
 }
