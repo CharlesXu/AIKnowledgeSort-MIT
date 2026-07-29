@@ -181,8 +181,7 @@ impl ModelConfigStore {
                 })?;
             fs::rename(&temporary_path, self.directory.join(CONFIG_FILENAME))
                 .map_err(|error| format!("Model configuration cannot be replaced: {error}"))?;
-            File::open(&self.directory)
-                .and_then(|directory| directory.sync_all())
+            sync_directory(&self.directory)
                 .map_err(|error| format!("Model configuration directory cannot be synced: {error}"))
         })();
         if result.is_err() {
@@ -190,6 +189,17 @@ impl ModelConfigStore {
         }
         result
     }
+}
+
+#[cfg(not(windows))]
+fn sync_directory(path: &Path) -> io::Result<()> {
+    File::open(path)?.sync_all()
+}
+
+#[cfg(windows)]
+fn sync_directory(_path: &Path) -> io::Result<()> {
+    // std::fs cannot open Windows directories; the temporary file is synced before atomic rename.
+    Ok(())
 }
 
 fn state_from_persisted(persisted: PersistedModelRuntime) -> Result<ModelRuntimeState, String> {

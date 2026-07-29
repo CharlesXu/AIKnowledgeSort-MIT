@@ -674,6 +674,7 @@ mod tests {
         assert_eq!(snapshot.relations, vec![accepted]);
         assert_eq!(snapshot.events.len(), 3);
         assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
+        drop(lease);
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -720,6 +721,7 @@ mod tests {
             .relations
             .is_empty());
         assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
+        drop(lease);
         fs::remove_dir_all(root).unwrap();
     }
 }

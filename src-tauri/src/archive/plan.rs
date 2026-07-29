@@ -149,9 +149,7 @@ impl ArchivePlanRegistry {
                 .clone()
                 .ok_or_else(|| "Naming proposal requires review".to_owned())?;
             validate_original_name(&canonical_name)?;
-            let destination = Path::new("Originals")
-                .join(&source.identity.digest)
-                .join(&canonical_name);
+            let destination = format!("Originals/{}/{}", source.identity.digest, canonical_name);
             if !seen_destinations.insert(destination.clone()) {
                 return Err("Archive plan contains duplicate destinations".to_owned());
             }
@@ -167,7 +165,7 @@ impl ArchivePlanRegistry {
             items.push(ArchivePlanItem {
                 item_id: source.item_id,
                 source_path: source.path.to_string_lossy().into_owned(),
-                destination_path: destination.to_string_lossy().into_owned(),
+                destination_path: destination,
                 original_name: source.name,
                 canonical_name,
                 naming,

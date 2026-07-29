@@ -19,6 +19,7 @@ mod tests {
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
     use std::io::Cursor;
+    use std::ops::Deref;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Barrier, Mutex};
@@ -30,8 +31,28 @@ mod tests {
         root: PathBuf,
         source: PathBuf,
         archived: PathBuf,
-        lease: crate::vault::VaultLease,
+        lease: FixtureLease,
         operation_id: String,
+    }
+
+    struct FixtureLease {
+        lease: Option<crate::vault::VaultLease>,
+        root: PathBuf,
+    }
+
+    impl Deref for FixtureLease {
+        type Target = crate::vault::VaultLease;
+
+        fn deref(&self) -> &Self::Target {
+            self.lease.as_ref().expect("fixture lease is available")
+        }
+    }
+
+    impl Drop for FixtureLease {
+        fn drop(&mut self) {
+            drop(self.lease.take());
+            fs::remove_dir_all(&self.root).expect("remove comparison fixture");
+        }
     }
 
     impl Fixture {
@@ -101,15 +122,12 @@ mod tests {
                 root: root.clone(),
                 source,
                 archived: vault_path.join(destination_path),
-                lease,
+                lease: FixtureLease {
+                    lease: Some(lease),
+                    root,
+                },
                 operation_id,
             }
-        }
-    }
-
-    impl Drop for Fixture {
-        fn drop(&mut self) {
-            fs::remove_dir_all(&self.root).expect("remove comparison fixture");
         }
     }
 

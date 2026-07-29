@@ -196,17 +196,26 @@ impl AgentAccessStore {
             fs::rename(&temporary, &destination).map_err(|error| {
                 format!("Agent access configuration cannot be replaced: {error}")
             })?;
-            File::open(&self.directory)
-                .and_then(|directory| directory.sync_all())
-                .map_err(|error| {
-                    format!("Agent access configuration directory cannot be synced: {error}")
-                })
+            sync_directory(&self.directory).map_err(|error| {
+                format!("Agent access configuration directory cannot be synced: {error}")
+            })
         })();
         if result.is_err() {
             let _ = fs::remove_file(&temporary);
         }
         result
     }
+}
+
+#[cfg(not(windows))]
+fn sync_directory(path: &Path) -> io::Result<()> {
+    File::open(path)?.sync_all()
+}
+
+#[cfg(windows)]
+fn sync_directory(_path: &Path) -> io::Result<()> {
+    // std::fs cannot open Windows directories; the temporary file is synced before atomic rename.
+    Ok(())
 }
 
 fn validate_state(state: &PersistedAgentAccess) -> Result<(), String> {

@@ -425,6 +425,7 @@ mod tests {
                 .count(),
             2
         );
+        drop(lease);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -435,6 +436,7 @@ mod tests {
         assert!(save_document(&lease, &operation_id, 0, &oversized).is_err());
         assert_eq!(fs::read(&source).expect("read source"), SOURCE_BYTES);
         assert_eq!(open_document(&lease, &operation_id).unwrap().revision, 0);
+        drop(lease);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -455,6 +457,7 @@ mod tests {
             "# Recovered\n"
         );
         assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
+        drop(lease);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 
@@ -480,6 +483,7 @@ mod tests {
         fs::write(first_path, "# Tampered\n").expect("tamper revision");
         assert!(open_committed_revision(&lease, &operation_id, 1).is_err());
         assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
+        drop(lease);
         fs::remove_dir_all(root).expect("remove fixture");
     }
 }
