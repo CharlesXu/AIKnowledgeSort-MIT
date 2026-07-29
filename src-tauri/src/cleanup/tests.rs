@@ -1,5 +1,6 @@
 use super::{
-    execute_with, CleanupDisposition, CleanupExecutor, CleanupPlanRegistry, CleanupStatus,
+    execute_with, persist_state, read_json, reconcile_vault, CleanupAudit, CleanupDisposition,
+    CleanupExecutor, CleanupLifecycleState, CleanupPlanRegistry, CleanupStatus,
 };
 use crate::archive::{commit_plan_with_faults, ArchivePlan, ArchivePlanItem, TransactionFaults};
 use crate::identity::ContentIdentity;
@@ -271,4 +272,134 @@ fn wrong_confirmation_does_not_consume_the_reviewed_plan() {
     assert!(plans
         .consume_at(&plan.plan_id, &plan.confirmation_nonce, Instant::now())
         .is_ok());
+}
+
+#[test]
+fn reconciliation_abandons_an_unconfirmed_plan_without_touching_the_source() {
+    let fixture = Fixture::new();
+    let plans = CleanupPlanRegistry::default();
+    let plan = plans
+        .create_at(
+            &fixture.lease(),
+            std::slice::from_ref(&fixture.operation_id),
+            true,
+            Instant::now(),
+            SystemTime::now(),
+        )
+        .expect("create plan");
+
+    let reopened = VaultAuthorityRegistry::default();
+    let summary = reopened
+        .authorize_path(&fixture.root.join("vault"))
+        .expect("reopen and reconcile Vault");
+    let lease = reopened
+        .lease(&summary.authority_id)
+        .expect("lease reopened Vault");
+
+    assert!(fixture.source.is_file());
+    let record: CleanupAudit = read_json(
+        &lease.directory,
+        &Path::new(".aiks/cleanup")
+            .join(&plan.plan_id)
+            .join("00000001.json"),
+    )
+    .expect("read recovered record");
+    assert_eq!(record.state, CleanupLifecycleState::Abandoned);
+}
+
+#[test]
+fn reconciliation_abandons_an_executing_plan_when_no_source_was_mutated() {
+    let fixture = Fixture::new();
+    let plans = CleanupPlanRegistry::default();
+    let plan = plans
+        .create_at(
+            &fixture.lease(),
+            std::slice::from_ref(&fixture.operation_id),
+            true,
+            Instant::now(),
+            SystemTime::now(),
+        )
+        .expect("create plan");
+    persist_state(
+        &fixture.lease(),
+        &plan,
+        1,
+        CleanupLifecycleState::Executing,
+        "retained-original-verified",
+        None,
+    )
+    .expect("persist executing");
+
+    let report = reconcile_vault(&fixture.lease()).expect("reconcile executing plan");
+
+    assert_eq!(report.abandoned, 1);
+    assert!(fixture.source.is_file());
+    let record: CleanupAudit = read_json(
+        &fixture.lease().directory,
+        &Path::new(".aiks/cleanup")
+            .join(&plan.plan_id)
+            .join("00000002.json"),
+    )
+    .expect("read recovered record");
+    assert_eq!(record.state, CleanupLifecycleState::Abandoned);
+}
+
+#[test]
+fn reconciliation_commits_an_executing_plan_only_after_the_source_is_absent() {
+    let fixture = Fixture::new();
+    let plans = CleanupPlanRegistry::default();
+    let plan = plans
+        .create_at(
+            &fixture.lease(),
+            std::slice::from_ref(&fixture.operation_id),
+            true,
+            Instant::now(),
+            SystemTime::now(),
+        )
+        .expect("create plan");
+    persist_state(
+        &fixture.lease(),
+        &plan,
+        1,
+        CleanupLifecycleState::Executing,
+        "retained-original-verified",
+        None,
+    )
+    .expect("persist executing");
+    fs::remove_file(&fixture.source).expect("simulate completed trash move");
+
+    let report = reconcile_vault(&fixture.lease()).expect("reconcile committed plan");
+
+    assert_eq!(report.recovered_committed, 1);
+    assert!(Path::new(&plan.items[0].retained_path).is_file());
+    let record: CleanupAudit = read_json(
+        &fixture.lease().directory,
+        &Path::new(".aiks/cleanup")
+            .join(&plan.plan_id)
+            .join("00000002.json"),
+    )
+    .expect("read recovered record");
+    assert_eq!(record.state, CleanupLifecycleState::Committed);
+}
+
+#[test]
+fn reconciliation_rejects_an_audit_record_moved_to_another_sequence() {
+    let fixture = Fixture::new();
+    let plans = CleanupPlanRegistry::default();
+    let plan = plans
+        .create_at(
+            &fixture.lease(),
+            std::slice::from_ref(&fixture.operation_id),
+            true,
+            Instant::now(),
+            SystemTime::now(),
+        )
+        .expect("create plan");
+    let audit = fixture.root.join("vault/.aiks/cleanup").join(&plan.plan_id);
+    fs::rename(audit.join("00000000.json"), audit.join("00000001.json")).expect("reorder audit");
+
+    let error = reconcile_vault(&fixture.lease()).expect_err("reject invalid history");
+
+    assert!(error.contains("binding is invalid"), "{error}");
+    assert!(fixture.source.is_file());
 }

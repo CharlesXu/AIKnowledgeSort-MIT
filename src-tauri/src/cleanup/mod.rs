@@ -1,7 +1,9 @@
+mod recovery;
+
 use crate::archive::verified_registered_original;
 use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
 use crate::identity::ContentIdentity;
-use crate::vault::records::write_new_json;
+use crate::vault::records::{read_json, write_new_json};
 use crate::vault::{VaultAuthorityRegistry, VaultLease};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -22,8 +24,8 @@ pub enum CleanupDisposition {
     PermanentDelete,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct CleanupPlanItem {
     operation_id: String,
     source_path: String,
@@ -31,8 +33,8 @@ pub struct CleanupPlanItem {
     identity: ContentIdentity,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct CleanupPlan {
     plan_id: String,
     plan_version: u32,
@@ -118,7 +120,14 @@ impl CleanupPlanRegistry {
             .map(|operation_id| cleanup_item(vault, operation_id))
             .collect::<Result<Vec<_>, _>>()?;
         let plan = new_plan(vault, CleanupDisposition::Trash, items, wall_clock)?;
-        persist_state(vault, &plan, 0, "proposed", "pending", None)?;
+        persist_state(
+            vault,
+            &plan,
+            0,
+            CleanupLifecycleState::Proposed,
+            "pending",
+            None,
+        )?;
         self.insert(plan.clone(), now)?;
         Ok(plan)
     }
@@ -140,7 +149,7 @@ impl CleanupPlanRegistry {
             vault,
             &reviewed,
             1,
-            "superseded",
+            CleanupLifecycleState::Superseded,
             "permanent-delete-requested",
             None,
         )?;
@@ -154,7 +163,7 @@ impl CleanupPlanRegistry {
             vault,
             &plan,
             0,
-            "proposed",
+            CleanupLifecycleState::Proposed,
             "awaiting-separate-permanent-confirmation",
             None,
         )?;
@@ -337,14 +346,21 @@ fn execute_with(
     executor: &dyn CleanupExecutor,
 ) -> CleanupResult {
     if let Err(error) = reverify_plan(vault, &plan) {
-        let _ = persist_state(vault, &plan, 1, "failed", "not-mutated", Some(&error));
+        let _ = persist_state(
+            vault,
+            &plan,
+            1,
+            CleanupLifecycleState::Failed,
+            "not-mutated",
+            Some(&error),
+        );
         return failed_result(plan, error);
     }
     if let Err(error) = persist_state(
         vault,
         &plan,
         1,
-        "executing",
+        CleanupLifecycleState::Executing,
         "retained-original-verified",
         None,
     ) {
@@ -363,7 +379,7 @@ fn execute_with(
                 vault,
                 &plan,
                 2,
-                "failed",
+                CleanupLifecycleState::Failed,
                 "retained-original-preserved",
                 Some(&error),
             );
@@ -387,7 +403,7 @@ fn execute_with(
         vault,
         &plan,
         2,
-        "committed",
+        CleanupLifecycleState::Committed,
         "retained-original-verified",
         None,
     ) {
@@ -420,24 +436,35 @@ fn failed_result(plan: CleanupPlan, error: String) -> CleanupResult {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct CleanupAudit<'a> {
+enum CleanupLifecycleState {
+    Proposed,
+    Executing,
+    Superseded,
+    Committed,
+    Failed,
+    Abandoned,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+struct CleanupAudit {
     schema_version: u32,
     sequence: u32,
-    actor: &'static str,
+    actor: String,
     recorded_at_unix_ms: u64,
-    state: &'a str,
-    outcome: &'a str,
-    failure_reason: Option<&'a str>,
-    plan: &'a CleanupPlan,
+    state: CleanupLifecycleState,
+    outcome: String,
+    failure_reason: Option<String>,
+    plan: CleanupPlan,
 }
 
 fn persist_state(
     vault: &VaultLease,
     plan: &CleanupPlan,
     sequence: u32,
-    state: &str,
+    state: CleanupLifecycleState,
     outcome: &str,
     failure_reason: Option<&str>,
 ) -> Result<(), String> {
@@ -463,12 +490,12 @@ fn persist_state(
         &CleanupAudit {
             schema_version: 1,
             sequence,
-            actor: "desktop-user",
+            actor: "desktop-user".to_owned(),
             recorded_at_unix_ms: unix_time_ms(SystemTime::now()),
             state,
-            outcome,
-            failure_reason,
-            plan,
+            outcome: outcome.to_owned(),
+            failure_reason: failure_reason.map(str::to_owned),
+            plan: plan.clone(),
         },
     )
 }
@@ -530,6 +557,8 @@ pub async fn confirm_cleanup_plan(
         .await
         .map_err(|error| format!("Cleanup transaction worker failed: {error}"))
 }
+
+pub(crate) use recovery::reconcile_vault;
 
 #[cfg(test)]
 mod tests;

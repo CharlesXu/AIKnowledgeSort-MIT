@@ -199,6 +199,7 @@ impl VaultAuthorityRegistry {
                 .map_err(|error| format!("Vault capability cannot be cloned: {error}"))?,
         };
         crate::archive::reconcile_vault(&lease)?;
+        crate::cleanup::reconcile_vault(&lease)?;
         *authority = Some(VaultAuthority {
             summary: summary.clone(),
             directory,

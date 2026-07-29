@@ -127,6 +127,15 @@ second confirmation. Agent tools have no cleanup execution capability. A
 changed, unreadable, missing, linked, or no-longer-registered retained original
 rejects cleanup without source mutation.
 
+On every Vault authorization, immutable cleanup lifecycle records are
+reconciled before the Vault becomes active. Unconfirmed plans and executions
+that stopped before source mutation become `abandoned`; an execution is
+recovered as `committed` only when every selected source is absent and every
+registered retained original still matches its recorded SHA-256 identity.
+Partial mutation, changed source identity, missing retained evidence, invalid
+lifecycle ordering, or a record moved to another sequence is recorded as failed
+or rejects Vault activation without any further cleanup.
+
 ## Archive-gated authoritative Markdown
 
 Each successfully committed archive item can now become an explicit knowledge
@@ -263,7 +272,7 @@ execution, arbitrary command, ambient path, or automatic grant reactivation.
 Secure keychain credential entry, model discovery, provider-specific APIs,
 applying model suggestions to graph relations, model-generated naming facts,
 automatic classification or naming, physical source renaming, user-controlled
-cleanup undo and crash reconciliation, classified destination paths, automatic graph inference,
+cleanup undo, classified destination paths, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG
 indexing/retrieval, a 3D graph, secure keychain integration, and URL profile
