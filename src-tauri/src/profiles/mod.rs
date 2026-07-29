@@ -122,14 +122,12 @@ pub(crate) fn create_classification_batch(
 }
 
 #[tauri::command]
-pub fn import_local_profile_candidate(
+pub async fn import_local_profile_candidate(
     app: tauri::AppHandle,
     vaults: tauri::State<'_, VaultAuthorityRegistry>,
     profiles: tauri::State<'_, ProfileAuthority>,
 ) -> Result<Option<ProfileCandidateRecord>, String> {
-    use tauri_plugin_dialog::DialogExt;
-
-    let Some(selected) = app.dialog().file().blocking_pick_file() else {
+    let Some(selected) = crate::native_dialog::pick_file(&app).await? else {
         return Ok(None);
     };
     let path = selected
@@ -200,9 +198,7 @@ pub async fn compile_local_profile_candidate(
     profiles: tauri::State<'_, ProfileAuthority>,
     models: tauri::State<'_, crate::model_runtime::ModelRuntimeAuthority>,
 ) -> Result<Option<ProfileCandidateRecord>, String> {
-    use tauri_plugin_dialog::DialogExt;
-
-    let Some(selected) = app.dialog().file().blocking_pick_file() else {
+    let Some(selected) = crate::native_dialog::pick_file(&app).await? else {
         return Ok(None);
     };
     let path = selected

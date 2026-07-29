@@ -22,9 +22,7 @@ pub async fn select_agent_grant_directories(
     app: tauri::AppHandle,
     authority: tauri::State<'_, AgentAccessAuthority>,
 ) -> Result<Option<NativeScopeSelection>, String> {
-    use tauri_plugin_dialog::DialogExt;
-
-    let Some(selected) = app.dialog().file().blocking_pick_folders() else {
+    let Some(selected) = crate::native_dialog::pick_folders(&app).await? else {
         return Ok(None);
     };
     let paths = selected

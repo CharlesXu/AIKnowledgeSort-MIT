@@ -299,13 +299,11 @@ fn initialize_product_directories(directory: &Dir) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn choose_authoritative_vault(
+pub async fn choose_authoritative_vault(
     app: tauri::AppHandle,
     registry: tauri::State<'_, VaultAuthorityRegistry>,
 ) -> Result<Option<VaultSummary>, String> {
-    use tauri_plugin_dialog::DialogExt;
-
-    let selected = app.dialog().file().blocking_pick_folder();
+    let selected = crate::native_dialog::pick_folder(&app).await?;
     let Some(selected) = selected else {
         return Ok(None);
     };

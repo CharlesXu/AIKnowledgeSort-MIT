@@ -17,11 +17,22 @@ function requireText(violations, text, pattern, label) {
   if (!pattern.test(text)) violations.push(label);
 }
 
-const [packageText, cargoText, tauriText, workflow] = await Promise.all([
+const [
+  packageText,
+  cargoText,
+  tauriText,
+  workflow,
+  profileCommands,
+  vaultCommands,
+  agentAccessCommands,
+] = await Promise.all([
   read("package.json"),
   read("src-tauri/Cargo.toml"),
   read("src-tauri/tauri.conf.json"),
   read(".github/workflows/ci.yml"),
+  read("src-tauri/src/profiles/mod.rs"),
+  read("src-tauri/src/vault/mod.rs"),
+  read("src-tauri/src/agent_access/mod.rs"),
 ]);
 
 const packageJson = JSON.parse(packageText);
@@ -84,6 +95,15 @@ requireText(
   /^permissions:\s*\n\s+contents:\s+read\s*$/m,
   "workflow permissions must remain contents read-only",
 );
+for (const [source, label] of [
+  [profileCommands, "profile commands"],
+  [vaultCommands, "Vault commands"],
+  [agentAccessCommands, "Agent access commands"],
+]) {
+  if (/blocking_pick_(?:file|files|folder|folders)\s*\(/.test(source)) {
+    violations.push(`${label} must not block the application thread on native dialogs`);
+  }
+}
 
 if (violations.length > 0) {
   console.error("Release contract failed:");

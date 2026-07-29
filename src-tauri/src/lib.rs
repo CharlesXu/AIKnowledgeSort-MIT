@@ -49,6 +49,7 @@ mod knowledge;
 pub mod mcp_transport;
 mod model_runtime;
 mod naming;
+mod native_dialog;
 pub mod profiles;
 mod vault;
 
