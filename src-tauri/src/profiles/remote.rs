@@ -395,7 +395,7 @@ mod tests {
 
     struct TestVault {
         root: PathBuf,
-        registry: VaultAuthorityRegistry,
+        registry: Option<VaultAuthorityRegistry>,
     }
 
     impl TestVault {
@@ -412,17 +412,22 @@ mod tests {
             let root = root.canonicalize().unwrap();
             let registry = VaultAuthorityRegistry::default();
             registry.authorize_path(&root).unwrap();
-            Self { root, registry }
+            Self {
+                root,
+                registry: Some(registry),
+            }
         }
 
         fn lease(&self) -> crate::vault::VaultLease {
-            let summary = self.registry.current_summary().unwrap();
-            self.registry.lease(&summary.authority_id).unwrap()
+            let registry = self.registry.as_ref().unwrap();
+            let summary = registry.current_summary().unwrap();
+            registry.lease(&summary.authority_id).unwrap()
         }
     }
 
     impl Drop for TestVault {
         fn drop(&mut self) {
+            drop(self.registry.take());
             fs::remove_dir_all(&self.root).unwrap();
         }
     }

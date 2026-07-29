@@ -782,7 +782,7 @@ mod tests {
 
     struct TestVault {
         root: PathBuf,
-        registry: VaultAuthorityRegistry,
+        registry: Option<VaultAuthorityRegistry>,
     }
 
     impl TestVault {
@@ -803,12 +803,16 @@ mod tests {
             registry
                 .authorize_path(&root)
                 .expect("authorize profile Vault");
-            Self { root, registry }
+            Self {
+                root,
+                registry: Some(registry),
+            }
         }
 
         fn lease(&self) -> crate::vault::VaultLease {
-            let summary = self.registry.current_summary().expect("current Vault");
-            self.registry
+            let registry = self.registry.as_ref().expect("profile Vault is available");
+            let summary = registry.current_summary().expect("current Vault");
+            registry
                 .lease(&summary.authority_id)
                 .expect("lease profile Vault")
         }
@@ -816,6 +820,7 @@ mod tests {
 
     impl Drop for TestVault {
         fn drop(&mut self) {
+            drop(self.registry.take());
             fs::remove_dir_all(&self.root).expect("remove generated profile Vault");
         }
     }

@@ -212,6 +212,7 @@ mod tests {
             }
         );
 
+        drop(directory);
         fs::remove_dir_all(root).expect("remove generated record directory");
     }
 }
