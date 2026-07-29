@@ -476,15 +476,5 @@ fn classify_opened_root(display_path: PathBuf, opened: File) -> CapabilityRoot {
 }
 
 pub(super) fn file_type_is_link(file_type: &FileType) -> bool {
-    if file_type.is_symlink() {
-        return true;
-    }
-    #[cfg(windows)]
-    {
-        use cap_std::fs::FileTypeExt;
-        if file_type.is_symlink_dir() || file_type.is_symlink_file() {
-            return true;
-        }
-    }
-    false
+    file_type.is_symlink()
 }
