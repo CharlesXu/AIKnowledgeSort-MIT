@@ -29,6 +29,32 @@ function client(): ModelRuntimeClient {
 }
 
 describe("ModelSettingsDialog", () => {
+  test("reveals the derived credential environment field when authentication is enabled", async () => {
+    render(
+      <ModelSettingsDialog
+        client={client()}
+        onClose={vi.fn()}
+        triggerRef={{ current: null }}
+      />,
+    );
+    await screen.findByText("Remote Reasoner");
+
+    fireEvent.click(screen.getByRole("checkbox", {
+      name: "Use bearer authentication from an environment variable",
+    }));
+    const environment = screen.getByLabelText("Credential environment variable");
+    expect(environment).toBeVisible();
+    expect(environment).toHaveAttribute("readonly");
+    expect(environment).toHaveValue("");
+
+    fireEvent.change(screen.getByLabelText("Configuration ID"), {
+      target: { value: "remote-reasoner" },
+    });
+    expect(environment).toHaveValue("AIKS_MODEL_API_KEY_REMOTE_REASONER");
+    expect(screen.queryByLabelText(/bearer token|api key|password|secret/i))
+      .toBeNull();
+  });
+
   test("lists configs and submits only secret-free model fields", async () => {
     const modelClient = client();
     const trigger = { current: null };

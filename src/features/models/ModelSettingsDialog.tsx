@@ -210,11 +210,24 @@ export function ModelSettingsPanel({ client }: ModelSettingsPanelProps) {
               />
               Use bearer authentication from an environment variable
             </label>
-            {draft.authenticated && draft.configId ? (
-              <p className="model-settings__credential">
-                Set the credential in <code>{credentialEnvironment(draft.configId)}</code>.
-                The value is never accepted or displayed here.
-              </p>
+            {draft.authenticated ? (
+              <>
+                <label>
+                  Credential environment variable
+                  <input
+                    placeholder="Enter a configuration ID first"
+                    readOnly
+                    value={
+                      draft.configId ? credentialEnvironment(draft.configId) : ""
+                    }
+                  />
+                </label>
+                <p className="model-settings__credential">
+                  Set the bearer token in this environment variable before
+                  launching the app. The token value is never accepted, stored,
+                  or displayed here.
+                </p>
+              </>
             ) : null}
             <button className="model-settings__save" disabled={busy} type="submit">
               {busy ? "Saving…" : "Save model config"}

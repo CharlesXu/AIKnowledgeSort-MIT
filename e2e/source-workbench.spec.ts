@@ -210,6 +210,14 @@ test("keeps model Settings secret-free and non-persistent in the browser fixture
   await dialog.getByLabel("Label").fill("Browser Model");
   await dialog.getByRole("textbox", { name: "Model", exact: true })
     .fill("browser-only");
+  await dialog.getByRole("checkbox", {
+    name: "Use bearer authentication from an environment variable",
+  }).check();
+  await expect(
+    dialog.getByLabel("Credential environment variable"),
+  ).toHaveValue("AIKS_MODEL_API_KEY_BROWSER_MODEL");
+  await expect(dialog.getByLabel(/bearer token|api key|password|secret/i))
+    .toHaveCount(0);
   await dialog.getByRole("button", { name: "Save model config" }).click();
   await expect(dialog.getByRole("alert")).toContainText(
     "Desktop runtime is required for model runtime operations.",
