@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "e2e": "playwright test",
-    "test": "vitest",
+    "test": "vitest --maxWorkers=8",
     "tauri": "tauri",
     "verify:release": "node scripts/verify-release-contract.mjs"
   },

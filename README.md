@@ -54,6 +54,13 @@ workers retain their bounded concurrency permit until that call returns, so the
 UI thread remains responsive and additional work is rejected at the configured
 limit.
 
+After trusted discovery completes, the left source tree is rebuilt from the
+actual proposal paths rather than the browser demonstration fixture. File
+identities remain the opaque discovery item identities, directory checkboxes
+resolve to their deduplicated eligible descendants, and the source tree and
+archive review share one selection. A change from either pane therefore updates
+the other pane and every displayed ancestor's checked or indeterminate state.
+
 ## Declarative classification profiles
 
 The desktop runtime can import a local file or an explicitly entered HTTPS URL

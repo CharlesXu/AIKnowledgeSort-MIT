@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   ArchiveClient,
   ArchiveCommitResult,
@@ -39,7 +39,9 @@ interface ArchivePreviewPaneProps {
     vault: VaultSummary,
   ) => void;
   readonly onUndoneOperation?: (operationId: string) => void;
+  readonly onSelectedItemIdsChange?: (itemIds: readonly string[]) => void;
   readonly proposal: DiscoveryProposal;
+  readonly selectedItemIds?: readonly string[];
 }
 
 type PendingAction =
@@ -109,7 +111,9 @@ export function ArchivePreviewPane({
   profileClient,
   onCommittedItems,
   onUndoneOperation,
+  onSelectedItemIdsChange,
   proposal,
+  selectedItemIds,
 }: ArchivePreviewPaneProps) {
   const proposalId = useRef(proposal.proposalId);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
@@ -143,6 +147,11 @@ export function ArchivePreviewPane({
   const [semanticAdoptions, setSemanticAdoptions] = useState<
     Readonly<Record<string, string>>
   >({});
+  const effectiveSelectedIds = useMemo(
+    () =>
+      selectedItemIds === undefined ? selectedIds : new Set(selectedItemIds),
+    [selectedIds, selectedItemIds],
+  );
 
   useEffect(() => {
     proposalId.current = proposal.proposalId;
@@ -185,15 +194,16 @@ export function ArchivePreviewPane({
   }
 
   function toggleItem(itemId: string): void {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(itemId)) {
-        next.delete(itemId);
-      } else {
-        next.add(itemId);
-      }
-      return next;
-    });
+    const next = new Set(effectiveSelectedIds);
+    if (next.has(itemId)) {
+      next.delete(itemId);
+    } else {
+      next.add(itemId);
+    }
+    if (selectedItemIds === undefined) {
+      setSelectedIds(next);
+    }
+    onSelectedItemIdsChange?.([...next]);
     setEvidence((current) =>
       current[itemId] === undefined
         ? { ...current, [itemId]: emptyEvidence }
@@ -414,7 +424,7 @@ export function ArchivePreviewPane({
     try {
       const reviewed = await archiveClient.createPlan({
         proposalId: proposal.proposalId,
-        itemIds: [...selectedIds].sort(),
+        itemIds: [...effectiveSelectedIds].sort(),
         classificationBatchId: classificationBatch.batchId,
         namingBatchId: namingBatch.batchId,
       });
@@ -637,7 +647,7 @@ export function ArchivePreviewPane({
         !undoneOperationIds.has(item.operationId),
     ) ?? [];
   const selectedItems = proposal.items.filter((item) =>
-    selectedIds.has(item.itemId),
+    effectiveSelectedIds.has(item.itemId),
   );
   const evidenceComplete =
     selectedItems.length > 0 &&
@@ -697,7 +707,7 @@ export function ArchivePreviewPane({
                 <label className="archive-preview__item">
                   <input
                     aria-label={`Include ${item.name}`}
-                    checked={selectedIds.has(item.itemId)}
+                    checked={effectiveSelectedIds.has(item.itemId)}
                     disabled={pending !== null || committed}
                     onChange={() => toggleItem(item.itemId)}
                     type="checkbox"

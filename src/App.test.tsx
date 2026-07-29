@@ -17,18 +17,30 @@ import type { DiscoveryProposal } from "./features/drop/types";
 
 const liveProposal: DiscoveryProposal = {
   proposalId: "live-proposal",
-  items: [{
-    itemId: "live-trusted",
-    path: "/live/trusted.md",
-    name: "trusted.md",
-    byteSize: 1024,
-    identity: {
-      algorithm: "SHA-256",
-      digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+  items: [
+    {
+      itemId: "live-trusted",
+      path: "/live/trusted.md",
+      name: "trusted.md",
+      byteSize: 1024,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "0d764ea993d0f614fb0dc75e85a4cbbb815b7dd973a1778644c97d7a11a435c0",
+      },
     },
-  }],
+    {
+      itemId: "live-summary",
+      path: "/live/reports/summary.txt",
+      name: "summary.txt",
+      byteSize: 2048,
+      identity: {
+        algorithm: "SHA-256",
+        digest: "ab5f329afb80f567b441324ad2d048ca910644b17c7426f9cc585307c5077496",
+      },
+    },
+  ],
   counts: {
-    included: 7,
+    included: 2,
     excluded: 6,
     unreadable: 5,
     symlink: 4,
@@ -94,7 +106,30 @@ describe("source workbench shell", () => {
     expect(screen.getByText("Live scan")).toBeInTheDocument();
     expect(
       screen.getByRole("status", { name: "Included" }),
-    ).toHaveTextContent("7");
+    ).toHaveTextContent("2");
+
+    const sources = screen.getByRole("region", { name: "Sources" });
+    const sourceRoot = within(sources).getByRole("checkbox", {
+      name: "Select live directory",
+    });
+    expect(
+      within(sources).queryByRole("checkbox", {
+        name: "Select Roadmap.md file",
+      }),
+    ).toBeNull();
+
+    fireEvent.click(sourceRoot);
+    expect(
+      screen.getByRole("checkbox", { name: "Include trusted.md" }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Include summary.txt" }),
+    ).toBeChecked();
+
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Include trusted.md" }),
+    );
+    expect(sourceRoot).toBePartiallyChecked();
   });
 
   test("shows a full-workbench native hover overlay and removes it on cancel", () => {

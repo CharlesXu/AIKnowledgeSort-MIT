@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   deriveSelectionState,
   resolveEligibleSelection,
@@ -11,6 +11,8 @@ import type { SourceNode } from "./types";
 interface SourceTreeProps {
   readonly tree: SourceNode;
   readonly initialSelectionIds?: readonly string[];
+  readonly selectedFileIds?: readonly string[];
+  readonly onSelectedFileIdsChange?: (itemIds: readonly string[]) => void;
 }
 
 function collectDirectoryIds(node: SourceNode, ids: Set<string>): void {
@@ -45,14 +47,22 @@ function filterSourceTree(node: SourceNode, query: string): SourceNode | null {
 export function SourceTree({
   tree,
   initialSelectionIds = [],
+  selectedFileIds,
+  onSelectedFileIdsChange,
 }: SourceTreeProps) {
-  const [explicitIds, setExplicitIds] = useState<readonly string[]>(() => [
-    ...initialSelectionIds,
-  ]);
+  const [internalExplicitIds, setInternalExplicitIds] = useState<
+    readonly string[]
+  >(() => [...initialSelectionIds]);
+  const explicitIds = selectedFileIds ?? internalExplicitIds;
   const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(() =>
     initiallyExpanded(tree),
   );
   const [filter, setFilter] = useState("");
+
+  useEffect(() => {
+    setExpandedIds(initiallyExpanded(tree));
+  }, [tree]);
+
   const resolved = useMemo(
     () => resolveEligibleSelection(tree, explicitIds),
     [explicitIds, tree],
@@ -80,7 +90,15 @@ export function SourceTree({
   }
 
   function toggleNode(id: string, checked: boolean): void {
-    setExplicitIds((current) => toggleSelection(tree, current, id, checked));
+    const nextExplicitIds = toggleSelection(tree, explicitIds, id, checked);
+    const nextFileIds = resolveEligibleSelection(tree, nextExplicitIds).files.map(
+      (file) => file.id,
+    );
+
+    if (selectedFileIds === undefined) {
+      setInternalExplicitIds(nextExplicitIds);
+    }
+    onSelectedFileIdsChange?.(nextFileIds);
   }
 
   function renderNode(node: SourceNode, depth: number): React.ReactNode {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { demoDiscoveryProposal, demoSources } from "../data/demoSources";
 import type { DiscoveryClient } from "../features/drop/discoveryClient";
 import {
@@ -8,6 +8,7 @@ import {
 import { ScanReport } from "../features/drop/ScanReport";
 import { ToolRail } from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
+import { sourceTreeFromProposal } from "../features/sources/sourceTreeFromProposal";
 import { ContextPane } from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
 import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
@@ -151,6 +152,7 @@ export function AppShell({
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
   const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
+  const [selectedItemIds, setSelectedItemIds] = useState<readonly string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const drop = useNativeDrop({
@@ -159,6 +161,10 @@ export function AppShell({
     initialProposal: demoDiscoveryProposal,
   });
   const proposal = drop.proposal ?? demoDiscoveryProposal;
+  const sourceTree = useMemo(
+    () => drop.isDemo ? demoSources : sourceTreeFromProposal(proposal),
+    [drop.isDemo, proposal],
+  );
   const layoutStyle = {
     "--source-width": `${layout.navigationCollapsed ? 34 : layout.navigationWidth}px`,
     "--source-separator-width": layout.navigationCollapsed ? "0px" : "5px",
@@ -169,6 +175,10 @@ export function AppShell({
   useEffect(() => {
     persistPaneLayout(layout);
   }, [layout]);
+
+  useEffect(() => {
+    setSelectedItemIds([]);
+  }, [proposal.proposalId]);
 
   function updateLayout(changes: Partial<PaneLayout>): void {
     setLayout((current) => ({ ...current, ...changes }));
@@ -210,7 +220,9 @@ export function AppShell({
                 <h2>IndexedSource</h2>
               </div>
               <div className="pane-header__actions">
-                <span className="source-panel__count">6 FILES</span>
+                <span className="source-panel__count">
+                  {proposal.items.length} FILES
+                </span>
                 <button
                   aria-label="Collapse Sources panel"
                   className="pane-collapse-control pane-collapse-control--left"
@@ -222,7 +234,12 @@ export function AppShell({
                 </button>
               </div>
             </header>
-            <SourceTree tree={demoSources} />
+            <SourceTree
+              key={sourceTree.id}
+              onSelectedFileIdsChange={setSelectedItemIds}
+              selectedFileIds={selectedItemIds}
+              tree={sourceTree}
+            />
             <ScanReport
               isDemo={drop.isDemo}
               proposal={proposal}
@@ -269,7 +286,9 @@ export function AppShell({
               current.filter((target) => target.operationId !== operationId),
             );
           }}
+          onSelectedItemIdsChange={setSelectedItemIds}
           proposal={proposal}
+          selectedItemIds={selectedItemIds}
         />
         <DocumentPane
           client={knowledgeClient}
