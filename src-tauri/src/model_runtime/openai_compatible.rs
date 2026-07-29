@@ -159,6 +159,16 @@ fn response_content(bytes: &[u8]) -> Result<String, String> {
         .content)
 }
 
+pub(crate) fn complete_json(
+    config: &ModelConfigSummary,
+    system_prompt: &str,
+    user_json: &str,
+) -> Result<String, String> {
+    let body = chat_request(config, system_prompt, user_json.to_owned());
+    let bytes = execute(config, &body)?;
+    response_content(&bytes)
+}
+
 pub(crate) fn parse_proposal_response(bytes: &[u8]) -> Result<ModelProposal, String> {
     serde_json::from_str(&response_content(bytes)?)
         .map_err(|error| format!("Model proposal JSON is invalid: {error}"))

@@ -66,6 +66,15 @@ export function ProfileReview({ client }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [profileUrl, setProfileUrl] = useState("");
+  const [compilerConfigId, setCompilerConfigId] = useState("");
+  const [compilerVersion, setCompilerVersion] = useState("");
+  const [compilerSourceTitle, setCompilerSourceTitle] = useState("");
+  const [compilerBaseKey, setCompilerBaseKey] = useState(
+    `${bundledDraft.profileId}@${bundledDraft.version}`,
+  );
+  const [compilerOwnership, setCompilerOwnership] = useState<
+    "owned" | "firstPartyAuthorized"
+  >("owned");
   const [reviewedCandidateId, setReviewedCandidateId] = useState<string | null>(
     null,
   );
@@ -88,6 +97,12 @@ export function ProfileReview({ client }: {
     (profile) => profile.profileId === bundledDraft.profileId
       && profile.version === bundledDraft.version,
   ) ?? bundledDraft;
+  const installedProfiles = state?.installed.length
+    ? state.installed
+    : [bundledDraft];
+  const compilerBase = installedProfiles.find(
+    (profile) => `${profile.profileId}@${profile.version}` === compilerBaseKey,
+  ) ?? installed;
   const candidate = state?.candidates[0] ?? null;
 
   async function importCandidate(): Promise<void> {
@@ -130,6 +145,31 @@ export function ProfileReview({ client }: {
         reviewedDigest: candidate.sourceIdentity.digest,
         decision,
       }));
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function compileCandidate(): Promise<void> {
+    setBusy(true);
+    setError(null);
+    try {
+      const compiled = await client.compileLocalCandidate({
+        configId: compilerConfigId.trim(),
+        profileId: compilerBase.profileId,
+        version: compilerVersion.trim(),
+        title: compilerBase.title,
+        sourceTitle: compilerSourceTitle.trim(),
+        ownership: compilerOwnership,
+        baseProfileId: compilerBase.profileId,
+        baseProfileVersion: compilerBase.version,
+      });
+      if (compiled) {
+        setReviewedCandidateId(null);
+        setState(await client.inspect());
+      }
     } catch (reason) {
       setError(errorMessage(reason));
     } finally {
@@ -224,6 +264,92 @@ export function ProfileReview({ client }: {
         </div>
       </section>
 
+      <section className="context-section" aria-labelledby="profile-compiler">
+        <div className="profile-section-heading">
+          <h3 id="profile-compiler">AI candidate compiler</h3>
+          <span className="profile-status profile-status--candidate">
+            REVIEW ONLY
+          </span>
+        </div>
+        <p className="profile-help">
+          UTF-8 text, Markdown, HTML, or JSON. The exact source is backed up;
+          the selected model receives its text, and generated data remains
+          unapproved.
+        </p>
+        <div className="profile-url-import">
+          <label htmlFor="compiler-base">Base profile</label>
+          <select
+            disabled={busy}
+            id="compiler-base"
+            onChange={(event) => setCompilerBaseKey(event.target.value)}
+            value={`${compilerBase.profileId}@${compilerBase.version}`}
+          >
+            {installedProfiles.map((profile) => (
+              <option
+                key={`${profile.profileId}@${profile.version}`}
+                value={`${profile.profileId}@${profile.version}`}
+              >
+                {profile.title} · {profile.version}
+              </option>
+            ))}
+          </select>
+          <label htmlFor="compiler-config">Model configuration ID</label>
+          <input
+            autoComplete="off"
+            disabled={busy}
+            id="compiler-config"
+            onChange={(event) => setCompilerConfigId(event.target.value)}
+            placeholder="local-compiler"
+            spellCheck={false}
+            value={compilerConfigId}
+          />
+          <label htmlFor="compiler-version">Candidate version</label>
+          <input
+            autoComplete="off"
+            disabled={busy}
+            id="compiler-version"
+            onChange={(event) => setCompilerVersion(event.target.value)}
+            placeholder="0.4.0-candidate"
+            spellCheck={false}
+            value={compilerVersion}
+          />
+          <label htmlFor="compiler-source-title">Source title</label>
+          <input
+            autoComplete="off"
+            disabled={busy}
+            id="compiler-source-title"
+            onChange={(event) => setCompilerSourceTitle(event.target.value)}
+            placeholder="Formal notice or discussion draft"
+            value={compilerSourceTitle}
+          />
+          <label htmlFor="compiler-ownership">Source authority</label>
+          <select
+            disabled={busy}
+            id="compiler-ownership"
+            onChange={(event) => setCompilerOwnership(
+              event.target.value as "owned" | "firstPartyAuthorized",
+            )}
+            value={compilerOwnership}
+          >
+            <option value="owned">Owned</option>
+            <option value="firstPartyAuthorized">First-party authorized</option>
+          </select>
+          <button
+            className="profile-import-button"
+            disabled={
+              busy
+              || compilerConfigId.trim().length === 0
+              || compilerVersion.trim().length === 0
+              || compilerSourceTitle.trim().length === 0
+            }
+            onClick={() => void compileCandidate()}
+            type="button"
+          >
+            Compile local source
+          </button>
+        </div>
+      </section>
+
       {candidate ? (
         <section className="context-section" aria-labelledby="profile-candidate">
           <div className="profile-section-heading">
@@ -236,7 +362,11 @@ export function ProfileReview({ client }: {
             {candidate.profileId} · {candidate.profileVersion}
           </p>
           <p className="profile-meta">
-            {candidate.sourceKind === "remoteUrl" ? "Remote URL" : "Local file"}
+            {candidate.sourceKind === "remoteUrl"
+              ? "Remote URL"
+              : candidate.sourceKind === "modelGenerated"
+                ? "Model generated"
+                : "Local file"}
             {" · "}
             {candidate.sourceByteSize > 0
               ? `${candidate.sourceByteSize.toLocaleString()} bytes`
@@ -245,6 +375,28 @@ export function ProfileReview({ client }: {
           <code className="profile-digest" title={candidate.sourceIdentity.digest}>
             SHA-256 {candidate.sourceIdentity.digest.slice(0, 12)}…
           </code>
+          {candidate.generation ? (
+            <div className="profile-generation">
+              <p className="profile-meta">
+                Source · {candidate.generation.originalSourceBasename}
+                {" · "}
+                {candidate.generation.originalSourceByteSize.toLocaleString()} bytes
+              </p>
+              <code
+                className="profile-digest"
+                title={candidate.generation.originalSourceIdentity.digest}
+              >
+                Source SHA-256{" "}
+                {candidate.generation.originalSourceIdentity.digest.slice(0, 12)}…
+              </code>
+              <p className="profile-meta">
+                Model · {candidate.generation.modelConfigId}
+                {" · Base "}
+                {candidate.generation.base.profileId}@
+                {candidate.generation.base.version}
+              </p>
+            </div>
+          ) : null}
           <CandidateDiff candidate={candidate} />
           {candidate.status === "unapproved" ? (
             <>

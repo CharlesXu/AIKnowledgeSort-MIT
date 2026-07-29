@@ -79,6 +79,24 @@ Candidate diffs separately report added, removed, and changed taxonomy nodes
 and executable rules, so a future formal notice or draft cannot appear
 unchanged merely because it contains no literal rules.
 
+The desktop profile compiler can now prepare a new candidate from a bounded
+UTF-8 text, Markdown, HTML, or JSON source using any configured local or
+OpenAI-compatible model and an exact installed base-profile version. The source
+is treated as untrusted data and capped at 512 KiB. Trusted Rust code supplies
+the target identity, title, candidate status, ownership, and provenance; the
+model may return only declarative schema version, taxonomy, governance, and
+rules. Unknown or executable-shaped fields are rejected. The selected model
+endpoint receives the source text, so users must choose a model configuration
+appropriate for the document's confidentiality.
+
+Every successful compilation stores the original source bytes by SHA-256,
+stores the generated profile separately by SHA-256, and records the model
+configuration ID, model name, and exact base-profile version. It never stores
+an API secret or the source's absolute path. The result remains unapproved,
+shows both source and generated digests in review, and can become active only
+through the existing exact-digest approval action. PDF and DOCX extraction are
+not part of this compiler input adapter yet.
+
 The bundled Ninebot profile is `0.3.0-draft`. It contains the complete
 owner-authorized discussion taxonomy: 14 L1, 94 L2, 179 L3, and 179 L4 nodes
 (466 total). `SN-02 IPMS 集成营销服` is canonical and the usage manual's
@@ -90,10 +108,10 @@ knowledge nodes, and link-only generated indexes.
 
 The bundled discussion profile has zero executable rules and remains visibly
 draft, inactive, and non-committable. Dictionary terms are candidate-recall
-vocabulary, not deterministic keyword placement rules. Model-assisted
-conversion of future notices and drafts and activation of any unapproved
-profile are not implemented or claimed. The supplied discussion material is
-not represented as EMT-approved or effective company policy.
+vocabulary, not deterministic keyword placement rules. Model-generated
+per-file classification and automatic activation are not implemented or
+claimed. The supplied discussion material is not represented as EMT-approved
+or effective company policy.
 
 ## Canonical naming and source-preserving archive
 

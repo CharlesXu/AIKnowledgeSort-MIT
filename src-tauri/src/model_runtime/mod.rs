@@ -3,7 +3,11 @@ mod openai_compatible;
 mod protocol;
 mod store;
 
-use config::{ModelConfigInput, ModelConfigStore, ModelConfigSummary, ModelRuntimeState};
+pub(crate) use config::ModelConfigSummary;
+#[cfg(test)]
+pub(crate) use config::ModelLocation;
+use config::{ModelConfigInput, ModelConfigStore, ModelRuntimeState};
+pub(crate) use openai_compatible::complete_json;
 use openai_compatible::OpenAiCompatibleTransport;
 pub(crate) use protocol::{
     AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
@@ -85,6 +89,18 @@ impl ModelRuntimeAuthority {
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
         let store = ModelConfigStore::new(directory);
         Ok((store.get(desktop_config_id)?, store.get(agent_config_id)?))
+    }
+
+    pub(crate) fn load_config(
+        &self,
+        directory: PathBuf,
+        config_id: &str,
+    ) -> Result<ModelConfigSummary, String> {
+        let _operation = self
+            .operation
+            .lock()
+            .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
+        ModelConfigStore::new(directory).get(config_id)
     }
 
     fn acquire_comparison(
@@ -263,7 +279,7 @@ pub struct RunModelComparisonRequest {
     agent_config_id: String,
 }
 
-fn app_config_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+pub(crate) fn app_config_directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_config_dir()
         .map_err(|error| format!("Application configuration directory is unavailable: {error}"))

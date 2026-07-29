@@ -302,7 +302,7 @@ fn validate_unique_ids(values: &[String], maximum: usize, label: &str) -> Result
     Ok(())
 }
 
-fn validate_id(value: &str, label: &str) -> Result<(), String> {
+pub(crate) fn validate_id(value: &str, label: &str) -> Result<(), String> {
     if value.is_empty()
         || value.len() > MAX_ID_BYTES
         || !value

@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
-import type { ProfileClient, ProfileStateSummary } from "./types";
+import type {
+  ProfileClient,
+  ProfileStateSummary,
+  ProfileSummary,
+} from "./types";
 import { ProfileReview } from "./ProfileReview";
 
 const digest = "a".repeat(64);
@@ -54,6 +58,7 @@ const state: ProfileStateSummary = {
       removedCategoryIds: [],
       changedCategoryIds: [],
     },
+    generation: null,
     approval: null,
   }],
 };
@@ -63,6 +68,7 @@ function client(): ProfileClient {
     inspect: vi.fn().mockResolvedValue(state),
     importLocalCandidate: vi.fn().mockResolvedValue(state.candidates[0]),
     importUrlCandidate: vi.fn().mockResolvedValue(state.candidates[0]),
+    compileLocalCandidate: vi.fn().mockResolvedValue(state.candidates[0]),
     decideCandidate: vi.fn().mockResolvedValue({
       ...state,
       active: {
@@ -189,6 +195,89 @@ describe("ProfileReview", () => {
     expect(document.body).not.toHaveTextContent("synthetic-secret");
   });
 
+  test("compiles a local source only into a reviewable generated candidate", async () => {
+    const alternativeBase: ProfileSummary = {
+      ...state.installed[0],
+      profileId: "engineering-archive",
+      version: "2.1.0",
+      title: "Engineering archive",
+    };
+    const stateWithAlternativeBase: ProfileStateSummary = {
+      ...state,
+      installed: [...state.installed, alternativeBase],
+      candidates: [],
+    };
+    const generatedState: ProfileStateSummary = {
+      ...stateWithAlternativeBase,
+      candidates: [{
+        ...state.candidates[0],
+        candidateId: "generated-candidate",
+        sourceKind: "modelGenerated",
+        sourceBasename: "engineering-archive--2.2.0-candidate.profile.json",
+        generation: {
+          originalSourceBasename: "formal-notice.md",
+          originalSourceByteSize: 4_096,
+          originalSourceIdentity: {
+            algorithm: "SHA-256",
+            digest: "c".repeat(64),
+          },
+          modelConfigId: "local-compiler",
+          model: "qwen-fixture",
+          base: {
+            profileId: "engineering-archive",
+            version: "2.1.0",
+          },
+        },
+      }],
+    };
+    const profileClient = client();
+    vi.mocked(profileClient.inspect)
+      .mockResolvedValueOnce(stateWithAlternativeBase)
+      .mockResolvedValueOnce(generatedState);
+    vi.mocked(profileClient.compileLocalCandidate)
+      .mockResolvedValue(generatedState.candidates[0]);
+    render(<ProfileReview client={profileClient} />);
+    await screen.findByText("No candidate awaiting review");
+
+    fireEvent.change(screen.getByLabelText("Base profile"), {
+      target: { value: "engineering-archive@2.1.0" },
+    });
+    fireEvent.change(screen.getByLabelText("Model configuration ID"), {
+      target: { value: "local-compiler" },
+    });
+    fireEvent.change(screen.getByLabelText("Candidate version"), {
+      target: { value: "2.2.0-candidate" },
+    });
+    fireEvent.change(screen.getByLabelText("Source title"), {
+      target: { value: "Formal notice" },
+    });
+    fireEvent.click(screen.getByRole("button", {
+      name: "Compile local source",
+    }));
+
+    await waitFor(() => {
+      expect(profileClient.compileLocalCandidate).toHaveBeenCalledWith({
+        configId: "local-compiler",
+        profileId: "engineering-archive",
+        version: "2.2.0-candidate",
+        title: "Engineering archive",
+        sourceTitle: "Formal notice",
+        ownership: "owned",
+        baseProfileId: "engineering-archive",
+        baseProfileVersion: "2.1.0",
+      });
+    });
+    expect(await screen.findByText("Model generated · 1,024 bytes"))
+      .toBeInTheDocument();
+    expect(screen.getByText("Source · formal-notice.md · 4,096 bytes"))
+      .toBeInTheDocument();
+    expect(screen.getByText(
+      "Model · local-compiler · Base engineering-archive@2.1.0",
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Approve profile" }))
+      .toBeDisabled();
+  });
+
   test("keeps browser limitations visible without hiding the bundled draft", async () => {
     const unavailable: ProfileClient = {
       inspect: vi.fn().mockRejectedValue(
@@ -196,6 +285,7 @@ describe("ProfileReview", () => {
       ),
       importLocalCandidate: vi.fn(),
       importUrlCandidate: vi.fn(),
+      compileLocalCandidate: vi.fn(),
       decideCandidate: vi.fn(),
       createClassificationBatch: vi.fn(),
     };

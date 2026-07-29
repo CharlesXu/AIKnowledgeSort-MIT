@@ -2158,7 +2158,33 @@ input:focus-visible,
   font-size: 9.5px;
 }
 
+.profile-url-import > input,
+.profile-url-import > select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  height: 27px;
+  margin-bottom: 8px;
+  padding: 0 7px;
+  border: 1px solid #d5d7dc;
+  border-radius: 5px;
+  outline: none;
+  color: #40454e;
+  background: #fff;
+  font-size: 9.5px;
+}
+
+.profile-url-import > .profile-import-button {
+  width: 100%;
+}
+
 .profile-url-import__controls input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgb(112 97 153 / 12%);
+}
+
+.profile-url-import > input:focus,
+.profile-url-import > select:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgb(112 97 153 / 12%);
 }

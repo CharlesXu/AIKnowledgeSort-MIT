@@ -2,7 +2,7 @@ import type { ContentIdentity } from "../drop/types";
 
 export type ProfileStatus = "draft" | "candidate" | "approved" | "rejected";
 export type ProfileDecision = "approve" | "reject";
-export type ProfileSourceKind = "localFile" | "remoteUrl";
+export type ProfileSourceKind = "localFile" | "remoteUrl" | "modelGenerated";
 export type CandidateStatus = "unapproved" | "approved" | "rejected";
 
 export interface ProfileVersionRef {
@@ -43,6 +43,15 @@ export interface ProfileDecisionSummary {
   readonly reviewedDigest: string;
 }
 
+export interface ProfileGenerationSummary {
+  readonly originalSourceBasename: string;
+  readonly originalSourceByteSize: number;
+  readonly originalSourceIdentity: ContentIdentity;
+  readonly modelConfigId: string;
+  readonly model: string;
+  readonly base: ProfileVersionRef;
+}
+
 export interface ProfileCandidateRecord {
   readonly schemaVersion: number;
   readonly candidateId: string;
@@ -57,6 +66,7 @@ export interface ProfileCandidateRecord {
   readonly status: CandidateStatus;
   readonly base: ProfileVersionRef | null;
   readonly diff: ProfileDiff;
+  readonly generation?: ProfileGenerationSummary | null;
   readonly approval: ProfileDecisionSummary | null;
 }
 
@@ -70,6 +80,17 @@ export interface DecideProfileCandidateRequest {
   readonly candidateId: string;
   readonly reviewedDigest: string;
   readonly decision: ProfileDecision;
+}
+
+export interface CompileProfileCandidateRequest {
+  readonly configId: string;
+  readonly profileId: string;
+  readonly version: string;
+  readonly title: string;
+  readonly sourceTitle: string;
+  readonly ownership: "owned" | "firstPartyAuthorized";
+  readonly baseProfileId: string;
+  readonly baseProfileVersion: string;
 }
 
 export type EvidenceKind =
@@ -124,6 +145,9 @@ export interface ProfileClient {
   inspect(): Promise<ProfileStateSummary>;
   importLocalCandidate(): Promise<ProfileCandidateRecord | null>;
   importUrlCandidate(url: string): Promise<ProfileCandidateRecord>;
+  compileLocalCandidate(
+    request: CompileProfileCandidateRequest,
+  ): Promise<ProfileCandidateRecord | null>;
   decideCandidate(
     request: DecideProfileCandidateRequest,
   ): Promise<ProfileStateSummary>;

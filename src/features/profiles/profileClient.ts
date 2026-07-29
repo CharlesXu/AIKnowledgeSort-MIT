@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type {
   ClassificationBatch,
+  CompileProfileCandidateRequest,
   CreateClassificationBatchRequest,
   DecideProfileCandidateRequest,
   ProfileCandidateRecord,
@@ -30,6 +31,12 @@ export function createTauriProfileClient(
         request: { url },
       });
     },
+    compileLocalCandidate(request: CompileProfileCandidateRequest) {
+      return invoke<ProfileCandidateRecord | null>(
+        "compile_local_profile_candidate",
+        { request },
+      );
+    },
     decideCandidate(request: DecideProfileCandidateRequest) {
       return invoke<ProfileStateSummary>("decide_profile_candidate", {
         request,
@@ -54,6 +61,7 @@ export function createBrowserProfileClient(): ProfileClient {
     inspect: desktopRuntimeRequired,
     importLocalCandidate: desktopRuntimeRequired,
     importUrlCandidate: desktopRuntimeRequired,
+    compileLocalCandidate: desktopRuntimeRequired,
     decideCandidate: desktopRuntimeRequired,
     createClassificationBatch: desktopRuntimeRequired,
   };

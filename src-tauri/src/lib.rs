@@ -119,6 +119,7 @@ pub fn run() {
             profiles::create_classification_batch,
             profiles::import_local_profile_candidate,
             profiles::import_url_profile_candidate,
+            profiles::compile_local_profile_candidate,
             profiles::decide_profile_candidate
         ])
         .run(tauri::generate_context!())

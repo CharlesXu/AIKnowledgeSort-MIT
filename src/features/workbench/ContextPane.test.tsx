@@ -38,6 +38,7 @@ describe("ContextPane", () => {
       }),
       importLocalCandidate: vi.fn(),
       importUrlCandidate: vi.fn(),
+      compileLocalCandidate: vi.fn(),
       decideCandidate: vi.fn(),
       createClassificationBatch: vi.fn(),
     };

@@ -1,4 +1,5 @@
 mod classification;
+mod compiler;
 mod ninebot;
 pub mod proposal;
 mod remote;
@@ -16,10 +17,11 @@ pub use classification::{
     ClassificationBatch, ClassificationBatchItem, ClassificationBatchRegistry,
     ClassificationItemInput,
 };
+pub use compiler::CompileProfileCandidateRequest;
 pub use store::{
     CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
-    ProfileDecisionSummary, ProfileDiff, ProfileSourceKind, ProfileStateSummary, ProfileSummary,
-    ProfileTaxonomyCounts, ProfileVersionRef,
+    ProfileDecisionSummary, ProfileDiff, ProfileGenerationSummary, ProfileSourceKind,
+    ProfileStateSummary, ProfileSummary, ProfileTaxonomyCounts, ProfileVersionRef,
 };
 
 #[derive(Debug, Deserialize)]
@@ -153,6 +155,96 @@ pub async fn import_url_profile_candidate(
         &fetched.bytes,
         SystemTime::now(),
     )
+}
+
+#[tauri::command]
+pub async fn compile_local_profile_candidate(
+    request: CompileProfileCandidateRequest,
+    app: tauri::AppHandle,
+    vaults: tauri::State<'_, VaultAuthorityRegistry>,
+    profiles: tauri::State<'_, ProfileAuthority>,
+    models: tauri::State<'_, crate::model_runtime::ModelRuntimeAuthority>,
+) -> Result<Option<ProfileCandidateRecord>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let Some(selected) = app.dialog().file().blocking_pick_file() else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|error| format!("Selected compiler source is unavailable: {error}"))?;
+    let source_basename = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| "Selected compiler source filename is unavailable".to_owned())?
+        .to_owned();
+    let file = match open_trusted_drop_root(path) {
+        CapabilityRoot::File { file, .. } => file,
+        CapabilityRoot::Directory { .. } => {
+            return Err("Compiler source must be a regular file".to_owned())
+        }
+        CapabilityRoot::Diagnostic { message, .. } => return Err(message),
+    };
+    let byte_size = file
+        .metadata()
+        .map_err(|error| format!("Compiler source metadata is unavailable: {error}"))?
+        .len();
+    if byte_size == 0 || byte_size > compiler::MAX_COMPILER_SOURCE_BYTES as u64 {
+        return Err("Compiler source is empty or exceeds 512 KiB".to_owned());
+    }
+    let mut source_bytes = Vec::with_capacity(byte_size as usize);
+    file.take(compiler::MAX_COMPILER_SOURCE_BYTES as u64 + 1)
+        .read_to_end(&mut source_bytes)
+        .map_err(|error| format!("Compiler source cannot be read: {error}"))?;
+    if source_bytes.len() > compiler::MAX_COMPILER_SOURCE_BYTES {
+        return Err("Compiler source exceeds 512 KiB".to_owned());
+    }
+
+    let vault = current_vault(vaults.inner())?;
+    let base = profiles.profile_by_version_read_only(
+        &vault,
+        &request.base_profile_id,
+        &request.base_profile_version,
+    )?;
+    let config = models.load_config(
+        crate::model_runtime::app_config_directory(&app)?,
+        &request.config_id,
+    )?;
+    let profiles = profiles.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let compiled = compiler::compile_candidate(
+            &request,
+            &source_basename,
+            &source_bytes,
+            &base,
+            &config,
+            &compiler::OpenAiProfileCompiler,
+        )?;
+        let generated_basename =
+            format!("{}--{}.profile.json", request.profile_id, request.version);
+        let generation = ProfileGenerationSummary {
+            original_source_basename: source_basename,
+            original_source_byte_size: source_bytes.len() as u64,
+            original_source_identity: compiled.source_identity,
+            model_config_id: config.config_id,
+            model: config.model,
+            base: ProfileVersionRef {
+                profile_id: base.profile_id,
+                version: base.version,
+            },
+        };
+        profiles.import_model_bytes(
+            &vault,
+            &generated_basename,
+            &compiled.bytes,
+            &source_bytes,
+            generation,
+            SystemTime::now(),
+        )
+    })
+    .await
+    .map_err(|error| format!("Profile compiler worker failed: {error}"))?
+    .map(Some)
 }
 
 #[tauri::command]

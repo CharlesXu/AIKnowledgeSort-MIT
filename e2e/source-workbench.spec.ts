@@ -145,7 +145,10 @@ test("keeps profile import and activation honest in the browser fixture", async 
   await page.getByRole("tab", { name: "Import Review" }).click();
 
   await expect(
-    page.getByText("Ninebot document and electronic archive classification"),
+    page.getByText(
+      "Ninebot document and electronic archive classification",
+      { exact: true },
+    ),
   ).toBeVisible();
   await expect(page.getByText("DRAFT", { exact: true })).toBeVisible();
   await expect(page.getByText("466 categories · 14 / 94 / 179 / 179"))
@@ -172,6 +175,20 @@ test("keeps profile import and activation honest in the browser fixture", async 
   await expect(page.getByRole("alert")).toContainText(
     "Desktop runtime is required for profile operations.",
   );
+  const compile = page.getByRole("button", { name: "Compile local source" });
+  await expect(compile).toBeDisabled();
+  await page.getByRole("textbox", { name: "Model configuration ID" })
+    .fill("local-compiler");
+  await page.getByRole("textbox", { name: "Candidate version" })
+    .fill("0.4.0-candidate");
+  await page.getByRole("textbox", { name: "Source title" })
+    .fill("Formal notice");
+  await expect(compile).toBeEnabled();
+  await compile.click();
+  await expect(page.getByRole("alert")).toContainText(
+    "Desktop runtime is required for profile operations.",
+  );
+  await expect(page.getByText("Model generated")).toHaveCount(0);
   await expect(page.getByText(/Approved and active/)).toHaveCount(0);
   await expect(page.getByText("3 eligible · 0 changes")).toBeVisible();
 });

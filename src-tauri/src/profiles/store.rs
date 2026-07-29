@@ -1,6 +1,6 @@
 use super::ninebot;
 use super::schema::{
-    parse_candidate_profile, ClassificationRule, DeclarativeProfile, ProfileStatus,
+    parse_candidate_profile, validate_id, ClassificationRule, DeclarativeProfile, ProfileStatus,
     MAX_PROFILE_BYTES,
 };
 use crate::identity::ContentIdentity;
@@ -28,6 +28,7 @@ pub enum ProfileDecision {
 pub enum ProfileSourceKind {
     LocalFile,
     RemoteUrl,
+    ModelGenerated,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -113,7 +114,27 @@ pub struct ProfileCandidateRecord {
     pub status: CandidateStatus,
     pub base: Option<ProfileVersionRef>,
     pub diff: ProfileDiff,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<ProfileGenerationSummary>,
     pub approval: Option<ProfileDecisionSummary>,
+}
+
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ProfileGenerationSummary {
+    pub original_source_basename: String,
+    pub original_source_byte_size: u64,
+    pub original_source_identity: ContentIdentity,
+    pub model_config_id: String,
+    pub model: String,
+    pub base: ProfileVersionRef,
+}
+
+struct ProfileImportContext<'a> {
+    source_kind: ProfileSourceKind,
+    source_locator: &'a str,
+    generation: Option<ProfileGenerationSummary>,
+    compiler_source: Option<&'a [u8]>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -156,6 +177,29 @@ pub struct ProfileAuthority {
 }
 
 impl ProfileAuthority {
+    pub(crate) fn profile_by_version_read_only(
+        &self,
+        vault: &VaultLease,
+        profile_id: &str,
+        version: &str,
+    ) -> Result<DeclarativeProfile, String> {
+        validate_id(profile_id, "installed profile")?;
+        validate_id(version, "installed profile version")?;
+        let _operation = self
+            .operation
+            .lock()
+            .map_err(|_| "Profile authority is unavailable".to_owned())?;
+        let profile: DeclarativeProfile = read_json(
+            &vault.directory,
+            &installed_profile_path(profile_id, version),
+        )?;
+        profile.validate()?;
+        if profile.profile_id != profile_id || profile.version != version {
+            return Err("Installed profile does not match the requested version".to_owned());
+        }
+        Ok(profile)
+    }
+
     pub(crate) fn active_approved_profile_read_only(
         &self,
         vault: &VaultLease,
@@ -222,9 +266,13 @@ impl ProfileAuthority {
     ) -> Result<ProfileCandidateRecord, String> {
         self.import_bytes(
             vault,
-            ProfileSourceKind::LocalFile,
+            ProfileImportContext {
+                source_kind: ProfileSourceKind::LocalFile,
+                source_locator,
+                generation: None,
+                compiler_source: None,
+            },
             source_basename,
-            source_locator,
             bytes,
             imported_at,
         )
@@ -240,10 +288,56 @@ impl ProfileAuthority {
     ) -> Result<ProfileCandidateRecord, String> {
         self.import_bytes(
             vault,
-            ProfileSourceKind::RemoteUrl,
+            ProfileImportContext {
+                source_kind: ProfileSourceKind::RemoteUrl,
+                source_locator,
+                generation: None,
+                compiler_source: None,
+            },
             source_basename,
-            source_locator,
             bytes,
+            imported_at,
+        )
+    }
+
+    pub(crate) fn import_model_bytes(
+        &self,
+        vault: &VaultLease,
+        generated_basename: &str,
+        generated_bytes: &[u8],
+        original_source_bytes: &[u8],
+        generation: ProfileGenerationSummary,
+        imported_at: SystemTime,
+    ) -> Result<ProfileCandidateRecord, String> {
+        generation.original_source_identity.validate()?;
+        if generation.original_source_byte_size != original_source_bytes.len() as u64 {
+            return Err("Compiler source size does not match its generation record".to_owned());
+        }
+        let actual_source_identity =
+            ContentIdentity::from_reader(Cursor::new(original_source_bytes))
+                .map_err(|error| format!("Compiler source cannot be hashed: {error}"))?;
+        if actual_source_identity != generation.original_source_identity {
+            return Err("Compiler source identity does not match its generation record".to_owned());
+        }
+        validate_basename(&generation.original_source_basename)?;
+        validate_generation_text(&generation.model_config_id, "model configuration")?;
+        validate_generation_text(&generation.model, "model")?;
+        validate_id(&generation.base.profile_id, "generation base profile")?;
+        validate_id(&generation.base.version, "generation base version")?;
+        let locator = format!(
+            "model-generated:{}:{}",
+            generation.original_source_identity.digest, generation.model_config_id
+        );
+        self.import_bytes(
+            vault,
+            ProfileImportContext {
+                source_kind: ProfileSourceKind::ModelGenerated,
+                source_locator: &locator,
+                generation: Some(generation),
+                compiler_source: Some(original_source_bytes),
+            },
+            generated_basename,
+            generated_bytes,
             imported_at,
         )
     }
@@ -251,12 +345,17 @@ impl ProfileAuthority {
     fn import_bytes(
         &self,
         vault: &VaultLease,
-        source_kind: ProfileSourceKind,
+        context: ProfileImportContext<'_>,
         source_basename: &str,
-        source_locator: &str,
         bytes: &[u8],
         imported_at: SystemTime,
     ) -> Result<ProfileCandidateRecord, String> {
+        let ProfileImportContext {
+            source_kind,
+            source_locator,
+            generation,
+            compiler_source,
+        } = context;
         let profile = parse_candidate_profile(bytes)?;
         validate_basename(source_basename)?;
         if source_locator.is_empty() || source_locator.len() > 32 * 1024 {
@@ -293,6 +392,21 @@ impl ProfileAuthority {
                 profile.version,
                 locator_identity.digest
             ),
+            ProfileSourceKind::ModelGenerated => {
+                let generation = generation.as_ref().ok_or_else(|| {
+                    "Model-generated candidate requires generation evidence".to_owned()
+                })?;
+                format!(
+                    "modelGenerated:{}:{}:{}:{}:{}:{}:{}",
+                    source_identity.digest,
+                    profile.profile_id,
+                    profile.version,
+                    generation.original_source_identity.digest,
+                    generation.model_config_id,
+                    generation.base.profile_id,
+                    generation.base.version
+                )
+            }
         };
         let candidate_id = ContentIdentity::from_reader(Cursor::new(candidate_binding.as_bytes()))
             .map_err(|error| format!("Profile candidate id cannot be generated: {error}"))?
@@ -311,6 +425,7 @@ impl ProfileAuthority {
             status: CandidateStatus::Unapproved,
             base,
             diff,
+            generation: generation.clone(),
             approval: None,
         };
 
@@ -337,6 +452,13 @@ impl ProfileAuthority {
 
         let source_path = source_record_path(&source_identity.digest);
         write_or_verify_source(vault, &source_path, bytes)?;
+        if let (Some(generation), Some(compiler_source)) = (generation.as_ref(), compiler_source) {
+            write_or_verify_source(
+                vault,
+                &compiler_source_record_path(&generation.original_source_identity.digest),
+                compiler_source,
+            )?;
+        }
         write_new_json(&vault.directory, &candidate_path, &candidate)?;
         Ok(candidate)
     }
@@ -424,7 +546,15 @@ fn same_candidate_import(
         && existing.status == CandidateStatus::Unapproved
         && existing.base == requested.base
         && existing.diff == requested.diff
+        && existing.generation == requested.generation
         && existing.approval.is_none()
+}
+
+fn validate_generation_text(value: &str, label: &str) -> Result<(), String> {
+    if value.is_empty() || value.len() > 256 || value.chars().any(char::is_control) {
+        return Err(format!("Profile generation {label} is invalid"));
+    }
+    Ok(())
 }
 
 fn ensure_bundled_ninebot_draft(vault: &VaultLease) -> Result<(), String> {
@@ -794,6 +924,10 @@ fn source_record_path(digest: &str) -> PathBuf {
     Path::new(".aiks/profiles/sources").join(format!("{digest}.json"))
 }
 
+fn compiler_source_record_path(digest: &str) -> PathBuf {
+    Path::new(".aiks/profiles/compiler-sources").join(format!("{digest}.source"))
+}
+
 fn candidate_record_path(candidate_id: &str) -> PathBuf {
     Path::new(".aiks/profiles/candidates").join(format!("{candidate_id}.json"))
 }
@@ -814,12 +948,14 @@ fn installed_profile_path(profile_id: &str, version: &str) -> PathBuf {
 mod tests {
     use super::{
         CandidateStatus, ProfileAuthority, ProfileCandidateRecord, ProfileDecision,
-        ProfileSourceKind,
+        ProfileGenerationSummary, ProfileSourceKind, ProfileVersionRef,
     };
+    use crate::identity::ContentIdentity;
     use crate::profiles::ninebot;
     use crate::profiles::schema::ProfileStatus;
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
+    use std::io::Cursor;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -938,6 +1074,19 @@ mod tests {
     }
 
     #[test]
+    fn rejects_path_shaped_installed_profile_identity_before_reading_vault_records() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+
+        assert!(authority
+            .profile_by_version_read_only(&vault.lease(), "../outside", "1.0.0")
+            .is_err());
+        assert!(authority
+            .profile_by_version_read_only(&vault.lease(), "fixture-profile", "../outside")
+            .is_err());
+    }
+
+    #[test]
     fn preserves_an_existing_manifest_shell_while_installing_the_complete_draft() {
         let vault = TestVault::new();
         let authority = ProfileAuthority::default();
@@ -1047,6 +1196,119 @@ mod tests {
     }
 
     #[test]
+    fn imports_model_output_with_exact_original_source_evidence_and_no_activation() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let original = b"Formal notice source bytes\n";
+        let original_identity =
+            ContentIdentity::from_reader(Cursor::new(original)).expect("hash compiler source");
+        let generation = ProfileGenerationSummary {
+            original_source_basename: "formal-notice.md".to_owned(),
+            original_source_byte_size: original.len() as u64,
+            original_source_identity: original_identity.clone(),
+            model_config_id: "local-model".to_owned(),
+            model: "fixture-model".to_owned(),
+            base: ProfileVersionRef {
+                profile_id: "ninebot-electronic-archive".to_owned(),
+                version: "0.3.0-draft".to_owned(),
+            },
+        };
+
+        let candidate = authority
+            .import_model_bytes(
+                &vault.lease(),
+                "formal-profile--1.0.0.profile.json",
+                &candidate_bytes("formal-profile", "1.0.0", "formal.rule"),
+                original,
+                generation.clone(),
+                SystemTime::UNIX_EPOCH,
+            )
+            .expect("import model-generated candidate");
+
+        assert_eq!(candidate.source_kind, ProfileSourceKind::ModelGenerated);
+        assert_eq!(candidate.generation, Some(generation));
+        assert_eq!(candidate.status, CandidateStatus::Unapproved);
+        assert!(authority.inspect(&vault.lease()).unwrap().active.is_none());
+        assert_eq!(
+            fs::read(
+                vault
+                    .root
+                    .join(".aiks/profiles/compiler-sources")
+                    .join(format!("{}.source", original_identity.digest))
+            )
+            .expect("read exact compiler source"),
+            original
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_model_generation_evidence_without_persisting_sources() {
+        let vault = TestVault::new();
+        let authority = ProfileAuthority::default();
+        let original = b"Formal notice source bytes\n";
+        let actual_identity =
+            ContentIdentity::from_reader(Cursor::new(original)).expect("hash compiler source");
+        let generated = candidate_bytes("formal-profile", "1.0.0", "formal.rule");
+        let generated_identity =
+            ContentIdentity::from_reader(Cursor::new(&generated)).expect("hash generated profile");
+        let generation = ProfileGenerationSummary {
+            original_source_basename: "formal-notice.md".to_owned(),
+            original_source_byte_size: original.len() as u64 + 1,
+            original_source_identity: actual_identity.clone(),
+            model_config_id: "local-model".to_owned(),
+            model: "fixture-model".to_owned(),
+            base: ProfileVersionRef {
+                profile_id: "ninebot-electronic-archive".to_owned(),
+                version: "0.3.0-draft".to_owned(),
+            },
+        };
+
+        assert!(authority
+            .import_model_bytes(
+                &vault.lease(),
+                "formal-profile--1.0.0.profile.json",
+                &generated,
+                original,
+                generation.clone(),
+                SystemTime::UNIX_EPOCH,
+            )
+            .is_err());
+
+        let wrong_identity = ContentIdentity::from_reader(Cursor::new(b"different bytes"))
+            .expect("hash mismatched compiler source");
+        assert!(authority
+            .import_model_bytes(
+                &vault.lease(),
+                "formal-profile--1.0.0.profile.json",
+                &generated,
+                original,
+                ProfileGenerationSummary {
+                    original_source_byte_size: original.len() as u64,
+                    original_source_identity: wrong_identity.clone(),
+                    ..generation
+                },
+                SystemTime::UNIX_EPOCH,
+            )
+            .is_err());
+
+        assert!(!vault
+            .root
+            .join(".aiks/profiles/sources")
+            .join(format!("{}.json", generated_identity.digest))
+            .exists());
+        assert!(!vault
+            .root
+            .join(".aiks/profiles/compiler-sources")
+            .join(format!("{}.source", actual_identity.digest))
+            .exists());
+        assert!(!vault
+            .root
+            .join(".aiks/profiles/compiler-sources")
+            .join(format!("{}.source", wrong_identity.digest))
+            .exists());
+    }
+
+    #[test]
     fn imports_remote_bytes_as_a_separate_unapproved_candidate_without_locator_secrets() {
         let vault = TestVault::new();
         let authority = ProfileAuthority::default();
@@ -1088,7 +1350,7 @@ mod tests {
     }
 
     #[test]
-    fn decodes_candidate_records_written_before_source_size_was_added() {
+    fn decodes_candidate_records_written_before_source_size_and_generation_were_added() {
         let vault = TestVault::new();
         let authority = ProfileAuthority::default();
         let bytes = candidate_bytes("legacy-profile", "1.0.0", "legacy.rule");
@@ -1106,11 +1368,16 @@ mod tests {
             .as_object_mut()
             .expect("candidate object")
             .remove("sourceByteSize");
+        legacy
+            .as_object_mut()
+            .expect("candidate object")
+            .remove("generation");
 
         let decoded: ProfileCandidateRecord =
             serde_json::from_value(legacy).expect("decode legacy candidate record");
 
         assert_eq!(decoded.source_byte_size, 0);
+        assert!(decoded.generation.is_none());
     }
 
     #[test]

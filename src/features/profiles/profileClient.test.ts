@@ -5,12 +5,13 @@ import {
 } from "./profileClient";
 
 describe("profile client", () => {
-  test("invokes only the five explicit native profile boundaries", async () => {
+  test("invokes only the six explicit native profile boundaries", async () => {
     const invoke = vi
       .fn()
       .mockResolvedValueOnce({ installed: [], active: null, candidates: [] })
       .mockResolvedValueOnce({ candidateId: "candidate-1" })
       .mockResolvedValueOnce({ candidateId: "candidate-2" })
+      .mockResolvedValueOnce({ candidateId: "candidate-3" })
       .mockResolvedValueOnce({ installed: [], active: null, candidates: [] })
       .mockResolvedValueOnce({ batchId: "classification-batch-1" });
     const client = createTauriProfileClient(invoke);
@@ -20,6 +21,17 @@ describe("profile client", () => {
     await client.importUrlCandidate(
       "https://profiles.example.com/ninebot.json",
     );
+    const compileRequest = {
+      configId: "local-compiler",
+      profileId: "ninebot-electronic-archive",
+      version: "0.4.0-candidate",
+      title: "Ninebot classification",
+      sourceTitle: "Formal notice",
+      ownership: "owned" as const,
+      baseProfileId: "ninebot-electronic-archive",
+      baseProfileVersion: "0.3.0-draft",
+    };
+    await client.compileLocalCandidate(compileRequest);
     await client.decideCandidate({
       candidateId: "candidate-1",
       reviewedDigest: "a".repeat(64),
@@ -51,6 +63,10 @@ describe("profile client", () => {
             url: "https://profiles.example.com/ninebot.json",
           },
         },
+      ],
+      [
+        "compile_local_profile_candidate",
+        { request: compileRequest },
       ],
       [
         "decide_profile_candidate",
@@ -99,6 +115,18 @@ describe("profile client", () => {
         "https://profiles.example.com/ninebot.json",
       ),
     ).rejects.toThrow(
+      "Desktop runtime is required for profile operations.",
+    );
+    await expect(client.compileLocalCandidate({
+      configId: "local-compiler",
+      profileId: "ninebot-electronic-archive",
+      version: "0.4.0-candidate",
+      title: "Ninebot classification",
+      sourceTitle: "Formal notice",
+      ownership: "owned",
+      baseProfileId: "ninebot-electronic-archive",
+      baseProfileVersion: "0.3.0-draft",
+    })).rejects.toThrow(
       "Desktop runtime is required for profile operations.",
     );
     await expect(
