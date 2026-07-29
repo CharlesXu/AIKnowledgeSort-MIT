@@ -107,4 +107,9 @@ jobs:
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
 
       - name: Run Rust library tests
+        if: runner.os != 'Windows'
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib
+
+      - name: Run Rust library tests serially
+        if: runner.os == 'Windows'
+        run: cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1
