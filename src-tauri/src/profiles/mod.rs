@@ -221,14 +221,14 @@ pub async fn compile_local_profile_candidate(
         .map_err(|error| format!("Compiler source metadata is unavailable: {error}"))?
         .len();
     if byte_size == 0 || byte_size > compiler::MAX_COMPILER_SOURCE_BYTES as u64 {
-        return Err("Compiler source is empty or exceeds 512 KiB".to_owned());
+        return Err("Compiler source is empty or exceeds 16 MiB".to_owned());
     }
     let mut source_bytes = Vec::with_capacity(byte_size as usize);
     file.take(compiler::MAX_COMPILER_SOURCE_BYTES as u64 + 1)
         .read_to_end(&mut source_bytes)
         .map_err(|error| format!("Compiler source cannot be read: {error}"))?;
     if source_bytes.len() > compiler::MAX_COMPILER_SOURCE_BYTES {
-        return Err("Compiler source exceeds 512 KiB".to_owned());
+        return Err("Compiler source exceeds 16 MiB".to_owned());
     }
 
     let vault = current_vault(vaults.inner())?;

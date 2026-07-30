@@ -138,8 +138,10 @@ stores the generated profile separately by SHA-256, and records the model
 configuration ID, model name, and exact base-profile version. It never stores
 an API secret or the source's absolute path. The result remains unapproved,
 shows both source and generated digests in review, and can become active only
-through the existing exact-digest approval action. PDF and DOCX extraction are
-not part of this compiler input adapter yet.
+through the existing exact-digest approval action. UTF-8 text, Markdown, HTML,
+JSON, PDF, and DOCX inputs are supported. PDF and DOCX text is extracted
+locally; truncated extraction is rejected rather than compiling a partial
+classification specification.
 
 The bundled Ninebot profile is `0.3.0-draft`. It contains the complete
 owner-authorized discussion taxonomy: 14 L1, 94 L2, 179 L3, and 179 L4 nodes

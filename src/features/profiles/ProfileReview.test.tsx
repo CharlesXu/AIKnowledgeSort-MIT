@@ -96,6 +96,7 @@ describe("ProfileReview", () => {
     expect(await screen.findByText("分类模式")).toBeInTheDocument();
     expect(screen.getByText("候选方案导入")).toBeInTheDocument();
     expect(screen.getByText("AI 候选方案编译器")).toBeInTheDocument();
+    expect(screen.getByText(/PDF 或 DOCX/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "导入本地分类方案" }))
       .toBeInTheDocument();
     expect(screen.getByRole("button", { name: "批准分类方案" }))
