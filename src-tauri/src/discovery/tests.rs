@@ -470,6 +470,14 @@ fn fifo_directory_child_is_excluded_without_blocking() {
     assert_eq!(proposal.counts.excluded, 1);
 }
 
+#[test]
+fn recognizes_only_the_windows_reparse_attribute_bit() {
+    assert!(super::grant::windows_file_attributes_are_reparse(0x400));
+    assert!(super::grant::windows_file_attributes_are_reparse(0x410));
+    assert!(!super::grant::windows_file_attributes_are_reparse(0));
+    assert!(!super::grant::windows_file_attributes_are_reparse(0x10));
+}
+
 #[cfg(windows)]
 #[test]
 fn windows_symlink_reparse_root_is_rejected_when_creation_is_permitted() {
@@ -487,6 +495,42 @@ fn windows_symlink_reparse_root_is_rejected_when_creation_is_permitted() {
 
     assert!(proposal.items.is_empty());
     assert_eq!(proposal.counts.symlink, 1);
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_junction_root_and_descendant_are_rejected() {
+    use std::process::Command;
+
+    let tree = TempTree::new();
+    let real_directory = tree.path("real");
+    let alias = tree.path("junction");
+    fs::create_dir(&real_directory).expect("create generated real directory");
+    fs::write(real_directory.join("inside.txt"), b"inside\n").expect("write generated file");
+    let status = Command::new("cmd")
+        .args(["/C", "mklink", "/J"])
+        .arg(&alias)
+        .arg(&real_directory)
+        .status()
+        .expect("run junction creation command");
+    assert!(
+        status.success(),
+        "Windows CI must support junction creation"
+    );
+
+    let registry = DropGrantRegistry::default();
+    let root_grant = issue_and_consume(&registry, vec![alias.clone()], Instant::now());
+    let root = discover_grant_with_limit(root_grant, 10).expect("inspect junction root");
+    let descendant_grant =
+        issue_and_consume(&registry, vec![alias.join("inside.txt")], Instant::now());
+    let descendant =
+        discover_grant_with_limit(descendant_grant, 10).expect("inspect junction descendant");
+
+    assert!(root.items.is_empty());
+    assert_eq!(root.counts.symlink, 1);
+    assert!(descendant.items.is_empty());
+    assert_eq!(descendant.counts.symlink, 1);
+    fs::remove_dir(&alias).expect("remove generated junction");
 }
 
 #[cfg(windows)]

@@ -1,5 +1,5 @@
 use super::grant::{
-    file_type_is_link, path_display_len, read_only_nofollow_options, CapabilityRoot, DropGrant,
+    metadata_is_link, path_display_len, read_only_nofollow_options, CapabilityRoot, DropGrant,
 };
 use super::{
     DiagnosticCategory, DiscoveredItem, DiscoveryDiagnostic, DiscoveryProposal, MAX_DIAGNOSTICS,
@@ -154,21 +154,22 @@ where
             );
             return;
         }
-        let file_type = match entry.file_type() {
-            Ok(file_type) => file_type,
+        let metadata = match entry.metadata() {
+            Ok(metadata) => metadata,
             Err(error) => {
                 self.diagnostic(
                     DiagnosticCategory::Unreadable,
                     &display_path,
-                    format!("Entry type is unreadable: {error}"),
+                    format!("Entry metadata is unreadable: {error}"),
                 );
                 return;
             }
         };
+        let file_type = metadata.file_type();
         if self.stop_for_deadline(&display_path) {
             return;
         }
-        if file_type_is_link(&file_type) {
+        if metadata_is_link(&metadata) {
             self.diagnostic(
                 DiagnosticCategory::Symlink,
                 &display_path,
@@ -224,7 +225,7 @@ where
         if self.stop_for_deadline(&display_path) {
             return;
         }
-        if file_type_is_link(&metadata.file_type()) {
+        if metadata_is_link(&metadata) {
             self.diagnostic(
                 DiagnosticCategory::Symlink,
                 &display_path,

@@ -54,11 +54,11 @@ share the same bounded grant worker and discovery review pipeline.
 Local drop discovery opens operating-system drop roots once in Rust and then
 walks only capability-relative, no-follow handles. Unix tests cover symlink
 replacement during traversal and replacement of a dropped file name after its
-handle is issued. Windows builds additionally reject symlink-file and
-symlink-directory reparse types, with a platform-gated test when the test
-account may create links. Full Windows junction and non-symlink reparse-point
-acceptance remains a Windows CI and manual acceptance item; it is not claimed
-by the current macOS verification.
+handle is issued. Windows builds reject every item carrying
+`FILE_ATTRIBUTE_REPARSE_POINT`, including symlink files, symlink directories,
+and directory junctions. Windows CI creates a junction without elevated
+symlink privileges and verifies that both the junction root and a descendant
+path are excluded before traversal.
 
 Drop-root issuance and discovery run on a bounded blocking worker pool rather
 than the Tauri window-event thread. Each request has a visible deadline and

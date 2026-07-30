@@ -3,7 +3,7 @@ use cap_fs_ext::{FollowSymlinks, OpenOptionsFollowExt, OpenOptionsMaybeDirExt};
 use cap_std::ambient_authority;
 #[cfg(unix)]
 use cap_std::fs::OpenOptionsExt;
-use cap_std::fs::{Dir, File, FileType, OpenOptions};
+use cap_std::fs::{Dir, File, Metadata, OpenOptions};
 use serde::Serialize;
 use std::collections::HashMap;
 use std::ffi::OsString;
@@ -16,6 +16,8 @@ use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const MAX_GRANT_ID_BYTES: usize = 128;
+#[cfg(any(windows, test))]
+const WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
 pub(crate) const DROP_GRANT_EVENT: &str = "local-drop-grant";
 pub(crate) const DROP_GRANT_ERROR_EVENT: &str = "local-drop-grant-error";
 
@@ -306,7 +308,7 @@ pub(crate) fn open_trusted_drop_root(display_path: PathBuf) -> CapabilityRoot {
             )
         }
     };
-    if file_type_is_link(&metadata.file_type()) {
+    if metadata_is_link(&metadata) {
         return root_diagnostic(
             display_path,
             DiagnosticCategory::Symlink,
@@ -384,7 +386,7 @@ fn open_ancestor_directory(
             ))
         }
     };
-    if file_type_is_link(&metadata.file_type()) {
+    if metadata_is_link(&metadata) {
         return Err((
             DiagnosticCategory::Symlink,
             "Dropped path contains a link or reparse-point ancestor".to_owned(),
@@ -411,7 +413,7 @@ fn open_ancestor_directory(
             format!("Dropped path ancestor handle metadata is unreadable: {error}"),
         )
     })?;
-    if file_type_is_link(&opened_metadata.file_type()) {
+    if metadata_is_link(&opened_metadata) {
         return Err((
             DiagnosticCategory::Symlink,
             "Dropped path ancestor resolved to a link or reparse point".to_owned(),
@@ -442,7 +444,7 @@ fn classify_opened_root(display_path: PathBuf, opened: File) -> CapabilityRoot {
             )
         }
     };
-    if file_type_is_link(&metadata.file_type()) {
+    if metadata_is_link(&metadata) {
         return root_diagnostic(
             display_path,
             DiagnosticCategory::Symlink,
@@ -475,6 +477,20 @@ fn classify_opened_root(display_path: PathBuf, opened: File) -> CapabilityRoot {
     }
 }
 
-pub(super) fn file_type_is_link(file_type: &FileType) -> bool {
-    file_type.is_symlink()
+pub(super) fn metadata_is_link(metadata: &Metadata) -> bool {
+    if metadata.file_type().is_symlink() {
+        return true;
+    }
+    #[cfg(windows)]
+    {
+        use cap_std::fs::MetadataExt;
+        return windows_file_attributes_are_reparse(metadata.file_attributes());
+    }
+    #[cfg(not(windows))]
+    false
+}
+
+#[cfg(any(windows, test))]
+pub(super) fn windows_file_attributes_are_reparse(attributes: u32) -> bool {
+    attributes & WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT != 0
 }
