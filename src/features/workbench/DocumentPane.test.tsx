@@ -87,8 +87,8 @@ describe("DocumentPane", () => {
     const editor = screen.getByRole("textbox", {
       name: "Markdown, Mermaid, and code editor",
     });
-    expect(editor).toHaveValue("# Reset reliability\n");
-    expect(screen.getByText("New Vault note · not saved")).toBeInTheDocument();
+    await waitFor(() => expect(editor).toHaveValue("# Reset reliability\n"));
+    expect(await screen.findByText("New Vault note · not saved")).toBeInTheDocument();
 
     fireEvent.change(editor, { target: { value: "# Changed\n" } });
     fireEvent.click(screen.getByRole("tab", { name: "Live preview" }));
