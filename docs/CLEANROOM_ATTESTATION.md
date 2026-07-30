@@ -13,6 +13,12 @@
 - Automated clean scan v5: PASS, report SHA-256 `4079cf5fab0e3833bf908340db5c86431f9c022b9997f2480d497026f95a9684`
 - Source-aware reviewer: `source-aware-reviewer-2026-07-27-A`, Decision: PASS, review SHA-256 `b8cd37b6f38a528e75cf7ea2d3cc8a688ad7669cbca76bfb9cb7b277581a9914`
 - Independent clean reviewer: `independent-clean-reviewer-2026-07-27-01`, Decision: PASS, review SHA-256 `5c4416f575a310d0071fc428f2d153174733cfc9d01e8ce8d15cf9333f5f7798`
+- Executable release-asset provenance gate:
+  `docs/RELEASE_ASSET_PROVENANCE.json`. Every file under the declared shipped
+  asset roots is bound to an exact SHA-256 and authorization record. The
+  deterministic `license-review-sentinel` acceptance test rejects an
+  uncleared third-party entry and accepts it only with explicit clearance
+  evidence.
 
 The test-vector package is self-contained and requires no external fixture.
 This release repository is strictly isolated from source checkouts, indexes,

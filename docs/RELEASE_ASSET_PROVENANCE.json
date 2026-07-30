@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "roots": [
+    "src-tauri/icons",
+    "src-tauri/resources"
+  ],
+  "assets": [
+    {
+      "path": "src-tauri/icons/icon.ico",
+      "sha256": "99a7eea3288867aea77f3314794936d07e4c685788b0db1e495315e8d7a6fd94",
+      "origin": "cleanroomGenerated",
+      "license": "MIT",
+      "authorizationId": "CLEANROOM-SCAFFOLD-2026-07-27"
+    },
+    {
+      "path": "src-tauri/icons/icon.png",
+      "sha256": "202af7468618a867d1b1def3ed1b554f0e71af6f4b28bd972d1e445f50c58e5d",
+      "origin": "cleanroomGenerated",
+      "license": "MIT",
+      "authorizationId": "CLEANROOM-SCAFFOLD-2026-07-27"
+    },
+    {
+      "path": "src-tauri/icons/icon.svg",
+      "sha256": "25d2eca33965d934b2fce04929cf3192e4fbbe66c1ca16c76ed904ecabe212d2",
+      "origin": "cleanroomGenerated",
+      "license": "MIT",
+      "authorizationId": "CLEANROOM-SCAFFOLD-2026-07-27"
+    },
+    {
+      "path": "src-tauri/resources/profiles/ninebot-electronic-archive-0.3.0-draft.json",
+      "sha256": "e046460e947cddf768addc86cbddcb7921e99cb51d4fe24c3060937638b2317e",
+      "origin": "authorizedFirstParty",
+      "license": "MIT",
+      "authorizationId": "AUTH-2026-07-29-NINEBOT-DRAFT"
+    }
+  ]
+}

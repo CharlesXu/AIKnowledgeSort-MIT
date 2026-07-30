@@ -9,7 +9,8 @@
     "e2e": "playwright test",
     "test": "vitest --maxWorkers=8",
     "tauri": "tauri",
-    "verify:release": "node scripts/verify-release-contract.mjs"
+    "verify:provenance": "node --test scripts/verify-provenance-contract.node-test.mjs && node scripts/verify-provenance-contract.mjs",
+    "verify:release": "node scripts/verify-release-contract.mjs && npm run verify:provenance"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",

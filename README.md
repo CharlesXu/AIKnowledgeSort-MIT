@@ -42,6 +42,13 @@ and does not create a tag or release. Signing, Apple notarization, updater
 publication, and hands-on installation acceptance remain separate release
 work.
 
+The release contract also runs the executable asset-provenance gate. Every
+file under the bundled icon and resource roots must appear in
+`docs/RELEASE_ASSET_PROVENANCE.json` with its exact SHA-256, license, origin,
+and authorization evidence. Missing, unlisted, linked, or byte-changed assets
+fail the build. A third-party entry fails unless it carries a separate explicit
+clearance decision; the generated license sentinel tests both outcomes.
+
 ## Local source discovery platform scope
 
 The header **Add source** menu opens the native non-blocking file or folder
