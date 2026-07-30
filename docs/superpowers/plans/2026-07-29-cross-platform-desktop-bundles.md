@@ -227,7 +227,7 @@ Windows run the same wrapper directly.
 
 - [ ] **Step 3: Upload exact bundle outputs**
 
-Use the full commit SHA for `actions/upload-artifact@v4`, set
+Use the full commit SHA for `actions/upload-artifact@v7`, set
 `if-no-files-found: error`, and retain artifacts for 14 days. Keep workflow
 permissions at:
 

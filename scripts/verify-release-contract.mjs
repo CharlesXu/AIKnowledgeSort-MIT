@@ -86,8 +86,8 @@ requireText(
 requireText(
   violations,
   workflow,
-  /uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v4/,
-  "upload-artifact must be pinned to a full v4 commit SHA",
+  /uses: actions\/upload-artifact@[0-9a-f]{40}\s+# v7/,
+  "upload-artifact must be pinned to a full v7 commit SHA",
 );
 requireText(
   violations,
