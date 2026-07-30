@@ -77,6 +77,82 @@ function createNativeDropHarness() {
 }
 
 describe("source workbench shell", () => {
+  test("loads a trusted proposal from the native add-files picker", async () => {
+    const harness = createNativeDropHarness();
+    const sourcePickerClient = {
+      chooseFiles: vi.fn().mockResolvedValue({
+        grantId: "opaque-picker-grant",
+      }),
+      chooseFolders: vi.fn(),
+    };
+    const appProps = {
+      discoveryClient: harness.discoveryClient,
+      dropBridge: harness.dropBridge,
+      sourcePickerClient,
+    } as Parameters<typeof App>[0];
+    render(<App {...appProps} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add files…" }));
+
+    await waitFor(() =>
+      expect(screen.getAllByText("trusted.md")).not.toHaveLength(0),
+    );
+    expect(sourcePickerClient.chooseFiles).toHaveBeenCalledTimes(1);
+    expect(harness.proposeLocalDrop).toHaveBeenCalledWith({
+      grantId: "opaque-picker-grant",
+    });
+    expect(screen.queryByText("Demo scan")).toBeNull();
+  });
+
+  test("treats picker cancellation as a no-op and prevents concurrent pickers", async () => {
+    let finishSelection: (value: null) => void = () => {};
+    const sourcePickerClient = {
+      chooseFiles: vi.fn(
+        () =>
+          new Promise<null>((resolve) => {
+            finishSelection = resolve;
+          }),
+      ),
+      chooseFolders: vi.fn(),
+    };
+    const harness = createNativeDropHarness();
+    const appProps = {
+      discoveryClient: harness.discoveryClient,
+      dropBridge: harness.dropBridge,
+      sourcePickerClient,
+    } as Parameters<typeof App>[0];
+    render(<App {...appProps} />);
+
+    const addSource = screen.getByRole("button", { name: "Add source" });
+    fireEvent.click(addSource);
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add files…" }));
+
+    expect(addSource).toBeDisabled();
+    fireEvent.click(addSource);
+    expect(sourcePickerClient.chooseFiles).toHaveBeenCalledTimes(1);
+
+    act(() => finishSelection(null));
+
+    await waitFor(() => expect(addSource).toBeEnabled());
+    expect(screen.getByText("Demo scan")).toBeInTheDocument();
+    expect(harness.proposeLocalDrop).not.toHaveBeenCalled();
+  });
+
+  test("reports that source picking requires the desktop runtime in browser mode", async () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Add source" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Add folders…" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("status", { name: "Drop status" }),
+      ).toHaveTextContent(/requires the desktop app/i),
+    );
+    expect(screen.getByText("Demo scan")).toBeInTheDocument();
+  });
+
   test("clearly labels the deterministic browser fixture", () => {
     render(<App />);
 
@@ -164,7 +240,7 @@ describe("source workbench shell", () => {
 
     act(() => harness.grant("slow-grant"));
     expect(screen.getByRole("status", { name: "Drop status" })).toHaveTextContent(
-      /reviewing trusted local drop/i,
+      /reviewing trusted local sources/i,
     );
 
     act(() => harness.error("Native grant failed"));

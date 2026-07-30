@@ -57,6 +57,8 @@ export interface NativeDropState {
   readonly message: string;
   readonly proposal?: DiscoveryProposal;
   readonly isDemo: boolean;
+  readonly reviewGrant: (grant: DropGrantIssued) => void;
+  readonly reportGrantError: (message: string) => void;
   readonly onDomDragOver: (event: DomDragOverEvent) => void;
   readonly onDomDrop: (event: DomDropEvent) => void;
 }
@@ -139,45 +141,57 @@ export function useNativeDrop({
   const statusBeforeHover = useRef<NativeDropStatus>("idle");
   const requestSequence = useRef(0);
 
+  const reviewGrant = useCallback(
+    (grant: DropGrantIssued) => {
+      if (seenGrantIds.current.has(grant.grantId)) {
+        return;
+      }
+      seenGrantIds.current.add(grant.grantId);
+      const requestId = ++requestSequence.current;
+      setStatus("loading");
+      setMessage("Reviewing trusted local sources…");
+      void discoveryClient
+        .proposeLocalDrop({ grantId: grant.grantId })
+        .then((nextProposal) => {
+          if (requestId !== requestSequence.current) {
+            return;
+          }
+          setProposal(nextProposal);
+          setIsDemo(false);
+          setStatus("ready");
+          setMessage("Trusted local discovery proposal is ready.");
+        })
+        .catch((error: unknown) => {
+          if (requestId !== requestSequence.current) {
+            return;
+          }
+          setStatus("error");
+          setMessage(boundedMessage(error));
+        });
+    },
+    [discoveryClient],
+  );
+
+  const reportGrantError = useCallback((errorMessage: string) => {
+    requestSequence.current += 1;
+    setStatus("error");
+    setMessage(boundedMessage(errorMessage));
+  }, []);
+
   useEffect(() => {
     let disposed = false;
     let cleanup: (() => void) | undefined;
 
     const callbacks: NativeDropCallbacks = {
       onGrant(grant) {
-        if (disposed || seenGrantIds.current.has(grant.grantId)) {
-          return;
+        if (!disposed) {
+          reviewGrant(grant);
         }
-        seenGrantIds.current.add(grant.grantId);
-        const requestId = ++requestSequence.current;
-        setStatus("loading");
-        setMessage("Reviewing trusted local drop…");
-        void discoveryClient
-          .proposeLocalDrop({ grantId: grant.grantId })
-          .then((nextProposal) => {
-            if (disposed || requestId !== requestSequence.current) {
-              return;
-            }
-            setProposal(nextProposal);
-            setIsDemo(false);
-            setStatus("ready");
-            setMessage("Trusted local discovery proposal is ready.");
-          })
-          .catch((error: unknown) => {
-            if (disposed || requestId !== requestSequence.current) {
-              return;
-            }
-            setStatus("error");
-            setMessage(boundedMessage(error));
-          });
       },
       onGrantError(errorMessage) {
-        if (disposed) {
-          return;
+        if (!disposed) {
+          reportGrantError(errorMessage);
         }
-        requestSequence.current += 1;
-        setStatus("error");
-        setMessage(boundedMessage(errorMessage));
       },
       onDragState(event) {
         if (disposed) {
@@ -222,7 +236,7 @@ export function useNativeDrop({
       requestSequence.current += 1;
       cleanup?.();
     };
-  }, [bridge, discoveryClient]);
+  }, [bridge, reportGrantError, reviewGrant]);
 
   const onDomDragOver = useCallback((event: DomDragOverEvent) => {
     if (isExternalTextDrop(event.dataTransfer.types, event.dataTransfer.files.length)) {
@@ -244,6 +258,8 @@ export function useNativeDrop({
     message,
     proposal,
     isDemo,
+    reviewGrant,
+    reportGrantError,
     onDomDragOver,
     onDomDrop,
   };

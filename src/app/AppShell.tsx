@@ -26,6 +26,7 @@ import type { KnowledgeDocument } from "../features/knowledge/types";
 import type { GraphClient } from "../features/graph/types";
 import type { ModelRuntimeClient } from "../features/models/types";
 import type { AgentAccessClient } from "../features/agentAccess/types";
+import type { SourcePickerClient } from "../features/drop/sourcePickerClient";
 import { SettingsDialog } from "../features/settings/SettingsDialog";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
@@ -142,6 +143,7 @@ interface AppShellProps {
   readonly profileClient: ProfileClient;
   readonly modelRuntimeClient: ModelRuntimeClient;
   readonly agentAccessClient: AgentAccessClient;
+  readonly sourcePickerClient: SourcePickerClient;
 }
 
 export function AppShell({
@@ -154,12 +156,14 @@ export function AppShell({
   profileClient,
   modelRuntimeClient,
   agentAccessClient,
+  sourcePickerClient,
 }: AppShellProps) {
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
   const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<readonly string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [sourcePickerBusy, setSourcePickerBusy] = useState(false);
   const [activeTool, setActiveTool] = useState<WorkbenchTool | null>("sources");
   const [contextMode, setContextMode] = useState<ContextMode>("graph");
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
@@ -225,6 +229,28 @@ export function AppShell({
     );
   }
 
+  async function chooseSources(kind: "files" | "folders"): Promise<void> {
+    if (sourcePickerBusy) {
+      return;
+    }
+    setSourcePickerBusy(true);
+    try {
+      const grant =
+        kind === "files"
+          ? await sourcePickerClient.chooseFiles()
+          : await sourcePickerClient.chooseFolders();
+      if (grant !== null) {
+        drop.reviewGrant(grant);
+      }
+    } catch (error) {
+      drop.reportGrantError(
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setSourcePickerBusy(false);
+    }
+  }
+
   return (
     <main
       aria-label="Source workbench"
@@ -233,7 +259,11 @@ export function AppShell({
       onDrop={drop.onDomDrop}
       style={layoutStyle}
     >
-      <AppHeader />
+      <AppHeader
+        addingSource={sourcePickerBusy}
+        onAddFiles={() => void chooseSources("files")}
+        onAddFolders={() => void chooseSources("folders")}
+      />
       <ToolRail
         activeTool={activeTool}
         onOpenSettings={() => setSettingsOpen(true)}

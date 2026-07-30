@@ -42,6 +42,11 @@ import {
   createTauriAgentAccessClient,
 } from "./features/agentAccess/agentAccessClient";
 import type { AgentAccessClient } from "./features/agentAccess/types";
+import {
+  createBrowserSourcePickerClient,
+  createTauriSourcePickerClient,
+  type SourcePickerClient,
+} from "./features/drop/sourcePickerClient";
 
 interface AppProps {
   readonly archiveClient?: ArchiveClient;
@@ -53,6 +58,7 @@ interface AppProps {
   readonly profileClient?: ProfileClient;
   readonly modelRuntimeClient?: ModelRuntimeClient;
   readonly agentAccessClient?: AgentAccessClient;
+  readonly sourcePickerClient?: SourcePickerClient;
 }
 
 const browserDropBridge = createBrowserNativeDropBridge();
@@ -66,6 +72,7 @@ const browserGraphClient = createBrowserGraphClient();
 const browserProfileClient = createBrowserProfileClient();
 const browserModelRuntimeClient = createBrowserModelRuntimeClient();
 const browserAgentAccessClient = createBrowserAgentAccessClient();
+const browserSourcePickerClient = createBrowserSourcePickerClient();
 
 function isTauriRuntime(): boolean {
   return "__TAURI_INTERNALS__" in window;
@@ -81,6 +88,7 @@ export default function App({
   profileClient,
   modelRuntimeClient,
   agentAccessClient,
+  sourcePickerClient,
 }: AppProps) {
   const nativeRuntime = isTauriRuntime();
 
@@ -123,6 +131,12 @@ export default function App({
       agentAccessClient={
         agentAccessClient ??
         (nativeRuntime ? createTauriAgentAccessClient() : browserAgentAccessClient)
+      }
+      sourcePickerClient={
+        sourcePickerClient ??
+        (nativeRuntime
+          ? createTauriSourcePickerClient()
+          : browserSourcePickerClient)
       }
     />
   );

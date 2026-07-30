@@ -85,48 +85,24 @@ fn run_application(exit_when_ready: bool) {
 
             if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
                 let limiter = window.state::<discovery::DropWorkLimiter>().inner().clone();
-                let permit = match limiter.try_acquire() {
-                    Ok(permit) => permit,
-                    Err(error) => {
-                        let _ = window.emit(discovery::DROP_GRANT_ERROR_EVENT, error);
-                        return;
-                    }
-                };
                 let registry = window
                     .state::<discovery::DropGrantRegistry>()
                     .inner()
                     .clone();
                 let dropped_paths = paths.clone();
                 let target = window.clone();
-                let deadline = std::time::Instant::now() + discovery::DROP_WORK_TIMEOUT;
 
                 tauri::async_runtime::spawn(async move {
-                    let task = tauri::async_runtime::spawn_blocking(move || {
-                        let _permit = permit;
-                        discovery::issue_drop_grant(&registry, dropped_paths, deadline)
-                    });
-                    match tokio::time::timeout(discovery::DROP_WORK_TIMEOUT, task).await {
-                        Ok(Ok(Ok(issued))) => {
+                    match discovery::issue_local_source_grant(dropped_paths, registry, limiter)
+                        .await
+                    {
+                        Ok(issued) => {
                             let _ = target.emit(discovery::DROP_GRANT_EVENT, issued);
                         }
-                        Ok(Ok(Err(error))) => {
+                        Err(error) => {
                             let _ = target.emit(
                                 discovery::DROP_GRANT_ERROR_EVENT,
                                 discovery::bounded_error(error),
-                            );
-                        }
-                        Ok(Err(error)) => {
-                            let _ = target.emit(
-                                discovery::DROP_GRANT_ERROR_EVENT,
-                                discovery::bounded_error(format!(
-                                    "Drop grant worker failed: {error}"
-                                )),
-                            );
-                        }
-                        Err(_) => {
-                            let _ = target.emit(
-                                discovery::DROP_GRANT_ERROR_EVENT,
-                                "Drop grant processing deadline exceeded",
                             );
                         }
                     }
@@ -141,6 +117,8 @@ fn run_application(exit_when_ready: bool) {
             mcp_transport::inspect_mcp_transport,
             mcp_transport::start_mcp_transport,
             mcp_transport::stop_mcp_transport,
+            discovery::choose_local_files,
+            discovery::choose_local_folders,
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
             archive::create_archive_plan,

@@ -40,7 +40,7 @@ impl Default for RegistryLimits {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(crate) struct DropGrantIssued {
+pub struct DropGrantIssued {
     pub grant_id: String,
 }
 

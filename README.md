@@ -35,7 +35,14 @@ and does not create a tag or release. Signing, Apple notarization, updater
 publication, and hands-on installation acceptance remain separate release
 work.
 
-## Drop discovery platform scope
+## Local source discovery platform scope
+
+The header **Add source** menu opens the native non-blocking file or folder
+picker. Closing or cancelling the picker returns no grant and leaves the
+current proposal unchanged. On selection, Rust accepts only local filesystem
+results and returns an opaque one-time grant to the webview; absolute paths are
+never exposed to the frontend. Picker selections and operating-system drops
+share the same bounded grant worker and discovery review pipeline.
 
 Local drop discovery opens operating-system drop roots once in Rust and then
 walks only capability-relative, no-follow handles. Unix tests cover symlink

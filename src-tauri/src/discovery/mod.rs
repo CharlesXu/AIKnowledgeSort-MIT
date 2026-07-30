@@ -3,9 +3,11 @@ mod proposal;
 mod walker;
 
 use serde::Serialize;
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tauri_plugin_dialog::FilePath;
 
 use crate::identity::ContentIdentity;
 
@@ -119,6 +121,68 @@ pub enum DiagnosticCategory {
     Unreadable,
     Symlink,
     TraversalLimit,
+}
+
+#[tauri::command]
+pub async fn choose_local_files(
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, DropGrantRegistry>,
+    limiter: tauri::State<'_, DropWorkLimiter>,
+) -> Result<Option<grant::DropGrantIssued>, String> {
+    let Some(selection) = crate::native_dialog::pick_files(&app).await? else {
+        return Ok(None);
+    };
+    let paths = selected_local_paths(selection)?;
+    issue_local_source_grant(paths, registry.inner().clone(), limiter.inner().clone())
+        .await
+        .map(Some)
+}
+
+#[tauri::command]
+pub async fn choose_local_folders(
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, DropGrantRegistry>,
+    limiter: tauri::State<'_, DropWorkLimiter>,
+) -> Result<Option<grant::DropGrantIssued>, String> {
+    let Some(selection) = crate::native_dialog::pick_folders(&app).await? else {
+        return Ok(None);
+    };
+    let paths = selected_local_paths(selection)?;
+    issue_local_source_grant(paths, registry.inner().clone(), limiter.inner().clone())
+        .await
+        .map(Some)
+}
+
+fn selected_local_paths(selection: Vec<FilePath>) -> Result<Vec<PathBuf>, String> {
+    selection
+        .into_iter()
+        .map(|selected| {
+            selected
+                .into_path()
+                .map_err(|_| "Selected source is not a local filesystem path".to_owned())
+        })
+        .collect()
+}
+
+pub(crate) async fn issue_local_source_grant(
+    paths: Vec<PathBuf>,
+    registry: DropGrantRegistry,
+    limiter: DropWorkLimiter,
+) -> Result<grant::DropGrantIssued, String> {
+    let permit = limiter.try_acquire()?;
+    let deadline = Instant::now() + DROP_WORK_TIMEOUT;
+    let task = tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        issue_drop_grant(&registry, paths, deadline)
+    });
+
+    match tokio::time::timeout(DROP_WORK_TIMEOUT, task).await {
+        Ok(Ok(result)) => result.map_err(bounded_error),
+        Ok(Err(error)) => Err(bounded_error(format!(
+            "Source grant worker failed: {error}"
+        ))),
+        Err(_) => Err("Source grant processing deadline exceeded".to_owned()),
+    }
 }
 
 #[tauri::command]

@@ -2,7 +2,7 @@ use super::grant::{DropGrantRegistry, RegistryLimits};
 use super::walker::{
     discover_grant_with_hooks, discover_grant_with_hooks_and_deadline, discover_grant_with_limit,
 };
-use super::{DiagnosticCategory, DiscoveryProposal, DropWorkLimiter};
+use super::{selected_local_paths, DiagnosticCategory, DiscoveryProposal, DropWorkLimiter};
 use std::collections::BTreeMap;
 use std::fs;
 use std::io;
@@ -13,6 +13,7 @@ use std::sync::mpsc;
 #[cfg(unix)]
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri_plugin_dialog::FilePath;
 
 static NEXT_TEMP_ID: AtomicU64 = AtomicU64::new(0);
 
@@ -527,4 +528,24 @@ fn serializes_frontend_contract_in_camel_case() {
     assert!(value.get("proposal_id").is_none());
     assert!(value["counts"].get("outOfScope").is_some());
     assert!(value["counts"].get("out_of_scope").is_none());
+}
+
+#[test]
+fn native_picker_accepts_only_local_filesystem_paths() {
+    let local = PathBuf::from("/tmp/aiknowledgesort-source.txt");
+    assert_eq!(
+        selected_local_paths(vec![FilePath::Path(local.clone())])
+            .expect("accept local selected path"),
+        vec![local],
+    );
+
+    let remote = FilePath::Url(
+        "https://example.test/source.txt"
+            .parse()
+            .expect("parse test URL"),
+    );
+    assert_eq!(
+        selected_local_paths(vec![remote]).expect_err("reject remote selected URL"),
+        "Selected source is not a local filesystem path",
+    );
 }

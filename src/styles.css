@@ -101,6 +101,7 @@ input:focus-visible,
 }
 
 .app-header__actions {
+  position: relative;
   gap: 5px;
 }
 
@@ -129,6 +130,43 @@ input:focus-visible,
   color: #7f838b;
   background: transparent;
   font-size: 18px;
+}
+
+.app-header__icon-button:hover:not(:disabled),
+.app-header__icon-button[aria-expanded="true"] {
+  color: #55477f;
+  background: #ebe8f3;
+}
+
+.app-header__source-menu {
+  position: absolute;
+  z-index: 20;
+  top: 31px;
+  right: 0;
+  display: grid;
+  min-width: 148px;
+  gap: 2px;
+  padding: 5px;
+  border: 1px solid #d4d0de;
+  border-radius: 7px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(40 34 58 / 14%);
+}
+
+.app-header__source-menu button {
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: #34313d;
+  background: transparent;
+  text-align: left;
+  font: inherit;
+}
+
+.app-header__source-menu button:hover,
+.app-header__source-menu button:focus-visible {
+  background: #efedf5;
+  outline: none;
 }
 
 .tool-rail {

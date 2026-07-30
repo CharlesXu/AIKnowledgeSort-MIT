@@ -324,6 +324,20 @@ test("never fabricates Agent comparison or mutation actions for a browser draft"
   ).toHaveCount(0);
 });
 
+test("offers local file and folder selection without simulating it in browser mode", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Add source" }).click();
+  await expect(page.getByRole("menuitem", { name: "Add files…" })).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: "Add folders…" })).toBeVisible();
+
+  await page.getByRole("menuitem", { name: "Add files…" }).click();
+  await expect(page.getByRole("status", { name: "Drop status" })).toContainText(
+    "requires the desktop app",
+  );
+  await expect(page.getByText("Demo scan")).toBeVisible();
+});
+
 test("drags, collapses, and restores the adjustable side panes", async ({ page }) => {
   const sourceSeparator = page.getByRole("separator", {
     name: "Resize Sources panel",
