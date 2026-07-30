@@ -86,7 +86,7 @@ test("uses the tool rail to navigate implemented workbench areas", async ({
   page,
 }) => {
   const tools = page.getByRole("toolbar", { name: "Workbench tools" });
-  const search = tools.getByRole("button", { name: /Search.*coming later/i });
+  const search = tools.getByRole("button", { name: "Search" });
   const classification = tools.getByRole("button", {
     name: "Classification",
   });
@@ -94,10 +94,16 @@ test("uses the tool rail to navigate implemented workbench areas", async ({
   const archive = tools.getByRole("button", { name: "Archive" });
   const sources = tools.getByRole("button", { name: "Sources" });
 
-  await expect(search).toBeDisabled();
+  await expect(search).toBeEnabled();
   await expect(classification).toBeEnabled();
   await expect(graph).toBeEnabled();
   await expect(archive).toBeEnabled();
+
+  await search.click();
+  await expect(
+    page.getByRole("searchbox", { name: "Search sources" }),
+  ).toBeFocused();
+  await expect(search).toHaveAttribute("aria-current", "page");
 
   await classification.click();
   await expect(

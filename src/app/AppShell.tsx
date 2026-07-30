@@ -164,6 +164,7 @@ export function AppShell({
   const [contextMode, setContextMode] = useState<ContextMode>("graph");
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const sourcesRef = useRef<HTMLElement>(null);
+  const sourceSearchRef = useRef<HTMLInputElement>(null);
   const archiveRef = useRef<HTMLElement>(null);
   const drop = useNativeDrop({
     bridge: dropBridge,
@@ -190,15 +191,25 @@ export function AppShell({
     setSelectedItemIds([]);
   }, [proposal.proposalId]);
 
+  useEffect(() => {
+    if (layout.navigationCollapsed) {
+      return;
+    }
+    if (activeTool === "search") {
+      sourceSearchRef.current?.focus();
+    } else if (activeTool === "sources") {
+      sourcesRef.current?.focus();
+    }
+  }, [activeTool, layout.navigationCollapsed]);
+
   function updateLayout(changes: Partial<PaneLayout>): void {
     setLayout((current) => ({ ...current, ...changes }));
   }
 
   function selectTool(tool: WorkbenchTool): void {
     setActiveTool(tool);
-    if (tool === "sources") {
+    if (tool === "sources" || tool === "search") {
       updateLayout({ navigationCollapsed: false });
-      sourcesRef.current?.focus();
     } else if (tool === "archive") {
       archiveRef.current?.focus();
     } else {
@@ -271,6 +282,7 @@ export function AppShell({
             <SourceTree
               key={sourceTree.id}
               onSelectedFileIdsChange={setSelectedItemIds}
+              searchInputRef={sourceSearchRef}
               selectedFileIds={selectedItemIds}
               tree={sourceTree}
             />

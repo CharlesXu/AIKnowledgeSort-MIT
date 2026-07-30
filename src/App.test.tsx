@@ -355,7 +355,7 @@ describe("source workbench shell", () => {
   test("uses the narrow toolbar to navigate implemented workbench areas", async () => {
     render(<App />);
 
-    const search = screen.getByRole("button", { name: /Search.*coming later/i });
+    const search = screen.getByRole("button", { name: "Search" });
     const graph = screen.getByRole("button", { name: "Graph" });
     const classification = screen.getByRole("button", {
       name: "Classification",
@@ -363,10 +363,16 @@ describe("source workbench shell", () => {
     const archive = screen.getByRole("button", { name: "Archive" });
     const sources = screen.getByRole("button", { name: "Sources" });
 
-    expect(search).toBeDisabled();
+    expect(search).toBeEnabled();
     expect(graph).toBeEnabled();
     expect(classification).toBeEnabled();
     expect(archive).toBeEnabled();
+
+    fireEvent.click(search);
+    expect(
+      screen.getByRole("searchbox", { name: "Search sources" }),
+    ).toHaveFocus();
+    expect(search).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(classification);
     expect(

@@ -7,11 +7,16 @@ interface Tool {
   readonly deferred?: boolean;
 }
 
-export type WorkbenchTool = "sources" | "graph" | "classification" | "archive";
+export type WorkbenchTool =
+  | "sources"
+  | "search"
+  | "graph"
+  | "classification"
+  | "archive";
 
 const primaryTools: readonly Tool[] = [
   { id: "sources", label: "Sources", icon: "inbox" },
-  { label: "Search — coming later", icon: "search", deferred: true },
+  { id: "search", label: "Search", icon: "search" },
   { id: "graph", label: "Graph", icon: "graph" },
   { id: "classification", label: "Classification", icon: "layers" },
   { id: "archive", label: "Archive", icon: "archive" },

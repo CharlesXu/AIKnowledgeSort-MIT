@@ -11,6 +11,7 @@ import type { SourceNode } from "./types";
 interface SourceTreeProps {
   readonly tree: SourceNode;
   readonly initialSelectionIds?: readonly string[];
+  readonly searchInputRef?: React.RefObject<HTMLInputElement | null>;
   readonly selectedFileIds?: readonly string[];
   readonly onSelectedFileIdsChange?: (itemIds: readonly string[]) => void;
 }
@@ -47,6 +48,7 @@ function filterSourceTree(node: SourceNode, query: string): SourceNode | null {
 export function SourceTree({
   tree,
   initialSelectionIds = [],
+  searchInputRef,
   selectedFileIds,
   onSelectedFileIdsChange,
 }: SourceTreeProps) {
@@ -131,6 +133,7 @@ export function SourceTree({
           aria-label="Search sources"
           onChange={(event) => setFilter(event.target.value)}
           placeholder="Filter files and folders"
+          ref={searchInputRef}
           type="search"
           value={filter}
         />
