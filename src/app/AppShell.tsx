@@ -6,10 +6,16 @@ import {
   type NativeDropBridge,
 } from "../features/drop/useNativeDrop";
 import { ScanReport } from "../features/drop/ScanReport";
-import { ToolRail } from "../features/sources/ToolRail";
+import {
+  ToolRail,
+  type WorkbenchTool,
+} from "../features/sources/ToolRail";
 import { SourceTree } from "../features/sources/SourceTree";
 import { sourceTreeFromProposal } from "../features/sources/sourceTreeFromProposal";
-import { ContextPane } from "../features/workbench/ContextPane";
+import {
+  ContextPane,
+  type ContextMode,
+} from "../features/workbench/ContextPane";
 import { DocumentPane } from "../features/workbench/DocumentPane";
 import { ArchivePreviewPane } from "../features/workbench/ArchivePreviewPane";
 import type { ArchiveClient } from "../features/archive/types";
@@ -154,7 +160,11 @@ export function AppShell({
   const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<readonly string[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeTool, setActiveTool] = useState<WorkbenchTool | null>("sources");
+  const [contextMode, setContextMode] = useState<ContextMode>("graph");
   const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const sourcesRef = useRef<HTMLElement>(null);
+  const archiveRef = useRef<HTMLElement>(null);
   const drop = useNativeDrop({
     bridge: dropBridge,
     discoveryClient,
@@ -184,6 +194,26 @@ export function AppShell({
     setLayout((current) => ({ ...current, ...changes }));
   }
 
+  function selectTool(tool: WorkbenchTool): void {
+    setActiveTool(tool);
+    if (tool === "sources") {
+      updateLayout({ navigationCollapsed: false });
+      sourcesRef.current?.focus();
+    } else if (tool === "archive") {
+      archiveRef.current?.focus();
+    } else {
+      setContextMode(tool === "graph" ? "graph" : "review");
+      updateLayout({ contextCollapsed: false });
+    }
+  }
+
+  function changeContextMode(mode: ContextMode): void {
+    setContextMode(mode);
+    setActiveTool(
+      mode === "graph" ? "graph" : mode === "review" ? "classification" : null,
+    );
+  }
+
   return (
     <main
       aria-label="Source workbench"
@@ -194,13 +224,17 @@ export function AppShell({
     >
       <AppHeader />
       <ToolRail
+        activeTool={activeTool}
         onOpenSettings={() => setSettingsOpen(true)}
+        onSelectTool={selectTool}
         settingsButtonRef={settingsButtonRef}
       />
       <section
         aria-label="Sources"
         className={`source-panel${layout.navigationCollapsed ? " source-panel--collapsed" : ""}`}
         data-collapse-at="760"
+        ref={sourcesRef}
+        tabIndex={-1}
       >
         {layout.navigationCollapsed ? (
           <button
@@ -263,6 +297,7 @@ export function AppShell({
       <section aria-label="Knowledge workspace" className="knowledge-workspace">
         <ArchivePreviewPane
           archiveClient={archiveClient}
+          focusRef={archiveRef}
           modelRuntimeClient={modelRuntimeClient}
           namingClient={namingClient}
           profileClient={profileClient}
@@ -311,10 +346,12 @@ export function AppShell({
         collapsed={layout.contextCollapsed}
         document={activeDocument}
         graphClient={graphClient}
+        mode={contextMode}
         modelRuntimeClient={modelRuntimeClient}
         onCollapsedChange={(contextCollapsed) =>
           updateLayout({ contextCollapsed })
         }
+        onModeChange={changeContextMode}
         profileClient={profileClient}
         proposal={proposal}
       />

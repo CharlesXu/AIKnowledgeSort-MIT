@@ -82,6 +82,47 @@ test("shows all five proposal counts with no fake mutation action", async ({
   ).toHaveCount(0);
 });
 
+test("uses the tool rail to navigate implemented workbench areas", async ({
+  page,
+}) => {
+  const tools = page.getByRole("toolbar", { name: "Workbench tools" });
+  const search = tools.getByRole("button", { name: /Search.*coming later/i });
+  const classification = tools.getByRole("button", {
+    name: "Classification",
+  });
+  const graph = tools.getByRole("button", { name: "Graph" });
+  const archive = tools.getByRole("button", { name: "Archive" });
+  const sources = tools.getByRole("button", { name: "Sources" });
+
+  await expect(search).toBeDisabled();
+  await expect(classification).toBeEnabled();
+  await expect(graph).toBeEnabled();
+  await expect(archive).toBeEnabled();
+
+  await classification.click();
+  await expect(
+    page.getByText(
+      "Ninebot document and electronic archive classification",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(classification).toHaveAttribute("aria-current", "page");
+
+  await graph.click();
+  await expect(
+    page.getByRole("region", { name: "Proposal topology" }),
+  ).toBeVisible();
+  await expect(graph).toHaveAttribute("aria-current", "page");
+
+  await archive.click();
+  await expect(
+    page.getByRole("region", { name: "Archive preview" }),
+  ).toBeFocused();
+
+  await sources.click();
+  await expect(page.getByRole("region", { name: "Sources" })).toBeFocused();
+});
+
 test("keeps archive operations honest in the browser fixture", async ({
   page,
 }) => {

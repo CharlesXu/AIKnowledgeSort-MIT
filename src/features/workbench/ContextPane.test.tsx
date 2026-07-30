@@ -1,10 +1,12 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, test, vi } from "vitest";
 import type { DiscoveryProposal } from "../drop/types";
 import type { GraphClient } from "../graph/types";
 import type { ProfileClient } from "../profiles/types";
 import type { ModelRuntimeClient } from "../models/types";
 import { ContextPane } from "./ContextPane";
+import type { ContextMode } from "./ContextPane";
 
 const proposal: DiscoveryProposal = {
   proposalId: "context-proposal",
@@ -54,17 +56,24 @@ describe("ContextPane", () => {
       runComparison: vi.fn(),
       runFileSemanticComparison: vi.fn(),
     };
-    render(
-      <ContextPane
-        collapsed={false}
-        document={null}
-        graphClient={graphClient}
-        modelRuntimeClient={modelRuntimeClient}
-        onCollapsedChange={vi.fn()}
-        profileClient={profileClient}
-        proposal={proposal}
-      />,
-    );
+    function Harness() {
+      const [mode, setMode] = useState<ContextMode>("graph");
+      return (
+        <ContextPane
+          collapsed={false}
+          document={null}
+          graphClient={graphClient}
+          mode={mode}
+          modelRuntimeClient={modelRuntimeClient}
+          onCollapsedChange={vi.fn()}
+          onModeChange={setMode}
+          profileClient={profileClient}
+          proposal={proposal}
+        />
+      );
+    }
+
+    render(<Harness />);
 
     expect(screen.getByRole("tab", { name: "Knowledge Graph" }))
       .toHaveAttribute("aria-selected", "true");

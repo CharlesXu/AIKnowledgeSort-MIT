@@ -1,26 +1,35 @@
 import { Icon, type IconName } from "../../ui/Icon";
 
 interface Tool {
+  readonly id?: WorkbenchTool;
   readonly label: string;
   readonly icon: IconName;
-  readonly active?: boolean;
   readonly deferred?: boolean;
 }
 
+export type WorkbenchTool = "sources" | "graph" | "classification" | "archive";
+
 const primaryTools: readonly Tool[] = [
-  { label: "Sources", icon: "inbox", active: true },
+  { id: "sources", label: "Sources", icon: "inbox" },
   { label: "Search — coming later", icon: "search", deferred: true },
-  { label: "Graph — coming later", icon: "graph", deferred: true },
-  { label: "Classification — coming later", icon: "layers", deferred: true },
-  { label: "Archive — coming later", icon: "archive", deferred: true },
+  { id: "graph", label: "Graph", icon: "graph" },
+  { id: "classification", label: "Classification", icon: "layers" },
+  { id: "archive", label: "Archive", icon: "archive" },
 ];
 
 interface ToolRailProps {
+  readonly activeTool: WorkbenchTool | null;
   readonly onOpenSettings: () => void;
+  readonly onSelectTool: (tool: WorkbenchTool) => void;
   readonly settingsButtonRef: React.RefObject<HTMLButtonElement | null>;
 }
 
-export function ToolRail({ onOpenSettings, settingsButtonRef }: ToolRailProps) {
+export function ToolRail({
+  activeTool,
+  onOpenSettings,
+  onSelectTool,
+  settingsButtonRef,
+}: ToolRailProps) {
   return (
     <nav
       aria-label="Workbench tools"
@@ -31,11 +40,14 @@ export function ToolRail({ onOpenSettings, settingsButtonRef }: ToolRailProps) {
       <div className="tool-rail__tools">
         {primaryTools.map((tool) => (
           <button
-            aria-current={tool.active ? "page" : undefined}
+            aria-current={tool.id === activeTool ? "page" : undefined}
             aria-label={tool.label}
             className="tool-rail__button"
             disabled={tool.deferred}
             key={tool.label}
+            onClick={
+              tool.id === undefined ? undefined : () => onSelectTool(tool.id!)
+            }
             title={tool.label}
             type="button"
           >

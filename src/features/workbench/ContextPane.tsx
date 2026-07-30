@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { DiscoveryProposal } from "../drop/types";
 import type { ProfileClient } from "../profiles/types";
 import { ProfileReview } from "../profiles/ProfileReview";
@@ -12,7 +11,9 @@ import { AgentReviewPane } from "../models/AgentReviewPane";
 
 interface ContextPaneProps {
   readonly collapsed: boolean;
+  readonly mode: ContextMode;
   readonly onCollapsedChange: (collapsed: boolean) => void;
+  readonly onModeChange: (mode: ContextMode) => void;
   readonly profileClient: ProfileClient;
   readonly graphClient: GraphClient;
   readonly document: KnowledgeDocument | null;
@@ -20,17 +21,19 @@ interface ContextPaneProps {
   readonly modelRuntimeClient: ModelRuntimeClient;
 }
 
+export type ContextMode = "graph" | "review" | "agent";
+
 export function ContextPane({
   collapsed,
+  mode,
   onCollapsedChange,
+  onModeChange,
   profileClient,
   graphClient,
   document,
   proposal,
   modelRuntimeClient,
 }: ContextPaneProps) {
-  const [mode, setMode] = useState<"graph" | "review" | "agent">("graph");
-
   return (
     <aside
       aria-label="Import review context"
@@ -53,7 +56,7 @@ export function ContextPane({
             <div className="context-pane__tabs" role="tablist">
               <button
                 aria-selected={mode === "graph"}
-                onClick={() => setMode("graph")}
+                onClick={() => onModeChange("graph")}
                 role="tab"
                 type="button"
               >
@@ -61,7 +64,7 @@ export function ContextPane({
               </button>
               <button
                 aria-selected={mode === "review"}
-                onClick={() => setMode("review")}
+                onClick={() => onModeChange("review")}
                 role="tab"
                 type="button"
               >
@@ -69,7 +72,7 @@ export function ContextPane({
               </button>
               <button
                 aria-selected={mode === "agent"}
-                onClick={() => setMode("agent")}
+                onClick={() => onModeChange("agent")}
                 role="tab"
                 type="button"
               >

@@ -138,10 +138,14 @@ knowledge nodes, and link-only generated indexes.
 
 The bundled discussion profile has zero executable rules and remains visibly
 draft, inactive, and non-committable. Dictionary terms are candidate-recall
-vocabulary, not deterministic keyword placement rules. Model-generated
-per-file classification and automatic activation are not implemented or
-claimed. The supplied discussion material is not represented as EMT-approved
-or effective company policy.
+vocabulary, not deterministic keyword placement rules. Two independently
+configured models can generate evidence-bound per-file classification and
+naming proposals against an exact approved profile; Agent adjudication remains
+reviewable semantic advice, and the user must explicitly apply it before the
+trusted classification, naming, and archive gates run. Automatic profile
+activation or automatic filesystem action is not implemented or claimed. The
+supplied discussion material is not represented as EMT-approved or effective
+company policy.
 
 ## Canonical naming and source-preserving archive
 

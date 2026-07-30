@@ -31,6 +31,7 @@ import { FileSemanticReview } from "./FileSemanticReview";
 
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
+  readonly focusRef?: React.RefObject<HTMLElement | null>;
   readonly modelRuntimeClient?: ModelRuntimeClient;
   readonly namingClient: NamingClient;
   readonly profileClient: ProfileClient;
@@ -106,6 +107,7 @@ function errorText(error: unknown): string {
 
 export function ArchivePreviewPane({
   archiveClient,
+  focusRef,
   modelRuntimeClient,
   namingClient,
   profileClient,
@@ -672,7 +674,12 @@ export function ArchivePreviewPane({
     result === null ? "Uncommitted" : committed ? "Committed" : "Attention";
 
   return (
-    <section aria-label="Archive preview" className="archive-preview">
+    <section
+      aria-label="Archive preview"
+      className="archive-preview"
+      ref={focusRef}
+      tabIndex={-1}
+    >
       <header className="archive-preview__header">
         <h2>Archive Preview</h2>
         <span>{statusLabel}</span>

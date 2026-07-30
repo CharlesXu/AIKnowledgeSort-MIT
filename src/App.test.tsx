@@ -352,13 +352,43 @@ describe("source workbench shell", () => {
     expect(contextSeparator).toHaveAttribute("aria-valuenow", "500");
   });
 
-  test("labels deferred tools honestly and exposes no fake primary action", () => {
+  test("uses the narrow toolbar to navigate implemented workbench areas", async () => {
     render(<App />);
 
-    expect(screen.getByRole("button", { name: /Graph.*coming later/i })).toBeDisabled();
+    const search = screen.getByRole("button", { name: /Search.*coming later/i });
+    const graph = screen.getByRole("button", { name: "Graph" });
+    const classification = screen.getByRole("button", {
+      name: "Classification",
+    });
+    const archive = screen.getByRole("button", { name: "Archive" });
+    const sources = screen.getByRole("button", { name: "Sources" });
+
+    expect(search).toBeDisabled();
+    expect(graph).toBeEnabled();
+    expect(classification).toBeEnabled();
+    expect(archive).toBeEnabled();
+
+    fireEvent.click(classification);
     expect(
-      screen.getByRole("button", { name: /Classification.*coming later/i }),
-    ).toBeDisabled();
+      await screen.findByText(
+        "Ninebot document and electronic archive classification",
+      ),
+    ).toBeVisible();
+    expect(classification).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(graph);
+    expect(
+      screen.getByRole("region", { name: "Proposal topology" }),
+    ).toBeVisible();
+    expect(graph).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(archive);
+    expect(screen.getByRole("region", { name: "Archive preview" })).toHaveFocus();
+    expect(archive).toHaveAttribute("aria-current", "page");
+
+    fireEvent.click(sources);
+    expect(screen.getByRole("region", { name: "Sources" })).toHaveFocus();
+    expect(sources).toHaveAttribute("aria-current", "page");
     expect(screen.queryByRole("button", { name: /import files/i })).toBeNull();
   });
 
