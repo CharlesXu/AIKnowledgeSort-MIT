@@ -582,7 +582,9 @@ mod tests {
     };
     use crate::discovery::ReviewedSource;
     use crate::identity::ContentIdentity;
-    use crate::model_runtime::config::{ModelConfigSummary, ModelLocation};
+    use crate::model_runtime::config::{
+        ModelConfigSummary, ModelCredentialSource, ModelLocation, ModelProtocol,
+    };
     use crate::model_runtime::protocol::{AgentDecision, ProposalSide};
     use crate::naming::schema::NamingFactKind;
     use crate::profiles::schema::{
@@ -714,7 +716,11 @@ mod tests {
             model: format!("{config_id}-model"),
             timeout_ms: 30_000,
             authenticated: false,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
             credential_environment: None,
+            credential_stored: false,
+            credential_value: None,
         }
     }
 

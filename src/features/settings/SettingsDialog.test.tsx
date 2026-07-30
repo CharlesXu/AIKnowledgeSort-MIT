@@ -4,9 +4,11 @@ import { describe, expect, test, vi } from "vitest";
 import type { AgentAccessClient } from "../agentAccess/types";
 import type { ModelRuntimeClient } from "../models/types";
 import { SettingsDialog } from "./SettingsDialog";
+import { I18nProvider } from "../../i18n/I18nContext";
 
 const modelClient: ModelRuntimeClient = {
   inspect: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
+  discoverModels: vi.fn(),
   upsert: vi.fn(),
   remove: vi.fn(),
   runComparison: vi.fn(),
@@ -73,5 +75,27 @@ describe("SettingsDialog", () => {
       expect(screen.queryByRole("dialog")).toBeNull();
       expect(screen.getByRole("button", { name: "Settings" })).toHaveFocus();
     });
+  });
+
+  test("switches the interface language and persists the choice", () => {
+    render(
+      <I18nProvider initialLanguage="en">
+        <SettingsDialog
+          agentAccessClient={agentClient}
+          modelRuntimeClient={modelClient}
+          onClose={vi.fn()}
+          triggerRef={{ current: null }}
+        />
+      </I18nProvider>,
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Language" }));
+    fireEvent.change(screen.getByLabelText("Interface language"), {
+      target: { value: "zh-CN" },
+    });
+
+    expect(screen.getByRole("heading", { name: "设置" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "语言" })).toBeInTheDocument();
+    expect(window.localStorage.getItem("aiks.ui.language.v1")).toBe("zh-CN");
   });
 });

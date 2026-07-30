@@ -3,5 +3,8 @@
   "identifier": "main",
   "description": "Minimal capability for the main workbench window",
   "windows": ["main"],
-  "permissions": []
+  "permissions": [
+    "core:event:allow-listen",
+    "core:event:allow-unlisten"
+  ]
 }

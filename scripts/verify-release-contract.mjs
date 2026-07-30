@@ -25,6 +25,7 @@ const [
   profileCommands,
   vaultCommands,
   agentAccessCommands,
+  mainCapabilityText,
 ] = await Promise.all([
   read("package.json"),
   read("src-tauri/Cargo.toml"),
@@ -33,10 +34,12 @@ const [
   read("src-tauri/src/profiles/mod.rs"),
   read("src-tauri/src/vault/mod.rs"),
   read("src-tauri/src/agent_access/mod.rs"),
+  read("src-tauri/capabilities/main.json"),
 ]);
 
 const packageJson = JSON.parse(packageText);
 const tauriConfig = JSON.parse(tauriText);
+const mainCapability = JSON.parse(mainCapabilityText);
 const cargoVersion = cargoPackageVersion(cargoText);
 const violations = [];
 
@@ -49,6 +52,24 @@ if (
 }
 if (tauriConfig.bundle?.active !== true) {
   violations.push("Tauri bundling must be active");
+}
+const mainPermissions = mainCapability.permissions ?? [];
+for (const permission of [
+  "core:event:allow-listen",
+  "core:event:allow-unlisten",
+]) {
+  if (!mainPermissions.includes(permission)) {
+    violations.push(`main capability must include ${permission}`);
+  }
+}
+for (const overbroadPermission of [
+  "core:event:default",
+  "core:event:allow-emit",
+  "core:event:allow-emit-to",
+]) {
+  if (mainPermissions.includes(overbroadPermission)) {
+    violations.push(`main capability must not include ${overbroadPermission}`);
+  }
 }
 
 const platformContracts = [

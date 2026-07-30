@@ -51,6 +51,7 @@ describe("ContextPane", () => {
     };
     const modelRuntimeClient: ModelRuntimeClient = {
       inspect: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
+      discoverModels: vi.fn(),
       upsert: vi.fn(),
       remove: vi.fn(),
       runComparison: vi.fn(),

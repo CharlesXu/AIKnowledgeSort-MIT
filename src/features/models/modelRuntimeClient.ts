@@ -3,6 +3,8 @@ import type {
   ModelConfigInput,
   ModelRuntimeClient,
   ModelRuntimeState,
+  DiscoverModelsRequest,
+  DiscoveredModels,
   RunModelComparisonRequest,
   ComparisonRecord,
   FileSemanticComparison,
@@ -20,6 +22,9 @@ export function createTauriModelRuntimeClient(
   return {
     inspect() {
       return invoke<ModelRuntimeState>("inspect_model_runtime");
+    },
+    discoverModels(request: DiscoverModelsRequest) {
+      return invoke<DiscoveredModels>("discover_models", { request });
     },
     upsert(request: ModelConfigInput) {
       return invoke<ModelRuntimeState>("upsert_model_config", { request });
@@ -47,6 +52,7 @@ function desktopRuntimeRequired(): Promise<never> {
 export function createBrowserModelRuntimeClient(): ModelRuntimeClient {
   return {
     inspect: desktopRuntimeRequired,
+    discoverModels: desktopRuntimeRequired,
     upsert: desktopRuntimeRequired,
     remove: desktopRuntimeRequired,
     runComparison: desktopRuntimeRequired,

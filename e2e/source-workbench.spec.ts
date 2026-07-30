@@ -258,7 +258,7 @@ test("keeps model Settings secret-free and non-persistent in the browser fixture
   await dialog.getByRole("textbox", { name: "Model", exact: true })
     .fill("browser-only");
   await dialog.getByRole("checkbox", {
-    name: "Use bearer authentication from an environment variable",
+    name: "Use bearer authentication",
   }).check();
   await expect(
     dialog.getByLabel("Credential environment variable"),
@@ -272,6 +272,26 @@ test("keeps model Settings secret-free and non-persistent in the browser fixture
   await expect(dialog.getByText("No model configurations.")).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Edit Browser Model" }))
     .toHaveCount(0);
+});
+
+test("switches the main interface to Simplified Chinese and keeps it after reload", async ({
+  page,
+}) => {
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  await dialog.getByRole("tab", { name: "Language" }).click();
+  await dialog.getByLabel("Interface language").selectOption("zh-CN");
+
+  await expect(page.getByRole("heading", { name: "设置" })).toBeVisible();
+  await page.getByRole("button", { name: "关闭设置" }).click();
+  await expect(page.getByRole("button", { name: "来源", exact: true }))
+    .toBeVisible();
+  await expect(page.getByRole("region", { name: "扫描报告" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "设置", exact: true }))
+    .toBeVisible();
+  await expect(page.getByRole("region", { name: "扫描报告" })).toBeVisible();
 });
 
 test("keeps Agent access local, unissued, and non-mutating in the browser fixture", async ({

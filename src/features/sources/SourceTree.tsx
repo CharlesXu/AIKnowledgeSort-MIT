@@ -7,6 +7,7 @@ import {
 import { Icon } from "../../ui/Icon";
 import { SourceTreeRow } from "./SourceTreeRow";
 import type { SourceNode } from "./types";
+import { useI18n } from "../../i18n/I18nContext";
 
 interface SourceTreeProps {
   readonly tree: SourceNode;
@@ -52,6 +53,7 @@ export function SourceTree({
   selectedFileIds,
   onSelectedFileIdsChange,
 }: SourceTreeProps) {
+  const { t } = useI18n();
   const [internalExplicitIds, setInternalExplicitIds] = useState<
     readonly string[]
   >(() => [...initialSelectionIds]);
@@ -130,15 +132,15 @@ export function SourceTree({
       <div className="source-tree__filter">
         <Icon name="search" size={14} />
         <input
-          aria-label="Search sources"
+          aria-label={t("sources.search")}
           onChange={(event) => setFilter(event.target.value)}
-          placeholder="Filter files and folders"
+          placeholder={t("sources.filter")}
           ref={searchInputRef}
           type="search"
           value={filter}
         />
       </div>
-      <ul aria-label="Local source folders" role="tree">
+      <ul aria-label={t("sources.localFolders")} role="tree">
         {filteredTree ? renderNode(filteredTree, 0) : null}
       </ul>
       {filteredTree === null ? (
@@ -147,12 +149,14 @@ export function SourceTree({
           className="source-tree__empty"
           role="status"
         >
-          No sources match “{filter.trim()}”
+          {t("sources.noMatch", { query: filter.trim() })}
         </p>
       ) : null}
       <p aria-live="polite" className="source-tree__summary">
-        {selectedCount} unique eligible {selectedCount === 1 ? "file" : "files"}{" "}
-        selected
+        {t(
+          selectedCount === 1 ? "sources.selectedOne" : "sources.selectedMany",
+          { count: selectedCount },
+        )}
       </p>
     </div>
   );

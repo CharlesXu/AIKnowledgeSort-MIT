@@ -4,6 +4,8 @@ import { describe, expect, test, vi } from "vitest";
 import { ModelSettingsDialog } from "./ModelSettingsDialog";
 import type { ModelRuntimeClient, ModelRuntimeState } from "./types";
 
+const TEST_CREDENTIAL = ["test", "credential", "fixture"].join("-");
+
 const state: ModelRuntimeState = {
   schemaVersion: 1,
   configs: [{
@@ -14,13 +16,22 @@ const state: ModelRuntimeState = {
     model: "reasoner-v1",
     timeoutMs: 60_000,
     authenticated: true,
+    providerProtocol: "openAi",
+    credentialSource: "environment",
     credentialEnvironment: "AIKS_MODEL_API_KEY_REMOTE_REASONER",
+    credentialStored: false,
   }],
 };
 
 function client(): ModelRuntimeClient {
   return {
     inspect: vi.fn().mockResolvedValue(state),
+    discoverModels: vi.fn().mockResolvedValue({
+      providerProtocol: "openAi",
+      modelsEndpointUrl: "https://models.example.com/v1/models",
+      completionEndpointUrl: "https://models.example.com/v1/chat/completions",
+      models: ["reasoner-v1", "reasoner-v2"],
+    }),
     upsert: vi.fn().mockResolvedValue(state),
     remove: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
     runComparison: vi.fn(),
@@ -29,30 +40,94 @@ function client(): ModelRuntimeClient {
 }
 
 describe("ModelSettingsDialog", () => {
-  test("reveals the derived credential environment field when authentication is enabled", async () => {
+  test("automatically discovers models after URL and API key entry", async () => {
+    const modelClient = client();
     render(
       <ModelSettingsDialog
-        client={client()}
+        client={modelClient}
+        onClose={vi.fn()}
+        triggerRef={{ current: null }}
+      />,
+    );
+    await screen.findByText("Remote Reasoner");
+    fireEvent.change(screen.getByLabelText("Configuration ID"), {
+      target: { value: "automatic" },
+    });
+    fireEvent.change(screen.getByLabelText("Location"), {
+      target: { value: "remote" },
+    });
+    fireEvent.change(screen.getByLabelText("Endpoint URL"), {
+      target: { value: "https://models.example.com" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", {
+      name: "Use bearer authentication",
+    }));
+    fireEvent.change(screen.getByLabelText("Credential source"), {
+      target: { value: "keychain" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: TEST_CREDENTIAL },
+    });
+
+    await waitFor(() => expect(modelClient.discoverModels).toHaveBeenCalledWith({
+      configId: "automatic",
+      location: "remote",
+      endpointUrl: "https://models.example.com",
+      timeoutMs: 30_000,
+      authenticated: true,
+      credentialSource: "keychain",
+      apiKey: TEST_CREDENTIAL,
+    }), { timeout: 1_500 });
+    expect(await screen.findByRole("option", { name: "reasoner-v2" }))
+      .toBeInTheDocument();
+  });
+
+  test("accepts an API key, refreshes models, and selects a discovered model", async () => {
+    const modelClient = client();
+    render(
+      <ModelSettingsDialog
+        client={modelClient}
         onClose={vi.fn()}
         triggerRef={{ current: null }}
       />,
     );
     await screen.findByText("Remote Reasoner");
 
-    fireEvent.click(screen.getByRole("checkbox", {
-      name: "Use bearer authentication from an environment variable",
-    }));
-    const environment = screen.getByLabelText("Credential environment variable");
-    expect(environment).toBeVisible();
-    expect(environment).toHaveAttribute("readonly");
-    expect(environment).toHaveValue("");
-
     fireEvent.change(screen.getByLabelText("Configuration ID"), {
       target: { value: "remote-reasoner" },
     });
-    expect(environment).toHaveValue("AIKS_MODEL_API_KEY_REMOTE_REASONER");
-    expect(screen.queryByLabelText(/bearer token|api key|password|secret/i))
-      .toBeNull();
+    fireEvent.change(screen.getByLabelText("Location"), {
+      target: { value: "remote" },
+    });
+    fireEvent.change(screen.getByLabelText("Endpoint URL"), {
+      target: { value: "https://models.example.com/v1" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", {
+      name: "Use bearer authentication",
+    }));
+    fireEvent.change(screen.getByLabelText("Credential source"), {
+      target: { value: "keychain" },
+    });
+    fireEvent.change(screen.getByLabelText("API Key"), {
+      target: { value: TEST_CREDENTIAL },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Refresh models" }));
+
+    await waitFor(() => expect(modelClient.discoverModels).toHaveBeenCalledWith({
+      configId: "remote-reasoner",
+      location: "remote",
+      endpointUrl: "https://models.example.com/v1",
+      timeoutMs: 30_000,
+      authenticated: true,
+      credentialSource: "keychain",
+      apiKey: TEST_CREDENTIAL,
+    }));
+    expect(await screen.findByRole("option", { name: "reasoner-v2" }))
+      .toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Model"), {
+      target: { value: "reasoner-v2" },
+    });
+    expect(screen.getByLabelText("Model")).toHaveValue("reasoner-v2");
   });
 
   test("lists configs and submits only secret-free model fields", async () => {
@@ -69,7 +144,7 @@ describe("ModelSettingsDialog", () => {
     expect(await screen.findByText("Remote Reasoner")).toBeInTheDocument();
     expect(screen.getByText("AIKS_MODEL_API_KEY_REMOTE_REASONER"))
       .toBeInTheDocument();
-    expect(screen.queryByLabelText(/api key|password|secret/i)).toBeNull();
+    expect(screen.queryByLabelText("API Key")).toBeNull();
 
     fireEvent.change(screen.getByLabelText("Configuration ID"), {
       target: { value: "local-ollama" },
@@ -99,6 +174,9 @@ describe("ModelSettingsDialog", () => {
       model: "qwen3:8b",
       timeoutMs: 30_000,
       authenticated: false,
+      providerProtocol: "openAi",
+      credentialSource: "environment",
+      apiKey: null,
     }));
   });
 

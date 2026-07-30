@@ -30,6 +30,7 @@ import type { SourcePickerClient } from "../features/drop/sourcePickerClient";
 import { SettingsDialog } from "../features/settings/SettingsDialog";
 import { Icon } from "../ui/Icon";
 import { AppHeader } from "./AppHeader";
+import { useI18n } from "../i18n/I18nContext";
 import {
   CONTEXT_WIDTH_MAX,
   CONTEXT_WIDTH_MIN,
@@ -158,6 +159,7 @@ export function AppShell({
   agentAccessClient,
   sourcePickerClient,
 }: AppShellProps) {
+  const { t } = useI18n();
   const [layout, setLayout] = useState<PaneLayout>(readPaneLayout);
   const [knowledgeTargets, setKnowledgeTargets] = useState<readonly KnowledgeTarget[]>([]);
   const [activeDocument, setActiveDocument] = useState<KnowledgeDocument | null>(null);
@@ -259,7 +261,7 @@ export function AppShell({
 
   return (
     <main
-      aria-label="Source workbench"
+      aria-label={t("shell.workbench")}
       className={`workbench${drop.status === "hovering" ? " workbench--drop-hovering" : ""}`}
       onDragOver={drop.onDomDragOver}
       onDrop={drop.onDomDrop}
@@ -277,7 +279,7 @@ export function AppShell({
         settingsButtonRef={settingsButtonRef}
       />
       <section
-        aria-label="Sources"
+        aria-label={t("sources.panel")}
         className={`source-panel${layout.navigationCollapsed ? " source-panel--collapsed" : ""}`}
         data-collapse-at="760"
         ref={sourcesRef}
@@ -285,10 +287,10 @@ export function AppShell({
       >
         {layout.navigationCollapsed ? (
           <button
-            aria-label="Expand Sources panel"
+            aria-label={t("sources.expand")}
             className="pane-restore-control"
             onClick={() => updateLayout({ navigationCollapsed: false })}
-            title="Expand Sources panel"
+            title={t("sources.expand")}
             type="button"
           >
             <Icon name="chevron" size={14} />
@@ -297,18 +299,18 @@ export function AppShell({
           <>
             <header className="source-panel__header">
               <div>
-                <p className="section-kicker">LOCAL</p>
+                <p className="section-kicker">{t("sources.local")}</p>
                 <h2>IndexedSource</h2>
               </div>
               <div className="pane-header__actions">
                 <span className="source-panel__count">
-                  {proposal.items.length} FILES
+                  {proposal.items.length} {t("sources.files")}
                 </span>
                 <button
-                  aria-label="Collapse Sources panel"
+                  aria-label={t("sources.collapse")}
                   className="pane-collapse-control pane-collapse-control--left"
                   onClick={() => updateLayout({ navigationCollapsed: true })}
-                  title="Collapse Sources panel"
+                  title={t("sources.collapse")}
                   type="button"
                 >
                   <Icon name="chevron" size={13} />
@@ -334,7 +336,7 @@ export function AppShell({
       {layout.navigationCollapsed ? null : (
         <PaneSeparator
           direction={1}
-          label="Resize Sources panel"
+          label={t("shell.resizeSources")}
           max={NAVIGATION_WIDTH_MAX}
           min={NAVIGATION_WIDTH_MIN}
           onChange={(navigationWidth) => updateLayout({ navigationWidth })}
@@ -342,7 +344,7 @@ export function AppShell({
           value={layout.navigationWidth}
         />
       )}
-      <section aria-label="Knowledge workspace" className="knowledge-workspace">
+      <section aria-label={t("shell.workspace")} className="knowledge-workspace">
         <ArchivePreviewPane
           archiveClient={archiveClient}
           focusRef={archiveRef}
@@ -385,7 +387,7 @@ export function AppShell({
       {layout.contextCollapsed ? null : (
         <PaneSeparator
           direction={-1}
-          label="Resize import review context"
+          label={t("shell.resizeContext")}
           max={CONTEXT_WIDTH_MAX}
           min={CONTEXT_WIDTH_MIN}
           onChange={(contextWidth) => updateLayout({ contextWidth })}
@@ -416,22 +418,22 @@ export function AppShell({
       ) : null}
       {drop.status === "hovering" ? (
         <div
-          aria-label="Native drop target"
+          aria-label={t("shell.dropTarget")}
           className="native-drop-overlay"
           role="status"
         >
-          <strong>Release to review</strong>
-          <span>Paths stay native; discovery starts only after a trusted grant.</span>
+          <strong>{t("shell.release")}</strong>
+          <span>{t("shell.releaseHint")}</span>
         </div>
       ) : null}
       <footer className="status-bar">
         <span>
           <i className="status-bar__dot" aria-hidden="true" />
-          {drop.isDemo ? "Local demo workspace" : "Trusted local proposal"}
+          {drop.isDemo ? t("shell.demoWorkspace") : t("shell.trustedProposal")}
         </span>
-        <span>Read-only scan report</span>
+        <span>{t("shell.readOnly")}</span>
         <span className="status-bar__right">
-          {proposal.counts.included} eligible · 0 changes
+          {t("shell.eligible", { count: proposal.counts.included })}
         </span>
       </footer>
     </main>

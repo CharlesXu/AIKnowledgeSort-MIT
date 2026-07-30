@@ -21,7 +21,10 @@ const state: ModelRuntimeState = {
       model: "qwen3:8b",
       timeoutMs: 30_000,
       authenticated: false,
+      providerProtocol: "openAi",
+      credentialSource: "environment",
       credentialEnvironment: null,
+      credentialStored: false,
     },
     {
       configId: "agent-model",
@@ -31,7 +34,10 @@ const state: ModelRuntimeState = {
       model: "reasoner-v1",
       timeoutMs: 60_000,
       authenticated: true,
+      providerProtocol: "openAi",
+      credentialSource: "environment",
       credentialEnvironment: "AIKS_MODEL_API_KEY_AGENT_MODEL",
+      credentialStored: false,
     },
   ],
 };
@@ -117,6 +123,7 @@ const record: ComparisonRecord = {
 function client(): ModelRuntimeClient {
   return {
     inspect: vi.fn().mockResolvedValue(state),
+    discoverModels: vi.fn(),
     upsert: vi.fn(),
     remove: vi.fn(),
     runComparison: vi.fn().mockResolvedValue(record),

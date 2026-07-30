@@ -1,14 +1,18 @@
 mod config;
+mod credential;
 pub(crate) mod file_semantics;
+mod model_discovery;
 mod openai_compatible;
 mod protocol;
 mod store;
 
-pub(crate) use config::ModelConfigSummary;
+use config::{credential_environment, ModelConfigInput, ModelConfigStore, ModelRuntimeState};
+pub(crate) use config::{ModelConfigSummary, ModelCredentialSource};
 #[cfg(test)]
-pub(crate) use config::ModelLocation;
-use config::{ModelConfigInput, ModelConfigStore, ModelRuntimeState};
+pub(crate) use config::{ModelLocation, ModelProtocol};
+use credential::{CredentialVault, SystemCredentialVault};
 pub(crate) use file_semantics::FileSemanticComparison;
+use model_discovery::{DiscoverModelsRequest, DiscoveredModels};
 pub(crate) use openai_compatible::complete_json;
 use openai_compatible::{OpenAiCompatibleTransport, OpenAiFileSemanticTransport};
 pub(crate) use protocol::{
@@ -28,10 +32,21 @@ pub(crate) use store::{
 use tauri::Manager;
 use uuid::Uuid;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct ModelRuntimeAuthority {
     operation: Arc<Mutex<()>>,
     active_comparisons: Arc<Mutex<HashSet<String>>>,
+    credentials: Arc<dyn CredentialVault>,
+}
+
+impl Default for ModelRuntimeAuthority {
+    fn default() -> Self {
+        Self {
+            operation: Arc::new(Mutex::new(())),
+            active_comparisons: Arc::new(Mutex::new(HashSet::new())),
+            credentials: Arc::new(SystemCredentialVault),
+        }
+    }
 }
 
 struct ComparisonPermit {
@@ -48,24 +63,74 @@ impl Drop for ComparisonPermit {
 }
 
 impl ModelRuntimeAuthority {
+    #[cfg(test)]
+    fn with_credentials(credentials: Arc<dyn CredentialVault>) -> Self {
+        Self {
+            operation: Arc::new(Mutex::new(())),
+            active_comparisons: Arc::new(Mutex::new(HashSet::new())),
+            credentials,
+        }
+    }
+
     fn inspect(&self, directory: PathBuf) -> Result<ModelRuntimeState, String> {
         let _operation = self
             .operation
             .lock()
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
-        ModelConfigStore::new(directory).inspect()
+        self.hydrate_state(ModelConfigStore::new(directory).inspect()?)
     }
 
     fn upsert(
         &self,
         directory: PathBuf,
-        request: ModelConfigInput,
+        mut request: ModelConfigInput,
     ) -> Result<ModelRuntimeState, String> {
         let _operation = self
             .operation
             .lock()
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
-        ModelConfigStore::new(directory).upsert(request)
+        request.endpoint_url = model_discovery::normalize_completion_endpoint(
+            &request.endpoint_url,
+            request.provider_protocol,
+        )?;
+        let store = ModelConfigStore::new(directory);
+        let previous = store.get_input(&request.config_id).ok();
+        let uses_keychain =
+            request.authenticated && request.credential_source == ModelCredentialSource::Keychain;
+        let previously_used_keychain = previous.as_ref().is_some_and(|config| {
+            config.authenticated && config.credential_source == ModelCredentialSource::Keychain
+        });
+        let previous_credential = if uses_keychain || previously_used_keychain {
+            self.credentials.read(&request.config_id)?
+        } else {
+            None
+        };
+        if uses_keychain {
+            if let Some(api_key) = request.api_key.as_deref() {
+                config::validate_api_key(api_key)?;
+                self.credentials.set(&request.config_id, api_key)?;
+            } else if previous_credential.is_none() {
+                return Err("Enter an API key for the system credential vault".to_owned());
+            }
+        }
+        let result = store.upsert(request.clone());
+        let state = match result {
+            Ok(state) => state,
+            Err(error) => {
+                if uses_keychain && request.api_key.is_some() {
+                    if let Some(value) = previous_credential.as_deref() {
+                        let _ = self.credentials.set(&request.config_id, value);
+                    } else {
+                        let _ = self.credentials.delete(&request.config_id);
+                    }
+                }
+                return Err(error);
+            }
+        };
+        if previously_used_keychain && !uses_keychain {
+            self.credentials.delete(&request.config_id)?;
+        }
+        self.hydrate_state(state)
     }
 
     fn remove(&self, directory: PathBuf, config_id: &str) -> Result<ModelRuntimeState, String> {
@@ -73,7 +138,13 @@ impl ModelRuntimeAuthority {
             .operation
             .lock()
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
-        ModelConfigStore::new(directory).remove(config_id)
+        let store = ModelConfigStore::new(directory);
+        let previous = store.get_input(config_id)?;
+        let state = store.remove(config_id)?;
+        if previous.authenticated && previous.credential_source == ModelCredentialSource::Keychain {
+            self.credentials.delete(config_id)?;
+        }
+        self.hydrate_state(state)
     }
 
     fn load_pair(
@@ -90,7 +161,10 @@ impl ModelRuntimeAuthority {
             .lock()
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
         let store = ModelConfigStore::new(directory);
-        Ok((store.get(desktop_config_id)?, store.get(agent_config_id)?))
+        Ok((
+            self.hydrate_config(store.get(desktop_config_id)?)?,
+            self.hydrate_config(store.get(agent_config_id)?)?,
+        ))
     }
 
     pub(crate) fn load_config(
@@ -102,7 +176,63 @@ impl ModelRuntimeAuthority {
             .operation
             .lock()
             .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
-        ModelConfigStore::new(directory).get(config_id)
+        self.hydrate_config(ModelConfigStore::new(directory).get(config_id)?)
+    }
+
+    fn discover(&self, request: DiscoverModelsRequest) -> Result<DiscoveredModels, String> {
+        let _operation = self
+            .operation
+            .lock()
+            .map_err(|_| "Model runtime authority is unavailable".to_owned())?;
+        let credential = self.discovery_credential(&request)?;
+        model_discovery::discover(&request, credential.as_deref())
+    }
+
+    fn discovery_credential(
+        &self,
+        request: &DiscoverModelsRequest,
+    ) -> Result<Option<String>, String> {
+        if !request.authenticated {
+            return Ok(None);
+        }
+        if let Some(api_key) = request.api_key.as_deref() {
+            config::validate_api_key(api_key)?;
+            return Ok(Some(api_key.to_owned()));
+        }
+        let config_id = request
+            .config_id
+            .as_deref()
+            .filter(|value| !value.is_empty())
+            .ok_or_else(|| "Enter a configuration ID or API key for discovery".to_owned())?;
+        match request.credential_source {
+            ModelCredentialSource::Environment => {
+                let environment = credential_environment(config_id);
+                std::env::var(&environment)
+                    .map(Some)
+                    .map_err(|_| format!("Model credential environment {environment} is not set"))
+            }
+            ModelCredentialSource::Keychain => self.credentials.read(config_id)?.map_or_else(
+                || Err("No API key is stored for this model configuration".to_owned()),
+                |value| Ok(Some(value)),
+            ),
+        }
+    }
+
+    fn hydrate_state(&self, mut state: ModelRuntimeState) -> Result<ModelRuntimeState, String> {
+        state.configs = state
+            .configs
+            .into_iter()
+            .map(|config| self.hydrate_config(config))
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(state)
+    }
+
+    fn hydrate_config(&self, mut config: ModelConfigSummary) -> Result<ModelConfigSummary, String> {
+        if config.authenticated && config.credential_source == ModelCredentialSource::Keychain {
+            config.credential_value = self.credentials.read(&config.config_id)?;
+            config.credential_stored = config.credential_value.is_some();
+        }
+        Ok(config)
     }
 
     fn acquire_comparison(
@@ -122,6 +252,139 @@ impl ModelRuntimeAuthority {
             key,
             active: Arc::clone(&self.active_comparisons),
         })
+    }
+}
+
+#[cfg(test)]
+mod credential_tests {
+    use super::config::{ModelConfigInput, ModelLocation, ModelProtocol};
+    use super::credential::CredentialVault;
+    use super::{ModelCredentialSource, ModelRuntimeAuthority};
+    use std::collections::HashMap;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::sync::{Arc, Mutex};
+
+    #[derive(Default)]
+    struct MemoryCredentials(Mutex<HashMap<String, String>>);
+
+    impl CredentialVault for MemoryCredentials {
+        fn read(&self, config_id: &str) -> Result<Option<String>, String> {
+            Ok(self.0.lock().unwrap().get(config_id).cloned())
+        }
+
+        fn set(&self, config_id: &str, api_key: &str) -> Result<(), String> {
+            self.0
+                .lock()
+                .unwrap()
+                .insert(config_id.to_owned(), api_key.to_owned());
+            Ok(())
+        }
+
+        fn delete(&self, config_id: &str) -> Result<(), String> {
+            self.0.lock().unwrap().remove(config_id);
+            Ok(())
+        }
+    }
+
+    struct UnavailableCredentials;
+
+    impl CredentialVault for UnavailableCredentials {
+        fn read(&self, _config_id: &str) -> Result<Option<String>, String> {
+            Err("credential vault unavailable".to_owned())
+        }
+
+        fn set(&self, _config_id: &str, _api_key: &str) -> Result<(), String> {
+            Err("credential vault unavailable".to_owned())
+        }
+
+        fn delete(&self, _config_id: &str) -> Result<(), String> {
+            Err("credential vault unavailable".to_owned())
+        }
+    }
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            let path =
+                std::env::temp_dir().join(format!("aiks-model-authority-{}", uuid::Uuid::new_v4()));
+            fs::create_dir_all(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn stores_api_keys_only_in_the_credential_vault_and_removes_them_with_config() {
+        let directory = TestDirectory::new();
+        let credentials = Arc::new(MemoryCredentials::default());
+        let authority = ModelRuntimeAuthority::with_credentials(credentials.clone());
+        let state = authority
+            .upsert(
+                directory.0.clone(),
+                ModelConfigInput {
+                    config_id: "secure-model".to_owned(),
+                    label: "Secure model".to_owned(),
+                    location: ModelLocation::Remote,
+                    endpoint_url: "https://models.example.com".to_owned(),
+                    model: "reasoner".to_owned(),
+                    timeout_ms: 30_000,
+                    authenticated: true,
+                    provider_protocol: ModelProtocol::OpenAi,
+                    credential_source: ModelCredentialSource::Keychain,
+                    api_key: Some("temporary-test-key".to_owned()),
+                },
+            )
+            .expect("store secure model");
+        assert!(state.configs[0].credential_stored);
+        assert_eq!(
+            state.configs[0].endpoint_url,
+            "https://models.example.com/v1/chat/completions"
+        );
+        let json = fs::read_to_string(directory.0.join("model-runtime-v1.json")).unwrap();
+        assert!(!json.contains("temporary-test-key"));
+        assert_eq!(
+            credentials.read("secure-model").unwrap().as_deref(),
+            Some("temporary-test-key")
+        );
+
+        authority
+            .remove(directory.0.clone(), "secure-model")
+            .expect("remove model");
+        assert_eq!(credentials.read("secure-model").unwrap(), None);
+    }
+
+    #[test]
+    fn environment_configs_do_not_require_an_available_system_credential_vault() {
+        let directory = TestDirectory::new();
+        let authority = ModelRuntimeAuthority::with_credentials(Arc::new(UnavailableCredentials));
+        let state = authority
+            .upsert(
+                directory.0.clone(),
+                ModelConfigInput {
+                    config_id: "environment-model".to_owned(),
+                    label: "Environment model".to_owned(),
+                    location: ModelLocation::Local,
+                    endpoint_url: "http://127.0.0.1:11434/v1".to_owned(),
+                    model: "local".to_owned(),
+                    timeout_ms: 30_000,
+                    authenticated: true,
+                    provider_protocol: ModelProtocol::OpenAi,
+                    credential_source: ModelCredentialSource::Environment,
+                    api_key: None,
+                },
+            )
+            .expect("store environment config");
+        assert_eq!(
+            state.configs[0].credential_environment.as_deref(),
+            Some("AIKS_MODEL_API_KEY_ENVIRONMENT_MODEL")
+        );
     }
 }
 
@@ -302,6 +565,17 @@ pub fn inspect_model_runtime(
     authority: tauri::State<'_, ModelRuntimeAuthority>,
 ) -> Result<ModelRuntimeState, String> {
     authority.inspect(app_config_directory(&app)?)
+}
+
+#[tauri::command]
+pub async fn discover_models(
+    request: DiscoverModelsRequest,
+    authority: tauri::State<'_, ModelRuntimeAuthority>,
+) -> Result<DiscoveredModels, String> {
+    let authority = authority.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || authority.discover(request))
+        .await
+        .map_err(|error| format!("Model discovery worker failed: {error}"))?
 }
 
 #[tauri::command]

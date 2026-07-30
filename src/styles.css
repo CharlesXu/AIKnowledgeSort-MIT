@@ -2647,6 +2647,25 @@ input:focus-visible,
   overflow: auto;
 }
 
+.language-settings {
+  max-width: 560px;
+  padding: 24px;
+}
+
+.language-settings label {
+  display: grid;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.language-settings select {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  max-width: 320px;
+  padding: 8px 10px;
+}
+
 .model-settings__body {
   display: grid;
   min-height: 0;

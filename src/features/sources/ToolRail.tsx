@@ -1,8 +1,12 @@
 import { Icon, type IconName } from "../../ui/Icon";
+import {
+  useI18n,
+  type TranslationKey,
+} from "../../i18n/I18nContext";
 
 interface Tool {
   readonly id?: WorkbenchTool;
-  readonly label: string;
+  readonly labelKey: TranslationKey;
   readonly icon: IconName;
   readonly deferred?: boolean;
 }
@@ -15,11 +19,11 @@ export type WorkbenchTool =
   | "archive";
 
 const primaryTools: readonly Tool[] = [
-  { id: "sources", label: "Sources", icon: "inbox" },
-  { id: "search", label: "Search", icon: "search" },
-  { id: "graph", label: "Graph", icon: "graph" },
-  { id: "classification", label: "Classification", icon: "layers" },
-  { id: "archive", label: "Archive", icon: "archive" },
+  { id: "sources", labelKey: "tools.sources", icon: "inbox" },
+  { id: "search", labelKey: "tools.search", icon: "search" },
+  { id: "graph", labelKey: "tools.graph", icon: "graph" },
+  { id: "classification", labelKey: "tools.classification", icon: "layers" },
+  { id: "archive", labelKey: "tools.archive", icon: "archive" },
 ];
 
 interface ToolRailProps {
@@ -35,9 +39,10 @@ export function ToolRail({
   onSelectTool,
   settingsButtonRef,
 }: ToolRailProps) {
+  const { t } = useI18n();
   return (
     <nav
-      aria-label="Workbench tools"
+      aria-label={t("tools.label")}
       className="tool-rail"
       data-width="44"
       role="toolbar"
@@ -46,14 +51,14 @@ export function ToolRail({
         {primaryTools.map((tool) => (
           <button
             aria-current={tool.id === activeTool ? "page" : undefined}
-            aria-label={tool.label}
+            aria-label={t(tool.labelKey)}
             className="tool-rail__button"
             disabled={tool.deferred}
-            key={tool.label}
+            key={tool.labelKey}
             onClick={
               tool.id === undefined ? undefined : () => onSelectTool(tool.id!)
             }
-            title={tool.label}
+            title={t(tool.labelKey)}
             type="button"
           >
             <Icon name={tool.icon} size={17} />
@@ -61,11 +66,11 @@ export function ToolRail({
         ))}
       </div>
       <button
-        aria-label="Settings"
+        aria-label={t("tools.settings")}
         className="tool-rail__button tool-rail__settings"
         onClick={onOpenSettings}
         ref={settingsButtonRef}
-        title="Settings"
+        title={t("tools.settings")}
         type="button"
       >
         <Icon name="settings" size={17} />

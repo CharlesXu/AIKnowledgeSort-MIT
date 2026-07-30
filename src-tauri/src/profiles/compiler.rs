@@ -202,7 +202,9 @@ mod tests {
         compile_candidate, CompileProfileCandidateRequest, ProfileCompilerTransport,
         PROFILE_COMPILER_SYSTEM_PROMPT,
     };
-    use crate::model_runtime::{ModelConfigSummary, ModelLocation};
+    use crate::model_runtime::{
+        ModelConfigSummary, ModelCredentialSource, ModelLocation, ModelProtocol,
+    };
     use crate::profiles::schema::{
         DeclarativeProfile, ProfileOwnership, ProfileProvenance, ProfileStatus,
     };
@@ -266,7 +268,11 @@ mod tests {
             model: "fixture".to_owned(),
             timeout_ms: 30_000,
             authenticated: false,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
             credential_environment: None,
+            credential_stored: false,
+            credential_value: None,
         }
     }
 

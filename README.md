@@ -10,6 +10,12 @@ external fixture, source checkout, source index, or specification-room path.
 The repository now contains the first independently implemented desktop
 milestones described below.
 
+Settings provides a persisted English/简体中文 interface selector. The
+application header, tool rail, source discovery surface, status bar, Settings,
+and model configuration flow switch immediately and restore the selected
+language on the next launch; stored classification and knowledge identifiers
+remain language-neutral.
+
 License: MIT
 
 ## Cross-platform desktop build evidence
@@ -274,14 +280,22 @@ simulate relation persistence or acceptance.
 
 ## Configurable model comparison and Agent adjudication
 
-The desktop runtime can persist up to 32 secret-free local or OpenAI-compatible
-model configurations. Local endpoints must be literal loopback HTTP addresses;
-remote endpoints must use HTTPS and reject literal loopback/private addresses,
-embedded credentials, queries, fragments, and redirects. Configuration stores
-only endpoint, model, timeout, location, and authentication metadata. An
-authenticated configuration derives an `AIKS_MODEL_API_KEY_<CONFIG_ID>`
-environment-variable reference; the UI never accepts, reads, displays, or
-persists the credential value.
+The desktop runtime can persist up to 32 secret-free local, OpenAI-compatible,
+or Anthropic model configurations. Local endpoints must be literal loopback
+HTTP addresses; remote endpoints must use HTTPS and reject literal
+loopback/private addresses, embedded credentials, queries, fragments, and
+redirects. A base URL, URL with or without `/v1`, model-list URL, or complete
+OpenAI `/chat/completions` or Anthropic `/messages` URL can be entered. The
+runtime probes only bounded paths on that same origin, detects the protocol from
+the model-list response, normalizes the inference endpoint, and returns a
+deduplicated model list for selection.
+
+Configuration stores only endpoint, protocol, selected model, timeout, location,
+and authentication metadata. Authentication can reference a derived
+`AIKS_MODEL_API_KEY_<CONFIG_ID>` environment variable or store the entered key
+in the operating system credential vault. The transient key is accepted only
+at the native command boundary and is explicitly excluded from serialized
+configuration and returned UI state.
 
 Agent Review operates only on an authoritative saved Markdown revision. Rust
 reopens that exact revision, re-verifies both Markdown and archived-original
@@ -291,9 +305,9 @@ byte-identical envelope JSON on independent blocking workers. Only after both
 strict, evidence-bound proposals succeed does the Agent configuration receive
 the same envelope plus both recorded proposals for adjudication.
 
-The OpenAI-compatible transport disables redirects and proxy inheritance, uses
-bounded connection/total timeouts, caps responses at 256 KiB, and strictly
-validates proposal and adjudication JSON. Provider timeouts, non-success
+The OpenAI-compatible and Anthropic transports disable redirects and proxy
+inheritance, use bounded connection/total timeouts, cap responses at 256 KiB,
+and strictly validate proposal and adjudication JSON. Provider timeouts, non-success
 responses, malformed output, unknown semantic fields, invalid evidence IDs, and
 Agent adjudication failures become visible `review` or `failed` outcomes. Each
 valid comparison attempt is stored as one immutable Vault record; this workflow
@@ -444,13 +458,12 @@ result can be applied to the editable review form or bound to a classification
 batch. It cannot rename, move, archive, or delete a source without the existing
 separate plan review and explicit confirmation.
 
-Secure keychain credential entry, model discovery, provider-specific APIs,
-applying model suggestions to graph relations, model-generated naming facts,
+Applying model suggestions to graph relations, model-generated naming facts,
 physical source renaming,
 user-controlled cleanup undo, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG
-indexing/retrieval, a 3D graph, secure keychain integration, and URL profile
+indexing/retrieval, a 3D graph, and URL profile
 import through MCP remain unimplemented. Explicit review-only HTTPS profile
 import in the desktop UI is implemented as described above.
 Those future integrations must use the same cited-fact, single-use batch, exact

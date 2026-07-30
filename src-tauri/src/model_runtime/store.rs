@@ -9,7 +9,9 @@ mod tests {
     };
     use crate::identity::ContentIdentity;
     use crate::knowledge::save_document;
-    use crate::model_runtime::config::{ModelConfigSummary, ModelLocation};
+    use crate::model_runtime::config::{
+        ModelConfigSummary, ModelCredentialSource, ModelLocation, ModelProtocol,
+    };
     use crate::model_runtime::protocol::{
         AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
         ProviderOutcome, RelationSuggestion,
@@ -360,7 +362,11 @@ mod tests {
             model: format!("{config_id}-v1"),
             timeout_ms: 5_000,
             authenticated: false,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
             credential_environment: None,
+            credential_stored: false,
+            credential_value: None,
         }
     }
 

@@ -23,6 +23,22 @@ pub enum ModelLocation {
     Remote,
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelProtocol {
+    #[default]
+    OpenAi,
+    Anthropic,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ModelCredentialSource {
+    #[default]
+    Environment,
+    Keychain,
+}
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ModelConfigInput {
@@ -33,6 +49,12 @@ pub struct ModelConfigInput {
     pub model: String,
     pub timeout_ms: u64,
     pub authenticated: bool,
+    #[serde(default)]
+    pub provider_protocol: ModelProtocol,
+    #[serde(default)]
+    pub credential_source: ModelCredentialSource,
+    #[serde(default, skip_serializing)]
+    pub api_key: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -45,7 +67,12 @@ pub struct ModelConfigSummary {
     pub model: String,
     pub timeout_ms: u64,
     pub authenticated: bool,
+    pub provider_protocol: ModelProtocol,
+    pub credential_source: ModelCredentialSource,
     pub credential_environment: Option<String>,
+    pub credential_stored: bool,
+    #[serde(skip_serializing)]
+    pub(crate) credential_value: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -116,6 +143,15 @@ impl ModelConfigStore {
     pub fn get(&self, config_id: &str) -> Result<ModelConfigSummary, String> {
         validate_config_id(config_id)?;
         self.inspect()?
+            .configs
+            .into_iter()
+            .find(|config| config.config_id == config_id)
+            .ok_or_else(|| "Model configuration does not exist".to_owned())
+    }
+
+    pub(crate) fn get_input(&self, config_id: &str) -> Result<ModelConfigInput, String> {
+        validate_config_id(config_id)?;
+        self.read()?
             .configs
             .into_iter()
             .find(|config| config.config_id == config_id)
@@ -215,8 +251,8 @@ fn state_from_persisted(persisted: PersistedModelRuntime) -> Result<ModelRuntime
 }
 
 fn summary_from_input(input: ModelConfigInput) -> ModelConfigSummary {
-    let credential_environment = input
-        .authenticated
+    let credential_environment = (input.authenticated
+        && input.credential_source == ModelCredentialSource::Environment)
         .then(|| credential_environment(&input.config_id));
     ModelConfigSummary {
         config_id: input.config_id,
@@ -226,7 +262,11 @@ fn summary_from_input(input: ModelConfigInput) -> ModelConfigSummary {
         model: input.model,
         timeout_ms: input.timeout_ms,
         authenticated: input.authenticated,
+        provider_protocol: input.provider_protocol,
+        credential_source: input.credential_source,
         credential_environment,
+        credential_stored: false,
+        credential_value: None,
     }
 }
 
@@ -257,8 +297,21 @@ fn validate_input(input: &ModelConfigInput) -> Result<(), String> {
     if !(MIN_TIMEOUT_MS..=MAX_TIMEOUT_MS).contains(&input.timeout_ms) {
         return Err("Model timeout must be between 1 and 120 seconds".to_owned());
     }
+    if input.credential_source == ModelCredentialSource::Keychain && !input.authenticated {
+        return Err("Keychain credentials require bearer authentication".to_owned());
+    }
+    if let Some(api_key) = input.api_key.as_deref() {
+        validate_api_key(api_key)?;
+    }
+    validate_endpoint(input.location, &input.endpoint_url)
+}
+
+pub(crate) fn validate_endpoint(location: ModelLocation, endpoint_url: &str) -> Result<(), String> {
+    if endpoint_url.is_empty() || endpoint_url.len() > MAX_ENDPOINT_BYTES {
+        return Err("Model endpoint must be between 1 byte and 2 KiB".to_owned());
+    }
     let endpoint =
-        Url::parse(&input.endpoint_url).map_err(|_| "Model endpoint URL is invalid".to_owned())?;
+        Url::parse(endpoint_url).map_err(|_| "Model endpoint URL is invalid".to_owned())?;
     if !endpoint.username().is_empty()
         || endpoint.password().is_some()
         || endpoint.query().is_some()
@@ -269,7 +322,7 @@ fn validate_input(input: &ModelConfigInput) -> Result<(), String> {
     let host = endpoint
         .host()
         .ok_or_else(|| "Model endpoint must include a host".to_owned())?;
-    match input.location {
+    match location {
         ModelLocation::Local => {
             if endpoint.scheme() != "http" || !is_literal_loopback(host) {
                 return Err(
@@ -284,6 +337,17 @@ fn validate_input(input: &ModelConfigInput) -> Result<(), String> {
                 );
             }
         }
+    }
+    Ok(())
+}
+
+pub(crate) fn validate_api_key(api_key: &str) -> Result<(), String> {
+    if api_key.is_empty()
+        || api_key.trim() != api_key
+        || api_key.len() > 8 * 1024
+        || api_key.chars().any(char::is_control)
+    {
+        return Err("API key must contain 1 byte to 8 KiB of visible text".to_owned());
     }
     Ok(())
 }
@@ -314,7 +378,7 @@ fn validate_visible_text(value: &str, field: &str) -> Result<(), String> {
     Ok(())
 }
 
-fn credential_environment(config_id: &str) -> String {
+pub(crate) fn credential_environment(config_id: &str) -> String {
     let suffix = config_id
         .bytes()
         .map(|byte| match byte {
@@ -392,7 +456,9 @@ fn validate_existing_destination(path: &Path) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{ModelConfigInput, ModelConfigStore, ModelLocation};
+    use super::{
+        ModelConfigInput, ModelConfigStore, ModelCredentialSource, ModelLocation, ModelProtocol,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
 
@@ -428,6 +494,9 @@ mod tests {
             model: "qwen3:8b".to_owned(),
             timeout_ms: 30_000,
             authenticated: false,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
+            api_key: None,
         }
     }
 
@@ -440,6 +509,9 @@ mod tests {
             model: "reasoner-v1".to_owned(),
             timeout_ms: 60_000,
             authenticated: true,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
+            api_key: None,
         }
     }
 
@@ -468,6 +540,52 @@ mod tests {
         let removed = store.remove("local-ollama").expect("remove local config");
         assert_eq!(removed.configs.len(), 1);
         assert_eq!(removed.configs[0].config_id, "remote-reasoner");
+    }
+
+    #[test]
+    fn accepts_legacy_configs_with_default_protocol_and_credential_source() {
+        let directory = TestDirectory::new();
+        fs::write(
+            directory.path().join("model-runtime-v1.json"),
+            r#"{"schemaVersion":1,"configs":[{"configId":"legacy","label":"Legacy","location":"local","endpointUrl":"http://127.0.0.1/v1/chat/completions","model":"m","timeoutMs":1000,"authenticated":false}]}"#,
+        )
+        .expect("write legacy fixture");
+
+        let state = ModelConfigStore::new(directory.path().to_owned())
+            .inspect()
+            .expect("inspect legacy config");
+        assert_eq!(state.configs[0].provider_protocol, ModelProtocol::OpenAi);
+        assert_eq!(
+            state.configs[0].credential_source,
+            ModelCredentialSource::Environment
+        );
+    }
+
+    #[test]
+    fn serializes_provider_protocol_for_the_frontend_contract() {
+        assert_eq!(
+            serde_json::to_value(ModelProtocol::OpenAi).unwrap(),
+            serde_json::json!("openAi")
+        );
+        assert_eq!(
+            serde_json::to_value(ModelProtocol::Anthropic).unwrap(),
+            serde_json::json!("anthropic")
+        );
+    }
+
+    #[test]
+    fn never_persists_transient_api_keys() {
+        let directory = TestDirectory::new();
+        let store = ModelConfigStore::new(directory.path().to_owned());
+        let mut config = remote_config();
+        config.credential_source = ModelCredentialSource::Keychain;
+        config.api_key = Some("temporary-test-key".to_owned());
+
+        store.upsert(config).expect("store keychain config");
+        let persisted = fs::read_to_string(directory.path().join("model-runtime-v1.json"))
+            .expect("read model config");
+        assert!(!persisted.contains("temporary-test-key"));
+        assert!(!persisted.contains("apiKey"));
     }
 
     #[test]

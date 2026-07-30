@@ -1,5 +1,9 @@
 import type { NativeDropStatus } from "./useNativeDrop";
 import type { DiscoveryProposal } from "./types";
+import {
+  useI18n,
+  type TranslationKey,
+} from "../../i18n/I18nContext";
 
 interface ScanReportProps {
   readonly isDemo?: boolean;
@@ -8,12 +12,12 @@ interface ScanReportProps {
   readonly statusMessage: string;
 }
 
-const countDefinitions = [
-  ["Included", "included"],
-  ["Excluded", "excluded"],
-  ["Unreadable", "unreadable"],
-  ["Symlinks", "symlink"],
-  ["Out of scope", "outOfScope"],
+const countDefinitions: readonly [TranslationKey, keyof DiscoveryProposal["counts"]][] = [
+  ["scan.included", "included"],
+  ["scan.excluded", "excluded"],
+  ["scan.unreadable", "unreadable"],
+  ["scan.symlinks", "symlink"],
+  ["scan.outOfScope", "outOfScope"],
 ] as const;
 
 export function ScanReport({
@@ -22,6 +26,7 @@ export function ScanReport({
   status,
   statusMessage,
 }: ScanReportProps) {
+  const { t } = useI18n();
   const showStatus =
     status === "loading" ||
     status === "error" ||
@@ -29,11 +34,11 @@ export function ScanReport({
     status === "ready";
 
   return (
-    <section aria-label="Scan report" className="scan-report" role="region">
+    <section aria-label={t("scan.report")} className="scan-report" role="region">
       <header className="scan-report__header">
         <div>
-          <strong>Scan report</strong>
-          <span>{isDemo ? "Demo scan" : "Live scan"}</span>
+          <strong>{t("scan.report")}</strong>
+          <span>{isDemo ? t("scan.demo") : t("scan.live")}</span>
         </div>
         <span>100%</span>
       </header>
@@ -41,25 +46,25 @@ export function ScanReport({
         <span />
       </div>
       <p className="scan-report__summary">
-        {isDemo ? "Browser fixture" : "Trusted local result"} ·{" "}
-        {proposal.items.length} previewed
+        {isDemo ? t("scan.browserFixture") : t("scan.trustedResult")} ·{" "}
+        {t("scan.previewed", { count: proposal.items.length })}
       </p>
-      <div aria-label="Discovery counts" className="scan-report__counts">
-        {countDefinitions.map(([label, key]) => (
+      <div aria-label={t("scan.counts")} className="scan-report__counts">
+        {countDefinitions.map(([labelKey, key]) => (
           <div
-            aria-label={label}
+            aria-label={t(labelKey)}
             className="scan-report__count"
             key={key}
             role="status"
           >
             <strong>{proposal.counts[key]}</strong>
-            <span>{label}</span>
+            <span>{t(labelKey)}</span>
           </div>
         ))}
       </div>
       {showStatus ? (
         <p
-          aria-label="Drop status"
+          aria-label={t("scan.dropStatus")}
           className={`scan-report__status scan-report__status--${status}`}
           role="status"
         >
@@ -69,8 +74,8 @@ export function ScanReport({
       <footer className="scan-report__notice">
         <i aria-hidden="true" />
         <span>
-          <strong>No files have been changed</strong>
-          <small>Drop files or folders anywhere to scan.</small>
+          <strong>{t("scan.unchanged")}</strong>
+          <small>{t("scan.dropHint")}</small>
         </span>
       </footer>
     </section>

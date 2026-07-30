@@ -136,6 +136,7 @@ fn run_application(exit_when_ready: bool) {
             graph::propose_graph_relation,
             graph::decide_graph_relation,
             model_runtime::inspect_model_runtime,
+            model_runtime::discover_models,
             model_runtime::upsert_model_config,
             model_runtime::remove_model_config,
             model_runtime::run_model_comparison,

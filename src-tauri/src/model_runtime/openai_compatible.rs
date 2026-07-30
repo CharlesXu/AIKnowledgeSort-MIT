@@ -1,4 +1,4 @@
-use super::config::ModelConfigSummary;
+use super::config::{ModelConfigSummary, ModelProtocol};
 use super::file_semantics::{
     FileSemanticAdjudication, FileSemanticEnvelope, FileSemanticSuggestion, FileSemanticTransport,
 };
@@ -28,9 +28,9 @@ impl ModelTransport for OpenAiCompatibleTransport {
     ) -> Result<ModelProposal, String> {
         let envelope_text = String::from_utf8(envelope_json.to_vec())
             .map_err(|_| "Comparison envelope is not valid UTF-8".to_owned())?;
-        let body = chat_request(config, PROPOSAL_SYSTEM_PROMPT, envelope_text);
-        let bytes = execute(config, &body)?;
-        let proposal = parse_proposal_response(&bytes)?;
+        let content = complete_json(config, PROPOSAL_SYSTEM_PROMPT, &envelope_text)?;
+        let proposal: ModelProposal = serde_json::from_str(&content)
+            .map_err(|error| format!("Model proposal JSON is invalid: {error}"))?;
         let envelope: ComparisonEnvelope = serde_json::from_slice(envelope_json)
             .map_err(|error| format!("Comparison envelope is invalid: {error}"))?;
         proposal.validate(&envelope)?;
@@ -53,9 +53,9 @@ impl ModelTransport for OpenAiCompatibleTransport {
         };
         let user_content = serde_json::to_string(&payload)
             .map_err(|error| format!("Adjudication request cannot be serialized: {error}"))?;
-        let body = chat_request(config, ADJUDICATION_SYSTEM_PROMPT, user_content);
-        let bytes = execute(config, &body)?;
-        let adjudication = parse_adjudication_response(&bytes)?;
+        let content = complete_json(config, ADJUDICATION_SYSTEM_PROMPT, &user_content)?;
+        let adjudication: AgentAdjudication = serde_json::from_str(&content)
+            .map_err(|error| format!("Agent adjudication JSON is invalid: {error}"))?;
         adjudication.validate(&envelope)?;
         Ok(adjudication)
     }
@@ -118,7 +118,7 @@ struct FileSemanticAdjudicationPayload<'a> {
     agent_suggestion: &'a FileSemanticSuggestion,
 }
 
-fn chat_request(
+fn open_ai_request(
     config: &ModelConfigSummary,
     system_content: &str,
     user_content: String,
@@ -134,6 +134,20 @@ fn chat_request(
     })
 }
 
+fn anthropic_request(
+    config: &ModelConfigSummary,
+    system_content: &str,
+    user_content: String,
+) -> serde_json::Value {
+    json!({
+        "model": config.model,
+        "max_tokens": 4096,
+        "system": system_content,
+        "messages": [{"role": "user", "content": user_content}],
+        "temperature": 0
+    })
+}
+
 fn execute(config: &ModelConfigSummary, body: &serde_json::Value) -> Result<Vec<u8>, String> {
     let timeout = Duration::from_millis(config.timeout_ms);
     let client = Client::builder()
@@ -145,13 +159,13 @@ fn execute(config: &ModelConfigSummary, body: &serde_json::Value) -> Result<Vec<
         .build()
         .map_err(|error| format!("Model HTTP client cannot be built: {error}"))?;
     let mut request = client.post(&config.endpoint_url).json(body);
-    if config.authenticated {
-        let environment = config.credential_environment.as_deref().ok_or_else(|| {
-            "Authenticated model configuration has no credential reference".to_owned()
-        })?;
-        let credential = std::env::var(environment)
-            .map_err(|_| format!("Model credential environment {environment} is not set"))?;
-        request = request.bearer_auth(credential);
+    if let Some(credential) = model_credential(config)? {
+        request = match config.provider_protocol {
+            ModelProtocol::OpenAi => request.bearer_auth(credential),
+            ModelProtocol::Anthropic => request
+                .header("x-api-key", credential)
+                .header("anthropic-version", "2023-06-01"),
+        };
     }
     let response = request
         .send()
@@ -159,13 +173,28 @@ fn execute(config: &ModelConfigSummary, body: &serde_json::Value) -> Result<Vec<
     read_success_response(response)
 }
 
-fn read_success_response(mut response: Response) -> Result<Vec<u8>, String> {
+pub(crate) fn read_success_response(mut response: Response) -> Result<Vec<u8>, String> {
     let status = response.status();
     if !status.is_success() {
         return Err(format!("Model endpoint returned HTTP {status}"));
     }
     let content_length = response.content_length();
     read_bounded(&mut response, content_length)
+}
+
+fn model_credential(config: &ModelConfigSummary) -> Result<Option<String>, String> {
+    if !config.authenticated {
+        return Ok(None);
+    }
+    if let Some(credential) = config.credential_value.as_deref() {
+        return Ok(Some(credential.to_owned()));
+    }
+    let environment = config.credential_environment.as_deref().ok_or_else(|| {
+        "Authenticated model configuration has no credential reference".to_owned()
+    })?;
+    std::env::var(environment)
+        .map(Some)
+        .map_err(|_| format!("Model credential environment {environment} is not set"))
 }
 
 fn read_bounded(reader: &mut impl Read, declared_length: Option<u64>) -> Result<Vec<u8>, String> {
@@ -199,7 +228,7 @@ struct ChatMessage {
     content: String,
 }
 
-fn response_content(bytes: &[u8]) -> Result<String, String> {
+fn open_ai_response_content(bytes: &[u8]) -> Result<String, String> {
     let response: ChatCompletionResponse = serde_json::from_slice(bytes)
         .map_err(|error| format!("Model response JSON is invalid: {error}"))?;
     if response.choices.len() != 1 || response.choices[0].message.content.trim().is_empty() {
@@ -214,23 +243,58 @@ fn response_content(bytes: &[u8]) -> Result<String, String> {
         .content)
 }
 
+#[derive(Deserialize)]
+struct AnthropicMessageResponse {
+    content: Vec<AnthropicContent>,
+}
+
+#[derive(Deserialize)]
+struct AnthropicContent {
+    #[serde(rename = "type")]
+    content_type: String,
+    text: String,
+}
+
+fn anthropic_response_content(bytes: &[u8]) -> Result<String, String> {
+    let response: AnthropicMessageResponse = serde_json::from_slice(bytes)
+        .map_err(|error| format!("Model response JSON is invalid: {error}"))?;
+    let mut text = response
+        .content
+        .into_iter()
+        .filter(|content| content.content_type == "text")
+        .map(|content| content.text)
+        .collect::<Vec<_>>();
+    if text.len() != 1 || text[0].trim().is_empty() {
+        return Err("Anthropic response must contain one non-empty text block".to_owned());
+    }
+    Ok(text.remove(0))
+}
+
 pub(crate) fn complete_json(
     config: &ModelConfigSummary,
     system_prompt: &str,
     user_json: &str,
 ) -> Result<String, String> {
-    let body = chat_request(config, system_prompt, user_json.to_owned());
+    let body = match config.provider_protocol {
+        ModelProtocol::OpenAi => open_ai_request(config, system_prompt, user_json.to_owned()),
+        ModelProtocol::Anthropic => anthropic_request(config, system_prompt, user_json.to_owned()),
+    };
     let bytes = execute(config, &body)?;
-    response_content(&bytes)
+    match config.provider_protocol {
+        ModelProtocol::OpenAi => open_ai_response_content(&bytes),
+        ModelProtocol::Anthropic => anthropic_response_content(&bytes),
+    }
 }
 
+#[cfg(test)]
 pub(crate) fn parse_proposal_response(bytes: &[u8]) -> Result<ModelProposal, String> {
-    serde_json::from_str(&response_content(bytes)?)
+    serde_json::from_str(&open_ai_response_content(bytes)?)
         .map_err(|error| format!("Model proposal JSON is invalid: {error}"))
 }
 
+#[cfg(test)]
 fn parse_adjudication_response(bytes: &[u8]) -> Result<AgentAdjudication, String> {
-    serde_json::from_str(&response_content(bytes)?)
+    serde_json::from_str(&open_ai_response_content(bytes)?)
         .map_err(|error| format!("Agent adjudication JSON is invalid: {error}"))
 }
 
@@ -240,7 +304,9 @@ mod tests {
         execute, parse_adjudication_response, parse_proposal_response, read_bounded,
         MAX_RESPONSE_BYTES,
     };
-    use crate::model_runtime::config::{ModelConfigSummary, ModelLocation};
+    use crate::model_runtime::config::{
+        ModelConfigSummary, ModelCredentialSource, ModelLocation, ModelProtocol,
+    };
     use std::io::{Cursor, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
@@ -291,7 +357,11 @@ mod tests {
             model: "test-model".to_owned(),
             timeout_ms,
             authenticated: false,
+            provider_protocol: ModelProtocol::OpenAi,
+            credential_source: ModelCredentialSource::Environment,
             credential_environment: None,
+            credential_stored: false,
+            credential_value: None,
         }
     }
 

@@ -1,6 +1,8 @@
 import type { ContentIdentity } from "../drop/types";
 
 export type ModelLocation = "local" | "remote";
+export type ModelCredentialSource = "environment" | "keychain";
+export type ModelProviderProtocol = "openAi" | "anthropic";
 
 export interface ModelConfigInput {
   readonly configId: string;
@@ -10,15 +12,36 @@ export interface ModelConfigInput {
   readonly model: string;
   readonly timeoutMs: number;
   readonly authenticated: boolean;
+  readonly providerProtocol: ModelProviderProtocol;
+  readonly credentialSource: ModelCredentialSource;
+  readonly apiKey?: string | null;
 }
 
 export interface ModelConfigSummary extends ModelConfigInput {
   readonly credentialEnvironment: string | null;
+  readonly credentialStored: boolean;
 }
 
 export interface ModelRuntimeState {
   readonly schemaVersion: number;
   readonly configs: readonly ModelConfigSummary[];
+}
+
+export interface DiscoverModelsRequest {
+  readonly configId: string | null;
+  readonly location: ModelLocation;
+  readonly endpointUrl: string;
+  readonly timeoutMs: number;
+  readonly authenticated: boolean;
+  readonly credentialSource: ModelCredentialSource;
+  readonly apiKey: string | null;
+}
+
+export interface DiscoveredModels {
+  readonly providerProtocol: ModelProviderProtocol;
+  readonly modelsEndpointUrl: string;
+  readonly completionEndpointUrl: string;
+  readonly models: readonly string[];
 }
 
 export interface EvidenceRange {
@@ -181,6 +204,7 @@ export interface RunFileSemanticComparisonRequest {
 
 export interface ModelRuntimeClient {
   inspect(): Promise<ModelRuntimeState>;
+  discoverModels(request: DiscoverModelsRequest): Promise<DiscoveredModels>;
   upsert(request: ModelConfigInput): Promise<ModelRuntimeState>;
   remove(request: { readonly configId: string }): Promise<ModelRuntimeState>;
   runComparison(request: RunModelComparisonRequest): Promise<ComparisonRecord>;

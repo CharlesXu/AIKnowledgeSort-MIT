@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useI18n } from "../i18n/I18nContext";
 
 interface AppHeaderProps {
   readonly addingSource: boolean;
@@ -11,6 +12,7 @@ export function AppHeader({
   onAddFiles,
   onAddFolders,
 }: AppHeaderProps) {
+  const { t } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
 
   function choose(action: () => void): void {
@@ -20,7 +22,7 @@ export function AppHeader({
 
   return (
     <header
-      aria-label="Application header"
+      aria-label={t("app.header")}
       className="app-header"
       role="banner"
     >
@@ -40,23 +42,23 @@ export function AppHeader({
       >
         <span className="app-header__runtime">
           <i aria-hidden="true" />
-          Local
+          {t("app.local")}
         </span>
         <button
           aria-expanded={menuOpen}
           aria-haspopup="menu"
-          aria-label="Add source"
+          aria-label={t("app.addSource")}
           className="app-header__icon-button"
           disabled={addingSource}
           onClick={() => setMenuOpen((current) => !current)}
-          title="Add local files or folders"
+          title={t("app.addSourceHint")}
           type="button"
         >
           +
         </button>
         {menuOpen ? (
           <div
-            aria-label="Add source"
+            aria-label={t("app.addSource")}
             className="app-header__source-menu"
             role="menu"
           >
@@ -65,14 +67,14 @@ export function AppHeader({
               role="menuitem"
               type="button"
             >
-              Add files…
+              {t("app.addFiles")}
             </button>
             <button
               onClick={() => choose(onAddFolders)}
               role="menuitem"
               type="button"
             >
-              Add folders…
+              {t("app.addFolders")}
             </button>
           </div>
         ) : null}
