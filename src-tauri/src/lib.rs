@@ -130,6 +130,7 @@ fn run_application(exit_when_ready: bool) {
             cleanup::confirm_cleanup_plan,
             naming::create_naming_batch,
             knowledge::open_knowledge_document,
+            knowledge::list_knowledge_targets,
             knowledge::save_knowledge_document,
             graph::inspect_knowledge_graph,
             graph::propose_graph_relation,

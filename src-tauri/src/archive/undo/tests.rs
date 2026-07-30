@@ -3,8 +3,8 @@ use super::{
     ArchiveUndoExecutor, ArchiveUndoPlanRegistry, ArchiveUndoStatus, UndoLifecycleState,
 };
 use crate::archive::{
-    commit_plan_with_faults, verified_registered_original, ArchivePlan, ArchivePlanItem,
-    TransactionFaults,
+    commit_plan_with_faults, list_verified_registered_originals, verified_registered_original,
+    ArchivePlan, ArchivePlanItem, TransactionFaults,
 };
 use crate::identity::ContentIdentity;
 use crate::naming::schema::{NamingDecisionEvidence, NamingFact, NamingFactKind};
@@ -195,6 +195,9 @@ fn confirmed_undo_trashes_only_the_archive_and_preserves_the_source() {
     assert!(fixture.source.is_file());
     assert!(!Path::new(&plan.archived_path).exists());
     assert!(verified_registered_original(&fixture.lease(), &fixture.operation_id).is_err());
+    assert!(list_verified_registered_originals(&fixture.lease())
+        .expect("list remaining registered originals")
+        .is_empty());
     let removed = executor.removed.lock().unwrap();
     assert_eq!(removed.len(), 1);
     assert_eq!(

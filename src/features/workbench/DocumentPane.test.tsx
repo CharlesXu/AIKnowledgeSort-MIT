@@ -32,6 +32,7 @@ function document(revision = 0, markdown = "# Reset reliability\n"): KnowledgeDo
 
 function client(): KnowledgeClient {
   return {
+    listTargets: vi.fn().mockResolvedValue([target]),
     openDocument: vi.fn().mockResolvedValue(document()),
     saveDocument: vi.fn().mockResolvedValue(document(1, "# Changed\n")),
   };

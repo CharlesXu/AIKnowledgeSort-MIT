@@ -176,6 +176,7 @@ struct OriginalRegistration {
 pub(crate) struct VerifiedRegisteredOriginal {
     pub authority_id: String,
     pub operation_id: String,
+    pub item_id: String,
     pub relative_path: String,
     pub source_path: String,
     pub canonical_name: String,
@@ -1187,17 +1188,44 @@ pub(crate) fn verified_registered_original(
     let record = latest_operation_records(vault)?
         .remove(operation_id)
         .ok_or_else(|| "Registered original was not found".to_owned())?;
+    verified_registered_original_from_record(vault, &record)
+}
+
+pub(crate) fn list_verified_registered_originals(
+    vault: &VaultLease,
+) -> Result<Vec<VerifiedRegisteredOriginal>, String> {
+    let mut records = latest_operation_records(vault)?
+        .into_values()
+        .filter(|record| record.state == OperationState::Committed)
+        .collect::<Vec<_>>();
+    records.sort_by(|left, right| left.operation_id.cmp(&right.operation_id));
+
+    let mut originals = Vec::with_capacity(records.len());
+    for record in records {
+        if super::undo::operation_is_undone(vault, &record.operation_id)? {
+            continue;
+        }
+        originals.push(verified_registered_original_from_record(vault, &record)?);
+    }
+    Ok(originals)
+}
+
+fn verified_registered_original_from_record(
+    vault: &VaultLease,
+    record: &OperationRecord,
+) -> Result<VerifiedRegisteredOriginal, String> {
     if record.state != OperationState::Committed {
         return Err("Registered original archive is not committed".to_owned());
     }
     if record.authority_id != vault.summary.authority_id {
         return Err("Registered original belongs to a different Vault authority".to_owned());
     }
-    if super::undo::operation_is_undone(vault, operation_id)? {
+    if super::undo::operation_is_undone(vault, &record.operation_id)? {
         return Err("Registered original archive was undone".to_owned());
     }
-    verify_committed(vault, &record)?;
-    let registration_path = Path::new(".aiks/registrations").join(format!("{operation_id}.json"));
+    verify_committed(vault, record)?;
+    let registration_path =
+        Path::new(".aiks/registrations").join(format!("{}.json", record.operation_id));
     let registration: OriginalRegistration = read_json(&vault.directory, &registration_path)?;
     let canonical_name = registration
         .canonical_name
@@ -1211,6 +1239,7 @@ pub(crate) fn verified_registered_original(
     Ok(VerifiedRegisteredOriginal {
         authority_id: registration.authority_id,
         operation_id: registration.operation_id,
+        item_id: record.item_id.clone(),
         relative_path: registration.relative_path,
         source_path: registration.source_path,
         canonical_name,
@@ -1257,8 +1286,8 @@ fn transaction_failure_text(failure: TransactionFailure) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        commit_plan_with_faults, reconcile_vault, verified_registered_original, ArchiveItemStatus,
-        OperationContext, TransactionFaults,
+        commit_plan_with_faults, list_verified_registered_originals, reconcile_vault,
+        verified_registered_original, ArchiveItemStatus, OperationContext, TransactionFaults,
     };
     use crate::archive::plan::{ArchivePlan, ArchivePlanItem};
     use crate::identity::ContentIdentity;
@@ -1555,6 +1584,38 @@ mod tests {
 
         fs::write(&destination, b"changed archived bytes").expect("replace archived bytes");
         assert!(verified_registered_original(&lease, operation_id).is_err());
+        assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
+    }
+
+    #[test]
+    fn lists_only_current_sha256_valid_registered_originals_for_vault_recovery() {
+        let tree = TempTree::new();
+        let source = tree.source();
+        let vault_path = tree.vault();
+        let vaults = VaultAuthorityRegistry::default();
+        let summary = vaults
+            .authorize_path(&vault_path)
+            .expect("authorize generated Vault");
+        let lease = vaults
+            .lease(&summary.authority_id)
+            .expect("lease generated Vault");
+        let plan = plan(&source, &summary.authority_id);
+        let result = commit_plan_with_faults(plan, &lease, TransactionFaults::default());
+
+        let listed = list_verified_registered_originals(&lease).expect("list registered originals");
+
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].operation_id, result.items[0].operation_id);
+        assert_eq!(listed[0].item_id, "reviewed-item");
+        assert_eq!(listed[0].relative_path, result.items[0].destination_path);
+        assert_eq!(listed[0].identity, identity());
+
+        fs::write(
+            vault_path.join(&result.items[0].destination_path),
+            b"tampered archived bytes",
+        )
+        .expect("tamper archived original");
+        assert!(list_verified_registered_originals(&lease).is_err());
         assert_eq!(fs::read(source).expect("read source"), SOURCE_BYTES);
     }
 

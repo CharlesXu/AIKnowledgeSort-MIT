@@ -39,6 +39,7 @@ interface ArchivePreviewPaneProps {
     items: readonly ArchiveItemResult[],
     vault: VaultSummary,
   ) => void;
+  readonly onVaultSelected?: (vault: VaultSummary) => Promise<void>;
   readonly onUndoneOperation?: (operationId: string) => void;
   readonly onSelectedItemIdsChange?: (itemIds: readonly string[]) => void;
   readonly proposal: DiscoveryProposal;
@@ -114,6 +115,7 @@ export function ArchivePreviewPane({
   onCommittedItems,
   onUndoneOperation,
   onSelectedItemIdsChange,
+  onVaultSelected,
   proposal,
   selectedItemIds,
 }: ArchivePreviewPaneProps) {
@@ -291,6 +293,7 @@ export function ArchivePreviewPane({
         return;
       }
       setVault(selected);
+      await onVaultSelected?.(selected);
       invalidateClassification();
     } catch (nextError) {
       if (proposalId.current === activeProposal) {

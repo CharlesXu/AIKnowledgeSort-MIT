@@ -14,6 +14,8 @@ import type {
   NativeDropCallbacks,
 } from "./features/drop/useNativeDrop";
 import type { DiscoveryProposal } from "./features/drop/types";
+import { createBrowserArchiveClient } from "./features/archive/archiveClient";
+import { createBrowserKnowledgeClient } from "./features/knowledge/knowledgeClient";
 
 const liveProposal: DiscoveryProposal = {
   proposalId: "live-proposal",
@@ -151,6 +153,48 @@ describe("source workbench shell", () => {
       ).toHaveTextContent(/requires the desktop app/i),
     );
     expect(screen.getByText("Demo scan")).toBeInTheDocument();
+  });
+
+  test("recovers verified knowledge targets after selecting an existing Vault", async () => {
+    const archiveClient = createBrowserArchiveClient();
+    const knowledgeClient = createBrowserKnowledgeClient();
+    const recoveredTarget = {
+      authorityId: "vault-authority",
+      operationId: "archive-operation",
+      itemId: "reviewed-item",
+      destinationPath: `Originals/${"a".repeat(64)}/Recovered-source.pdf`,
+      originalIdentity: {
+        algorithm: "SHA-256" as const,
+        digest: "a".repeat(64),
+      },
+    };
+    vi.spyOn(archiveClient, "chooseVault").mockResolvedValue({
+      authorityId: "vault-authority",
+      displayPath: "/Existing Vault",
+      status: "authoritative",
+    });
+    vi.spyOn(knowledgeClient, "listTargets").mockResolvedValue([
+      recoveredTarget,
+    ]);
+
+    render(
+      <App
+        archiveClient={archiveClient}
+        knowledgeClient={knowledgeClient}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+
+    await waitFor(() =>
+      expect(knowledgeClient.listTargets).toHaveBeenCalledWith({
+        authorityId: "vault-authority",
+      }),
+    );
+    expect(
+      screen.getByRole("combobox", { name: "Eligible archived original" }),
+    ).toHaveValue("archive-operation");
+    expect(screen.getByText("Recovered-source.pdf")).toBeInTheDocument();
   });
 
   test("clearly labels the deterministic browser fixture", () => {

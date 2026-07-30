@@ -5,8 +5,21 @@ import {
 } from "./knowledgeClient";
 
 describe("knowledge client", () => {
-  test("invokes only the two explicit native knowledge boundaries", async () => {
-    const invoke = vi.fn().mockResolvedValue({ revision: 0 });
+  test("invokes only the three explicit native knowledge boundaries", async () => {
+    const target = {
+      authorityId: "vault-authority",
+      operationId: "archive-operation",
+      itemId: "reviewed-item",
+      destinationPath: "Originals/abc/Reviewed.md",
+      originalIdentity: {
+        algorithm: "SHA-256",
+        digest: "a".repeat(64),
+      },
+    };
+    const invoke = vi
+      .fn()
+      .mockResolvedValueOnce([target])
+      .mockResolvedValue({ revision: 0 });
     const client = createTauriKnowledgeClient(invoke);
     const openRequest = {
       authorityId: "vault-authority",
@@ -18,13 +31,19 @@ describe("knowledge client", () => {
       markdown: "# Note\n",
     };
 
+    await expect(client.listTargets({
+      authorityId: "vault-authority",
+    })).resolves.toEqual([target]);
     await client.openDocument(openRequest);
     await client.saveDocument(saveRequest);
 
-    expect(invoke).toHaveBeenNthCalledWith(1, "open_knowledge_document", {
+    expect(invoke).toHaveBeenNthCalledWith(1, "list_knowledge_targets", {
+      request: { authorityId: "vault-authority" },
+    });
+    expect(invoke).toHaveBeenNthCalledWith(2, "open_knowledge_document", {
       request: openRequest,
     });
-    expect(invoke).toHaveBeenNthCalledWith(2, "save_knowledge_document", {
+    expect(invoke).toHaveBeenNthCalledWith(3, "save_knowledge_document", {
       request: saveRequest,
     });
   });
@@ -36,6 +55,9 @@ describe("knowledge client", () => {
       operationId: "archive-operation",
     };
 
+    await expect(client.listTargets({
+      authorityId: "vault-authority",
+    })).rejects.toThrow("Desktop runtime is required for knowledge operations.");
     await expect(client.openDocument(request)).rejects.toThrow(
       "Desktop runtime is required for knowledge operations.",
     );

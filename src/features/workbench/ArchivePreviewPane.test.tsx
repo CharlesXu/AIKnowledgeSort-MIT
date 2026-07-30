@@ -793,4 +793,22 @@ describe("archive preview", () => {
     expect(screen.getByText("Uncommitted")).toBeInTheDocument();
     expect(screen.queryByText("Archive committed")).toBeNull();
   });
+
+  test("notifies the workbench after the authoritative Vault is selected", async () => {
+    const onVaultSelected = vi.fn().mockResolvedValue(undefined);
+
+    render(
+      <ArchivePreviewPane
+        archiveClient={client()}
+        namingClient={namingClient()}
+        onVaultSelected={onVaultSelected}
+        profileClient={profileClient()}
+        proposal={proposal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+
+    await waitFor(() => expect(onVaultSelected).toHaveBeenCalledWith(vault));
+  });
 });

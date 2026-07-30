@@ -25,6 +25,10 @@ export interface OpenKnowledgeDocumentRequest {
   readonly operationId: string;
 }
 
+export interface ListKnowledgeTargetsRequest {
+  readonly authorityId: string;
+}
+
 export interface SaveKnowledgeDocumentRequest
   extends OpenKnowledgeDocumentRequest {
   readonly expectedRevision: number;
@@ -32,6 +36,9 @@ export interface SaveKnowledgeDocumentRequest
 }
 
 export interface KnowledgeClient {
+  listTargets(
+    request: ListKnowledgeTargetsRequest,
+  ): Promise<readonly KnowledgeTarget[]>;
   openDocument(request: OpenKnowledgeDocumentRequest): Promise<KnowledgeDocument>;
   saveDocument(request: SaveKnowledgeDocumentRequest): Promise<KnowledgeDocument>;
 }

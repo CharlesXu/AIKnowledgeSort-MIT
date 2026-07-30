@@ -251,6 +251,12 @@ export function AppShell({
     }
   }
 
+  async function recoverKnowledgeTargets(authorityId: string): Promise<void> {
+    setKnowledgeTargets([]);
+    const targets = await knowledgeClient.listTargets({ authorityId });
+    setKnowledgeTargets(targets);
+  }
+
   return (
     <main
       aria-label="Source workbench"
@@ -358,6 +364,9 @@ export function AppShell({
               ...next,
             ]);
           }}
+          onVaultSelected={(vault) =>
+            recoverKnowledgeTargets(vault.authorityId)
+          }
           onUndoneOperation={(operationId) => {
             setKnowledgeTargets((current) =>
               current.filter((target) => target.operationId !== operationId),

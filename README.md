@@ -173,6 +173,14 @@ and canonical names, paths, policy/version, applied rule, cited facts, evidence
 locations, confirmation binding, identity, and outcome. Existing v1 archive
 journals remain readable during recovery.
 
+After relaunch, reselecting an existing authoritative Vault rebuilds the
+knowledge target list from committed operation journals. Each target is
+rechecked against its registration, undo state, readable archived original,
+and SHA-256 identity before it is offered to the Markdown workspace. The
+frontend receives only opaque identities and Vault-relative destination paths;
+a tampered registration or archived original fails recovery instead of
+presenting stale knowledge eligibility.
+
 Every new archive-and-canonical-name operation also writes a versioned SHA-256
 audit chain. Each record binds its predecessor, actor, time, action, selected
 source and destination scope, content identity, reviewed naming evidence,

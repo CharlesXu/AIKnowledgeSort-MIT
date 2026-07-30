@@ -15,7 +15,9 @@ pub use plan::{ArchivePlan, ArchivePlanRegistry};
 pub use transaction::ArchiveCommitResult;
 #[cfg(test)]
 pub(crate) use transaction::{commit_plan_with_faults, TransactionFaults};
-pub(crate) use transaction::{reconcile_vault, verified_registered_original};
+pub(crate) use transaction::{
+    list_verified_registered_originals, reconcile_vault, verified_registered_original,
+};
 pub(crate) use undo::reconcile_vault as reconcile_undo_vault;
 pub use undo::ArchiveUndoPlanRegistry;
 

@@ -2,6 +2,8 @@ import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type {
   KnowledgeClient,
   KnowledgeDocument,
+  KnowledgeTarget,
+  ListKnowledgeTargetsRequest,
   OpenKnowledgeDocumentRequest,
   SaveKnowledgeDocumentRequest,
 } from "./types";
@@ -15,6 +17,11 @@ export function createTauriKnowledgeClient(
   invoke: Invoke = tauriInvoke,
 ): KnowledgeClient {
   return {
+    listTargets(request: ListKnowledgeTargetsRequest) {
+      return invoke<readonly KnowledgeTarget[]>("list_knowledge_targets", {
+        request,
+      });
+    },
     openDocument(request: OpenKnowledgeDocumentRequest) {
       return invoke<KnowledgeDocument>("open_knowledge_document", { request });
     },
@@ -32,6 +39,7 @@ function desktopRuntimeRequired(): Promise<never> {
 
 export function createBrowserKnowledgeClient(): KnowledgeClient {
   return {
+    listTargets: desktopRuntimeRequired,
     openDocument: desktopRuntimeRequired,
     saveDocument: desktopRuntimeRequired,
   };
