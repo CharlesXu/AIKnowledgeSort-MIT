@@ -13,6 +13,8 @@ describe("archive client", () => {
         displayPath: "/Vault",
         status: "authoritative",
       })
+      .mockResolvedValueOnce({ transferId: "transfer-1" })
+      .mockResolvedValueOnce({ transferId: "transfer-1", vault: {} })
       .mockResolvedValueOnce({ planId: "plan-1" })
       .mockResolvedValueOnce({ planId: "plan-1", status: "committed", items: [] })
       .mockResolvedValueOnce({ planId: "cleanup-1", disposition: "trash" })
@@ -26,6 +28,11 @@ describe("archive client", () => {
     const client = createTauriArchiveClient(invoke);
 
     await client.chooseVault();
+    await client.prepareVaultTransfer();
+    await client.confirmVaultTransfer({
+      transferId: "transfer-1",
+      confirmationNonce: "transfer-nonce-1",
+    });
     await client.createPlan({
       proposalId: "proposal-1",
       itemIds: ["item-1"],
@@ -59,6 +66,16 @@ describe("archive client", () => {
 
     expect(invoke.mock.calls).toEqual([
       ["choose_authoritative_vault"],
+      ["prepare_authority_transfer"],
+      [
+        "confirm_authority_transfer",
+        {
+          request: {
+            transferId: "transfer-1",
+            confirmationNonce: "transfer-nonce-1",
+          },
+        },
+      ],
       [
         "create_archive_plan",
         {
@@ -133,6 +150,15 @@ describe("archive client", () => {
     await expect(client.chooseVault()).rejects.toThrow(
       /desktop runtime is required/i,
     );
+    await expect(client.prepareVaultTransfer()).rejects.toThrow(
+      /desktop runtime is required/i,
+    );
+    await expect(
+      client.confirmVaultTransfer({
+        transferId: "transfer-1",
+        confirmationNonce: "transfer-nonce-1",
+      }),
+    ).rejects.toThrow(/desktop runtime is required/i);
     await expect(
       client.createPlan({
         proposalId: "proposal-1",

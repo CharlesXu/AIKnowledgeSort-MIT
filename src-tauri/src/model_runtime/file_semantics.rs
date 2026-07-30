@@ -893,6 +893,7 @@ mod tests {
             },
             directory: Dir::open_ambient_dir(&vault_path, ambient_authority())
                 .expect("open test Vault"),
+            active_counter: None,
         };
 
         persist_file_semantic_comparison(&vault, &comparison).expect("persist comparison");

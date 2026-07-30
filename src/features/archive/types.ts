@@ -18,6 +18,25 @@ export interface VaultSummary {
   readonly status: "authoritative";
 }
 
+export interface VaultTransferPlan {
+  readonly schemaVersion: number;
+  readonly transferId: string;
+  readonly fromAuthorityId: string;
+  readonly fromDisplayPath: string;
+  readonly targetDisplayPath: string;
+  readonly expiresAtUnixMs: number;
+  readonly confirmationNonce: string;
+  readonly contentMigrated: false;
+}
+
+export interface VaultTransferResult {
+  readonly transferId: string;
+  readonly previousAuthorityId: string;
+  readonly vault: VaultSummary;
+  readonly contentMigrated: false;
+  readonly auditRelativePath: string;
+}
+
 export interface ArchivePlanItem {
   readonly itemId: string;
   readonly sourcePath: string;
@@ -121,6 +140,11 @@ export interface ArchiveUndoResult {
 
 export interface ArchiveClient {
   chooseVault(): Promise<VaultSummary | null>;
+  prepareVaultTransfer(): Promise<VaultTransferPlan | null>;
+  confirmVaultTransfer(request: {
+    readonly transferId: string;
+    readonly confirmationNonce: string;
+  }): Promise<VaultTransferResult>;
   createPlan(request: CreateArchivePlanRequest): Promise<ArchivePlan>;
   confirmPlan(request: ConfirmArchivePlanRequest): Promise<ArchiveCommitResult>;
   createCleanupPlan(request: {

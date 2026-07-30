@@ -696,6 +696,32 @@ input:focus-visible,
   text-overflow: ellipsis;
 }
 
+.archive-preview__transfer {
+  display: grid;
+  gap: 8px;
+  margin: 0 16px 12px;
+  padding: 12px;
+  border: 1px solid var(--divider);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.archive-preview__transfer span,
+.archive-preview__transfer p {
+  overflow-wrap: anywhere;
+}
+
+.archive-preview__transfer p {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.archive-preview__transfer > div {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 .archive-preview button {
   min-height: 27px;
   padding: 0 9px;

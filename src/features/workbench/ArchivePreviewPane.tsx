@@ -9,6 +9,7 @@ import type {
   CleanupPlan,
   CleanupResult,
   VaultSummary,
+  VaultTransferPlan,
 } from "../archive/types";
 import type { DiscoveryProposal } from "../drop/types";
 import type {
@@ -49,6 +50,8 @@ interface ArchivePreviewPaneProps {
 
 type PendingAction =
   | "vault"
+  | "vaultTransferPrepare"
+  | "vaultTransferConfirm"
   | "classification"
   | "naming"
   | "plan"
@@ -131,6 +134,8 @@ export function ArchivePreviewPane({
     () => new Set(),
   );
   const [vault, setVault] = useState<VaultSummary | null>(null);
+  const [vaultTransfer, setVaultTransfer] =
+    useState<VaultTransferPlan | null>(null);
   const [evidence, setEvidence] = useState<
     Readonly<Record<string, EvidenceDraft>>
   >({});
@@ -175,6 +180,7 @@ export function ArchivePreviewPane({
     setConfirmed(false);
     setPending(null);
     setError(null);
+    setVaultTransfer(null);
     setCleanupEnabled(false);
     setCleanupPlan(null);
     setCleanupConfirmed(false);
@@ -302,6 +308,56 @@ export function ArchivePreviewPane({
       setVault(selected);
       await onVaultSelected?.(selected);
       invalidateClassification();
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function prepareVaultTransfer(): Promise<void> {
+    const activeProposal = proposal.proposalId;
+    setPending("vaultTransferPrepare");
+    setError(null);
+    try {
+      const transfer = await archiveClient.prepareVaultTransfer();
+      if (proposalId.current === activeProposal && transfer !== null) {
+        setVaultTransfer(transfer);
+      }
+    } catch (nextError) {
+      if (proposalId.current === activeProposal) {
+        setError(errorText(nextError));
+      }
+    } finally {
+      if (proposalId.current === activeProposal) {
+        setPending(null);
+      }
+    }
+  }
+
+  async function confirmVaultTransfer(): Promise<void> {
+    if (vaultTransfer === null) {
+      return;
+    }
+    const activeProposal = proposal.proposalId;
+    setPending("vaultTransferConfirm");
+    setError(null);
+    try {
+      const result = await archiveClient.confirmVaultTransfer({
+        transferId: vaultTransfer.transferId,
+        confirmationNonce: vaultTransfer.confirmationNonce,
+      });
+      if (proposalId.current !== activeProposal) {
+        return;
+      }
+      setVault(result.vault);
+      setVaultTransfer(null);
+      invalidateClassification();
+      await onVaultSelected?.(result.vault);
     } catch (nextError) {
       if (proposalId.current === activeProposal) {
         setError(errorText(nextError));
@@ -708,12 +764,49 @@ export function ArchivePreviewPane({
         </div>
         <button
           disabled={pending !== null}
-          onClick={() => void chooseVault()}
+          onClick={() =>
+            void (vault === null ? chooseVault() : prepareVaultTransfer())
+          }
           type="button"
         >
-          {pending === "vault" ? t("archive.choosing") : t("archive.chooseVault")}
+          {pending === "vault" || pending === "vaultTransferPrepare"
+            ? t("archive.choosing")
+            : vault === null
+              ? t("archive.chooseVault")
+              : t("archive.transferVault")}
         </button>
       </div>
+
+      {vaultTransfer === null ? null : (
+        <section
+          aria-label={t("archive.transferReview")}
+          className="archive-preview__transfer"
+        >
+          <strong>{t("archive.transferTarget")}</strong>
+          <span title={vaultTransfer.targetDisplayPath}>
+            {vaultTransfer.targetDisplayPath}
+          </span>
+          <p>{t("archive.transferNoCopy")}</p>
+          <div>
+            <button
+              disabled={pending !== null}
+              onClick={() => setVaultTransfer(null)}
+              type="button"
+            >
+              {t("archive.cancelTransfer")}
+            </button>
+            <button
+              disabled={pending !== null}
+              onClick={() => void confirmVaultTransfer()}
+              type="button"
+            >
+              {pending === "vaultTransferConfirm"
+                ? t("archive.transferring")
+                : t("archive.confirmTransfer")}
+            </button>
+          </div>
+        </section>
+      )}
 
       <ul aria-label={t("archive.tree")} role="tree">
         <li role="none">

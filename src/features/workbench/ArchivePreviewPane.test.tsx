@@ -149,6 +149,27 @@ const namingBatch: NamingBatch = {
 function client(): ArchiveClient {
   return {
     chooseVault: vi.fn().mockResolvedValue(vault),
+    prepareVaultTransfer: vi.fn().mockResolvedValue({
+      schemaVersion: 1,
+      transferId: "transfer-1",
+      fromAuthorityId: "vault-1",
+      fromDisplayPath: "/Knowledge Vault",
+      targetDisplayPath: "/Replacement Vault",
+      expiresAtUnixMs: Date.now() + 300_000,
+      confirmationNonce: "transfer-confirmation",
+      contentMigrated: false,
+    }),
+    confirmVaultTransfer: vi.fn().mockResolvedValue({
+      transferId: "transfer-1",
+      previousAuthorityId: "vault-1",
+      vault: {
+        authorityId: "vault-2",
+        displayPath: "/Replacement Vault",
+        status: "authoritative",
+      },
+      contentMigrated: false,
+      auditRelativePath: ".aiks/vault-transfers/transfer-1.json",
+    }),
     createPlan: vi.fn().mockResolvedValue(plan),
     confirmPlan: vi.fn().mockResolvedValue({
       planId: "plan-1",
@@ -383,6 +404,49 @@ describe("archive preview", () => {
     expect(screen.getByRole("button", { name: "审查分类" }))
       .toBeInTheDocument();
     expect(screen.queryByText("Archive Preview")).toBeNull();
+  });
+
+  test("previews an authority-only Vault transfer before exact confirmation", async () => {
+    const archiveClient = client();
+    const onVaultSelected = vi.fn();
+    render(
+      <ArchivePreviewPane
+        archiveClient={archiveClient}
+        namingClient={namingClient()}
+        onVaultSelected={onVaultSelected}
+        profileClient={profileClient()}
+        proposal={proposal}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose Vault" }));
+    await screen.findByText("/Knowledge Vault");
+    fireEvent.click(screen.getByRole("button", { name: "Transfer Vault…" }));
+
+    expect(await screen.findByText("/Replacement Vault")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Contents are not copied. The current Vault remains intact.",
+      ),
+    ).toBeInTheDocument();
+    expect(archiveClient.confirmVaultTransfer).not.toHaveBeenCalled();
+    expect(screen.getByText("/Knowledge Vault")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Confirm authority transfer" }),
+    );
+    await waitFor(() =>
+      expect(archiveClient.confirmVaultTransfer).toHaveBeenCalledWith({
+        transferId: "transfer-1",
+        confirmationNonce: "transfer-confirmation",
+      }),
+    );
+    expect(await screen.findByText("/Replacement Vault")).toBeInTheDocument();
+    expect(onVaultSelected).toHaveBeenLastCalledWith({
+      authorityId: "vault-2",
+      displayPath: "/Replacement Vault",
+      status: "authoritative",
+    });
   });
 
   test("applies only an Agent-resolved semantic suggestion to the editable review form", async () => {

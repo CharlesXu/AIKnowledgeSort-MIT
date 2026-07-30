@@ -161,6 +161,21 @@ activation or automatic filesystem action is not implemented or claimed. The
 supplied discussion material is not represented as EMT-approved or effective
 company policy.
 
+## Single authoritative Vault
+
+The desktop runtime keeps exactly one authoritative Vault. Selecting another
+directory through **Transfer Vault…** first creates a five-minute, single-use
+review plan and does not write to the target. The confirmation UI states that
+this is an authority transfer, not content migration: the current Vault and
+all of its source-format originals remain intact.
+
+Exact confirmation initializes and reconciles the target, refuses to switch
+while a Vault operation is active, and writes an immutable attributable
+transfer record under `.aiks/vault-transfers/` in the previous Vault before
+changing runtime authority. If target validation, reconciliation, or audit
+publication fails, the previous Vault remains authoritative. Direct selection
+of a second Vault without this explicit transfer remains rejected.
+
 ## Canonical naming and source-preserving archive
 
 The desktop runtime now accepts bounded, cited naming facts for Project, Model,

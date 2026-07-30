@@ -3,15 +3,19 @@ pub(crate) mod records;
 use crate::discovery::{open_trusted_drop_root, CapabilityRoot};
 use cap_std::fs::Dir;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::io;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
-const PRODUCT_DIRECTORIES: [&str; 25] = [
+const PRODUCT_DIRECTORIES: [&str; 26] = [
     ".aiks",
     ".aiks/operations",
     ".aiks/archive-audit-anchors",
+    ".aiks/vault-transfers",
     ".aiks/registrations",
     ".aiks/staging",
     ".aiks/pending-registrations",
@@ -37,6 +41,8 @@ const PRODUCT_DIRECTORIES: [&str; 25] = [
 ];
 const VAULT_AUTHORITY_RECORD: &str = ".aiks/vault-authority.json";
 const VAULT_AUTHORITY_SCHEMA_VERSION: u32 = 1;
+const VAULT_TRANSFER_SCHEMA_VERSION: u32 = 1;
+const VAULT_TRANSFER_TTL: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -56,11 +62,21 @@ struct VaultAuthority {
     summary: VaultSummary,
     directory: Dir,
     display_path: PathBuf,
+    active_leases: Arc<AtomicUsize>,
 }
 
 pub(crate) struct VaultLease {
     pub summary: VaultSummary,
     pub directory: Dir,
+    pub(crate) active_counter: Option<Arc<AtomicUsize>>,
+}
+
+impl Drop for VaultLease {
+    fn drop(&mut self) {
+        if let Some(counter) = self.active_counter.as_ref() {
+            counter.fetch_sub(1, Ordering::AcqRel);
+        }
+    }
 }
 
 impl VaultLease {
@@ -86,6 +102,7 @@ impl VaultLease {
                 status: VaultStatus::Authoritative,
             },
             directory,
+            active_counter: None,
         })
     }
 
@@ -144,9 +161,64 @@ struct VaultAuthorityRecord {
     authority_id: String,
 }
 
+#[derive(Clone, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultTransferConfirmation {
+    pub transfer_id: String,
+    pub confirmation_nonce: String,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultTransferPlan {
+    pub schema_version: u32,
+    pub transfer_id: String,
+    pub from_authority_id: String,
+    pub from_display_path: String,
+    pub target_display_path: String,
+    pub expires_at_unix_ms: u64,
+    pub confirmation_nonce: String,
+    pub content_migrated: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VaultTransferResult {
+    pub transfer_id: String,
+    pub previous_authority_id: String,
+    pub vault: VaultSummary,
+    pub content_migrated: bool,
+    pub audit_relative_path: String,
+}
+
+struct PendingVaultTransfer {
+    plan: VaultTransferPlan,
+    target_directory: Dir,
+    target_display_path: PathBuf,
+    expires_at: Instant,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct VaultTransferAudit {
+    schema_version: u32,
+    transfer_id: String,
+    actor: &'static str,
+    action: &'static str,
+    decision: &'static str,
+    from_authority_id: String,
+    to_authority_id: String,
+    target_display_path: String,
+    content_migrated: bool,
+    invariant: &'static str,
+    outcome: &'static str,
+    recorded_at_unix_ms: u64,
+}
+
 #[derive(Clone, Default)]
 pub struct VaultAuthorityRegistry {
     authority: Arc<Mutex<Option<VaultAuthority>>>,
+    pending_transfers: Arc<Mutex<HashMap<String, PendingVaultTransfer>>>,
 }
 
 impl VaultAuthorityRegistry {
@@ -168,9 +240,11 @@ impl VaultAuthorityRegistry {
         directory
             .metadata(".")
             .map_err(|error| format!("Authoritative Vault is no longer readable: {error}"))?;
+        current.active_leases.fetch_add(1, Ordering::AcqRel);
         Ok(VaultLease {
             summary: current.summary.clone(),
             directory,
+            active_counter: Some(Arc::clone(&current.active_leases)),
         })
     }
 
@@ -229,6 +303,7 @@ impl VaultAuthorityRegistry {
             directory: directory
                 .try_clone()
                 .map_err(|error| format!("Vault capability cannot be cloned: {error}"))?,
+            active_counter: None,
         };
         crate::archive::reconcile_undo_vault(&lease)?;
         crate::archive::reconcile_vault(&lease)?;
@@ -237,9 +312,172 @@ impl VaultAuthorityRegistry {
             summary: summary.clone(),
             directory,
             display_path,
+            active_leases: Arc::new(AtomicUsize::new(0)),
         });
         Ok(summary)
     }
+
+    pub fn prepare_transfer_path(&self, path: &Path) -> Result<VaultTransferPlan, String> {
+        let authority = self
+            .authority
+            .lock()
+            .map_err(|_| "Vault authority registry is unavailable".to_owned())?;
+        let current = authority
+            .as_ref()
+            .ok_or_else(|| "No authoritative Vault has been selected".to_owned())?;
+        current
+            .directory
+            .metadata(".")
+            .map_err(|error| format!("Authoritative Vault is no longer readable: {error}"))?;
+
+        let (target_display_path, target_directory) =
+            match open_trusted_drop_root(path.to_path_buf()) {
+                CapabilityRoot::Directory {
+                    display_path,
+                    directory,
+                } => (display_path, directory),
+                CapabilityRoot::File { .. } => {
+                    return Err("The transfer target must be a directory".to_owned())
+                }
+                CapabilityRoot::Diagnostic { message, .. } => return Err(message),
+            };
+        if current.display_path == target_display_path {
+            return Err("The transfer target is already authoritative".to_owned());
+        }
+
+        let now = Instant::now();
+        let transfer_id = Uuid::new_v4().simple().to_string();
+        let plan = VaultTransferPlan {
+            schema_version: VAULT_TRANSFER_SCHEMA_VERSION,
+            transfer_id: transfer_id.clone(),
+            from_authority_id: current.summary.authority_id.clone(),
+            from_display_path: current.summary.display_path.clone(),
+            target_display_path: target_display_path.to_string_lossy().into_owned(),
+            expires_at_unix_ms: unix_time_ms(SystemTime::now() + VAULT_TRANSFER_TTL),
+            confirmation_nonce: Uuid::new_v4().simple().to_string(),
+            content_migrated: false,
+        };
+        let mut pending = self
+            .pending_transfers
+            .lock()
+            .map_err(|_| "Vault transfer registry is unavailable".to_owned())?;
+        pending.clear();
+        pending.insert(
+            transfer_id,
+            PendingVaultTransfer {
+                plan: plan.clone(),
+                target_directory,
+                target_display_path,
+                expires_at: now + VAULT_TRANSFER_TTL,
+            },
+        );
+        Ok(plan)
+    }
+
+    pub fn confirm_transfer(
+        &self,
+        confirmation: VaultTransferConfirmation,
+    ) -> Result<VaultTransferResult, String> {
+        let mut authority = self
+            .authority
+            .lock()
+            .map_err(|_| "Vault authority registry is unavailable".to_owned())?;
+        let current = authority
+            .as_ref()
+            .ok_or_else(|| "No authoritative Vault has been selected".to_owned())?;
+        let mut pending = self
+            .pending_transfers
+            .lock()
+            .map_err(|_| "Vault transfer registry is unavailable".to_owned())?;
+        let transfer = pending
+            .get(&confirmation.transfer_id)
+            .ok_or_else(|| "Vault transfer plan is missing or already consumed".to_owned())?;
+        if transfer.expires_at <= Instant::now() {
+            pending.remove(&confirmation.transfer_id);
+            return Err("Vault transfer plan has expired".to_owned());
+        }
+        if transfer.plan.confirmation_nonce != confirmation.confirmation_nonce {
+            return Err("Vault transfer confirmation does not match the plan".to_owned());
+        }
+        if transfer.plan.from_authority_id != current.summary.authority_id
+            || transfer.plan.from_display_path != current.summary.display_path
+        {
+            return Err("Vault authority changed after the transfer was prepared".to_owned());
+        }
+        if current.active_leases.load(Ordering::Acquire) != 0 {
+            return Err("Vault authority cannot transfer while operations are active".to_owned());
+        }
+        let transfer = pending
+            .remove(&confirmation.transfer_id)
+            .ok_or_else(|| "Vault transfer plan is unavailable".to_owned())?;
+        drop(pending);
+
+        initialize_product_directories(&transfer.target_directory)?;
+        let target_authority_id = load_or_create_authority_id(&transfer.target_directory)?;
+        if target_authority_id == current.summary.authority_id {
+            return Err("Transfer target duplicates the current Vault authority".to_owned());
+        }
+        let target_summary = VaultSummary {
+            authority_id: target_authority_id,
+            display_path: transfer.plan.target_display_path.clone(),
+            status: VaultStatus::Authoritative,
+        };
+        let target_lease = VaultLease {
+            summary: target_summary.clone(),
+            directory: transfer
+                .target_directory
+                .try_clone()
+                .map_err(|error| format!("Target Vault capability cannot be cloned: {error}"))?,
+            active_counter: None,
+        };
+        crate::archive::reconcile_undo_vault(&target_lease)?;
+        crate::archive::reconcile_vault(&target_lease)?;
+        crate::cleanup::reconcile_vault(&target_lease)?;
+
+        let audit_relative_path =
+            format!(".aiks/vault-transfers/{}.json", transfer.plan.transfer_id);
+        records::write_new_json(
+            &current.directory,
+            Path::new(&audit_relative_path),
+            &VaultTransferAudit {
+                schema_version: VAULT_TRANSFER_SCHEMA_VERSION,
+                transfer_id: transfer.plan.transfer_id.clone(),
+                actor: "desktop-user",
+                action: "authorityTransfer",
+                decision: "confirmed",
+                from_authority_id: current.summary.authority_id.clone(),
+                to_authority_id: target_summary.authority_id.clone(),
+                target_display_path: transfer.plan.target_display_path,
+                content_migrated: false,
+                invariant: "single-authoritative-vault",
+                outcome: "committed",
+                recorded_at_unix_ms: unix_time_ms(SystemTime::now()),
+            },
+        )?;
+
+        let previous_authority_id = current.summary.authority_id.clone();
+        *authority = Some(VaultAuthority {
+            summary: target_summary.clone(),
+            directory: transfer.target_directory,
+            display_path: transfer.target_display_path,
+            active_leases: Arc::new(AtomicUsize::new(0)),
+        });
+        Ok(VaultTransferResult {
+            transfer_id: transfer.plan.transfer_id,
+            previous_authority_id,
+            vault: target_summary,
+            content_migrated: false,
+            audit_relative_path,
+        })
+    }
+}
+
+fn unix_time_ms(time: SystemTime) -> u64 {
+    time.duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis()
+        .try_into()
+        .unwrap_or(u64::MAX)
 }
 
 fn load_or_create_authority_id(directory: &Dir) -> Result<String, String> {
@@ -313,9 +551,32 @@ pub async fn choose_authoritative_vault(
     registry.authorize_path(&path).map(Some)
 }
 
+#[tauri::command]
+pub async fn prepare_authority_transfer(
+    app: tauri::AppHandle,
+    registry: tauri::State<'_, VaultAuthorityRegistry>,
+) -> Result<Option<VaultTransferPlan>, String> {
+    let selected = crate::native_dialog::pick_folder(&app).await?;
+    let Some(selected) = selected else {
+        return Ok(None);
+    };
+    let path = selected
+        .into_path()
+        .map_err(|error| format!("Selected transfer target is unavailable: {error}"))?;
+    registry.prepare_transfer_path(&path).map(Some)
+}
+
+#[tauri::command]
+pub fn confirm_authority_transfer(
+    registry: tauri::State<'_, VaultAuthorityRegistry>,
+    request: VaultTransferConfirmation,
+) -> Result<VaultTransferResult, String> {
+    registry.confirm_transfer(request)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::VaultAuthorityRegistry;
+    use super::{VaultAuthorityRegistry, VaultTransferConfirmation};
     use std::fs;
     use std::path::{Path, PathBuf};
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -393,6 +654,122 @@ mod tests {
         assert_product_directories(&first);
         assert!(registry.authorize_path(&second).is_err());
         assert!(second.read_dir().expect("read second").next().is_none());
+    }
+
+    #[test]
+    fn transfers_the_single_authority_only_after_exact_confirmation() {
+        let tree = TempTree::new();
+        let first = tree.directory("first");
+        let second = tree.directory("second");
+        let registry = VaultAuthorityRegistry::default();
+        let initial = registry
+            .authorize_path(&first)
+            .expect("authorize first Vault");
+        fs::write(first.join("Originals").join("retained.txt"), b"source")
+            .expect("write retained source");
+
+        let plan = registry
+            .prepare_transfer_path(&second)
+            .expect("prepare transfer");
+        assert_eq!(plan.from_authority_id, initial.authority_id);
+        assert!(!plan.content_migrated);
+        assert!(second.read_dir().expect("read target").next().is_none());
+        assert_eq!(registry.current_summary().expect("current Vault"), initial);
+
+        assert!(registry
+            .confirm_transfer(VaultTransferConfirmation {
+                transfer_id: plan.transfer_id.clone(),
+                confirmation_nonce: "wrong-nonce".to_owned(),
+            })
+            .is_err());
+        let result = registry
+            .confirm_transfer(VaultTransferConfirmation {
+                transfer_id: plan.transfer_id.clone(),
+                confirmation_nonce: plan.confirmation_nonce,
+            })
+            .expect("confirm transfer");
+
+        assert_eq!(result.previous_authority_id, initial.authority_id);
+        assert_eq!(result.vault, registry.current_summary().expect("new Vault"));
+        assert!(!result.content_migrated);
+        assert!(first.join("Originals").join("retained.txt").is_file());
+        assert!(second.join(".aiks/vault-authority.json").is_file());
+        assert!(first.join(&result.audit_relative_path).is_file());
+        let audit: serde_json::Value = serde_json::from_slice(
+            &fs::read(first.join(&result.audit_relative_path)).expect("read transfer audit"),
+        )
+        .expect("parse transfer audit");
+        assert_eq!(audit["transferId"], result.transfer_id);
+        assert_eq!(audit["fromAuthorityId"], initial.authority_id);
+        assert_eq!(audit["toAuthorityId"], result.vault.authority_id);
+        assert_eq!(audit["actor"], "desktop-user");
+        assert_eq!(audit["action"], "authorityTransfer");
+        assert_eq!(audit["contentMigrated"], false);
+        assert!(registry.lease(&initial.authority_id).is_err());
+        assert!(registry.lease(&result.vault.authority_id).is_ok());
+        assert!(registry
+            .confirm_transfer(VaultTransferConfirmation {
+                transfer_id: result.transfer_id,
+                confirmation_nonce: "replay".to_owned(),
+            })
+            .is_err());
+    }
+
+    #[test]
+    fn blocks_transfer_while_the_current_vault_has_an_active_lease() {
+        let tree = TempTree::new();
+        let first = tree.directory("first");
+        let second = tree.directory("second");
+        let registry = VaultAuthorityRegistry::default();
+        let initial = registry
+            .authorize_path(&first)
+            .expect("authorize first Vault");
+        let plan = registry
+            .prepare_transfer_path(&second)
+            .expect("prepare transfer");
+        let active = registry
+            .lease(&initial.authority_id)
+            .expect("lease current Vault");
+        let confirmation = VaultTransferConfirmation {
+            transfer_id: plan.transfer_id,
+            confirmation_nonce: plan.confirmation_nonce,
+        };
+
+        assert!(registry.confirm_transfer(confirmation.clone()).is_err());
+        assert_eq!(registry.current_summary().expect("current Vault"), initial);
+        assert!(second.read_dir().expect("read target").next().is_none());
+
+        drop(active);
+        registry
+            .confirm_transfer(confirmation)
+            .expect("confirm after lease closes");
+    }
+
+    #[test]
+    fn keeps_the_current_authority_when_transfer_audit_cannot_commit() {
+        let tree = TempTree::new();
+        let first = tree.directory("first");
+        let second = tree.directory("second");
+        let registry = VaultAuthorityRegistry::default();
+        let initial = registry
+            .authorize_path(&first)
+            .expect("authorize first Vault");
+        let plan = registry
+            .prepare_transfer_path(&second)
+            .expect("prepare transfer");
+        fs::remove_dir(first.join(".aiks/vault-transfers"))
+            .expect("remove transfer audit directory");
+        fs::write(first.join(".aiks/vault-transfers"), b"blocked")
+            .expect("block transfer audit path");
+
+        assert!(registry
+            .confirm_transfer(VaultTransferConfirmation {
+                transfer_id: plan.transfer_id,
+                confirmation_nonce: plan.confirmation_nonce,
+            })
+            .is_err());
+        assert_eq!(registry.current_summary().expect("current Vault"), initial);
+        assert!(registry.lease(&initial.authority_id).is_ok());
     }
 
     #[test]

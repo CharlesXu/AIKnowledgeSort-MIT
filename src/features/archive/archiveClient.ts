@@ -9,6 +9,8 @@ import type {
   CleanupResult,
   ConfirmArchivePlanRequest,
   CreateArchivePlanRequest,
+  VaultTransferPlan,
+  VaultTransferResult,
   VaultSummary,
 } from "./types";
 
@@ -23,6 +25,14 @@ export function createTauriArchiveClient(
   return {
     chooseVault() {
       return invoke<VaultSummary | null>("choose_authoritative_vault");
+    },
+    prepareVaultTransfer() {
+      return invoke<VaultTransferPlan | null>("prepare_authority_transfer");
+    },
+    confirmVaultTransfer(request) {
+      return invoke<VaultTransferResult>("confirm_authority_transfer", {
+        request,
+      });
     },
     createPlan(request: CreateArchivePlanRequest) {
       return invoke<ArchivePlan>("create_archive_plan", { request });
@@ -57,6 +67,8 @@ function desktopRuntimeRequired(): Promise<never> {
 export function createBrowserArchiveClient(): ArchiveClient {
   return {
     chooseVault: desktopRuntimeRequired,
+    prepareVaultTransfer: desktopRuntimeRequired,
+    confirmVaultTransfer: desktopRuntimeRequired,
     createPlan: desktopRuntimeRequired,
     confirmPlan: desktopRuntimeRequired,
     createCleanupPlan: desktopRuntimeRequired,

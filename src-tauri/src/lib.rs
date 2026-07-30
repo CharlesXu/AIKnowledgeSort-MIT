@@ -121,6 +121,8 @@ fn run_application(exit_when_ready: bool) {
             discovery::choose_local_folders,
             discovery::propose_local_drop,
             vault::choose_authoritative_vault,
+            vault::prepare_authority_transfer,
+            vault::confirm_authority_transfer,
             archive::create_archive_plan,
             archive::confirm_archive_plan,
             archive::undo::create_archive_undo_plan,
