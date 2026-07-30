@@ -684,6 +684,34 @@ pub fn inspect_comparison_records(vault: &VaultLease) -> Result<Vec<ComparisonRe
     Ok(records)
 }
 
+pub(crate) fn load_comparison_record(
+    vault: &VaultLease,
+    comparison_id: &str,
+) -> Result<ComparisonRecord, String> {
+    validate_comparison_id(comparison_id)?;
+    let root = Path::new(".aiks/comparisons");
+    let namespace = root.join(comparison_id);
+    for (path, label) in [
+        (root, "Comparison record root"),
+        (namespace.as_path(), "Comparison record namespace"),
+    ] {
+        let metadata = vault
+            .directory
+            .symlink_metadata(path)
+            .map_err(|error| format!("{label} cannot be inspected: {error}"))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(format!("{label} is not a trusted directory"));
+        }
+    }
+    let path = namespace.join("00000001.json");
+    let record: ComparisonRecord = read_json(&vault.directory, &path)?;
+    validate_comparison_record(&record)?;
+    if record.comparison_id != comparison_id {
+        return Err("Comparison record does not match its namespace".to_owned());
+    }
+    Ok(record)
+}
+
 fn validate_comparison_record(record: &ComparisonRecord) -> Result<(), String> {
     if record.schema_version != COMPARISON_SCHEMA_VERSION {
         return Err("Comparison record schema version is unsupported".to_owned());

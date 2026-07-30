@@ -101,7 +101,12 @@ export function ContextPane({
             ) : mode === "review" ? (
               <ProfileReview client={profileClient} />
             ) : (
-              <AgentReviewPane client={modelRuntimeClient} document={document} />
+              <AgentReviewPane
+                client={modelRuntimeClient}
+                document={document}
+                graphClient={graphClient}
+                onGraphImported={() => onModeChange("graph")}
+              />
             )}
           </div>
         </>

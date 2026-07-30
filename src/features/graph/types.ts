@@ -27,6 +27,7 @@ export interface GraphRelation {
   readonly targetNode: string;
   readonly status: RelationStatus;
   readonly evidence: readonly EvidenceReference[];
+  readonly comparisonId?: string | null;
   readonly actor: string;
   readonly reason: string;
   readonly recordedAtUnixMs: number;
@@ -67,6 +68,11 @@ export interface ProposeRelationRequest extends RelationRevisionInput {
   readonly operationId: string;
 }
 
+export interface ImportComparisonRequest {
+  readonly authorityId: string;
+  readonly comparisonId: string;
+}
+
 export interface DecideRelationRequest {
   readonly authorityId: string;
   readonly relationId: string;
@@ -79,5 +85,6 @@ export interface DecideRelationRequest {
 export interface GraphClient {
   inspect(request: InspectGraphRequest): Promise<GraphSnapshot>;
   propose(request: ProposeRelationRequest): Promise<GraphRelation>;
+  importComparison(request: ImportComparisonRequest): Promise<readonly GraphRelation[]>;
   decide(request: DecideRelationRequest): Promise<GraphRelation>;
 }

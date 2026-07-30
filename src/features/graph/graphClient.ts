@@ -4,6 +4,7 @@ import type {
   GraphClient,
   GraphRelation,
   GraphSnapshot,
+  ImportComparisonRequest,
   InspectGraphRequest,
   ProposeRelationRequest,
 } from "./types";
@@ -21,6 +22,11 @@ export function createTauriGraphClient(invoke: Invoke = tauriInvoke): GraphClien
     propose(request: ProposeRelationRequest) {
       return invoke<GraphRelation>("propose_graph_relation", { request });
     },
+    importComparison(request: ImportComparisonRequest) {
+      return invoke<readonly GraphRelation[]>("import_comparison_relations", {
+        request,
+      });
+    },
     decide(request: DecideRelationRequest) {
       return invoke<GraphRelation>("decide_graph_relation", { request });
     },
@@ -37,6 +43,7 @@ export function createBrowserGraphClient(): GraphClient {
   return {
     inspect: desktopRuntimeRequired,
     propose: desktopRuntimeRequired,
+    importComparison: desktopRuntimeRequired,
     decide: desktopRuntimeRequired,
   };
 }

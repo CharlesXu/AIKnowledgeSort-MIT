@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import { I18nProvider } from "../../i18n/I18nContext";
 import type { KnowledgeDocument } from "../knowledge/types";
 import type { ContentIdentity } from "../drop/types";
+import type { GraphClient } from "../graph/types";
 import { AgentReviewPane } from "./AgentReviewPane";
 import type { ComparisonRecord, ModelRuntimeClient, ModelRuntimeState } from "./types";
 
@@ -132,6 +133,30 @@ function client(): ModelRuntimeClient {
   };
 }
 
+function graphClient(): GraphClient {
+  return {
+    inspect: vi.fn(),
+    propose: vi.fn(),
+    importComparison: vi.fn().mockResolvedValue([{
+      relationId: "f".repeat(32),
+      version: 1,
+      authorityId: "vault-1",
+      operationId: "operation-1",
+      knowledgeRevision: 2,
+      sourceNode: "MCU",
+      relationType: "relatedTo",
+      targetNode: "Reset controller",
+      status: "review",
+      evidence: [],
+      comparisonId: record.comparisonId,
+      actor: "agent-adjudication-import",
+      reason: "Agent selected the supported relation",
+      recordedAtUnixMs: 1_785_246_200_000,
+    }]),
+    decide: vi.fn(),
+  };
+}
+
 describe("AgentReviewPane", () => {
   test("renders model comparison controls in Simplified Chinese", async () => {
     render(
@@ -219,5 +244,42 @@ describe("AgentReviewPane", () => {
       .toHaveTextContent("Relation types conflict");
     expect(screen.getByLabelText("Start line")).toHaveValue(2);
     expect(screen.getByLabelText("End line")).toHaveValue(2);
+  });
+
+  test("sends only the immutable comparison identity to graph review after Agent acceptance", async () => {
+    const accepted: ComparisonRecord = {
+      ...record,
+      status: "completed",
+      adjudication: {
+        decision: "accept",
+        reason: "Agent selected the supported relation",
+        evidenceIds: ["line-2-2"],
+        selectedSide: "agent",
+        revisedRelations: [],
+      },
+    };
+    const modelClient = client();
+    vi.mocked(modelClient.runComparison).mockResolvedValue(accepted);
+    const graph = graphClient();
+    const onGraphImported = vi.fn();
+    render(
+      <AgentReviewPane
+        client={modelClient}
+        document={savedDocument}
+        graphClient={graph}
+        onGraphImported={onGraphImported}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Run comparison" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Send to graph review" }));
+
+    await waitFor(() => expect(graph.importComparison).toHaveBeenCalledWith({
+      authorityId: "vault-1",
+      comparisonId: accepted.comparisonId,
+    }));
+    expect(onGraphImported).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("Graph review received 1 relation records."))
+      .toBeInTheDocument();
   });
 });

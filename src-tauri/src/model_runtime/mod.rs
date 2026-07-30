@@ -16,18 +16,17 @@ use model_discovery::{DiscoverModelsRequest, DiscoveredModels};
 pub(crate) use openai_compatible::complete_json;
 use openai_compatible::{OpenAiCompatibleTransport, OpenAiFileSemanticTransport};
 pub(crate) use protocol::{
-    AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, ModelProposal,
-    ProviderOutcome,
+    AgentAdjudication, AgentDecision, ComparisonRecord, ComparisonStatus, EvidenceExcerpt,
+    ModelProposal, ProposalSide, ProviderOutcome, RelationSuggestion,
 };
-#[cfg(test)]
-pub(crate) use protocol::{ProposalSide, RelationSuggestion};
 use serde::Deserialize;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 pub(crate) use store::{
-    build_comparison_envelope, persist_comparison_record, EvidenceRange, PreparedComparison,
+    build_comparison_envelope, load_comparison_record, persist_comparison_record, EvidenceRange,
+    PreparedComparison,
 };
 use tauri::Manager;
 use uuid::Uuid;

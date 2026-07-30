@@ -4,6 +4,7 @@ import {
   useI18n,
 } from "../../i18n/I18nContext";
 import type { KnowledgeDocument } from "../knowledge/types";
+import type { GraphClient } from "../graph/types";
 import type {
   ComparisonRecord,
   ModelConfigSummary,
@@ -15,6 +16,8 @@ import type {
 interface AgentReviewPaneProps {
   readonly client: ModelRuntimeClient;
   readonly document: KnowledgeDocument | null;
+  readonly graphClient?: GraphClient;
+  readonly onGraphImported?: () => void;
 }
 
 function errorMessage(error: unknown): string {
@@ -66,7 +69,26 @@ function ProviderCard({
   );
 }
 
-export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
+function importableRelationCount(record: ComparisonRecord): number {
+  if (record.status !== "completed" || !record.adjudication) return 0;
+  if (record.adjudication.decision === "revise") {
+    return record.adjudication.revisedRelations.length;
+  }
+  if (record.adjudication.decision !== "accept") return 0;
+  const proposal = record.adjudication.selectedSide === "desktop"
+    ? record.desktopOutcome.proposal
+    : record.adjudication.selectedSide === "agent"
+      ? record.agentOutcome.proposal
+      : null;
+  return proposal?.relations.length ?? 0;
+}
+
+export function AgentReviewPane({
+  client,
+  document,
+  graphClient,
+  onGraphImported,
+}: AgentReviewPaneProps) {
   const { t } = useI18n();
   const [runtime, setRuntime] = useState<ModelRuntimeState | null>(null);
   const [desktopConfigId, setDesktopConfigId] = useState("");
@@ -75,6 +97,8 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
   const [endLine, setEndLine] = useState("1");
   const [result, setResult] = useState<ComparisonRecord | null>(null);
   const [busy, setBusy] = useState(false);
+  const [importBusy, setImportBusy] = useState(false);
+  const [importedCount, setImportedCount] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -109,6 +133,7 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
     if (!document || !canRun) return;
     setBusy(true);
     setError(null);
+    setImportedCount(null);
     try {
       const start = Number(startLine);
       const end = Number(endLine);
@@ -124,6 +149,26 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
       setError(errorMessage(reason));
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function importToGraph(): Promise<void> {
+    if (!document || !result || !graphClient || importableRelationCount(result) === 0) {
+      return;
+    }
+    setImportBusy(true);
+    setError(null);
+    try {
+      const relations = await graphClient.importComparison({
+        authorityId: document.authorityId,
+        comparisonId: result.comparisonId,
+      });
+      setImportedCount(relations.length);
+      onGraphImported?.();
+    } catch (reason) {
+      setError(errorMessage(reason));
+    } finally {
+      setImportBusy(false);
     }
   }
 
@@ -232,6 +277,23 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
                 <small>{t("agentReview.evidence", {
                   ids: result.adjudication.evidenceIds.join(", "),
                 })}</small>
+                {graphClient && importableRelationCount(result) > 0 ? (
+                  <button
+                    className="agent-adjudication__action"
+                    disabled={importBusy}
+                    onClick={() => void importToGraph()}
+                    type="button"
+                  >
+                    {importBusy
+                      ? t("agentReview.sendingToGraph")
+                      : t("agentReview.sendToGraph")}
+                  </button>
+                ) : null}
+                {importedCount !== null ? (
+                  <span className="agent-adjudication__success" role="status">
+                    {t("agentReview.sentToGraph", { count: importedCount })}
+                  </span>
+                ) : null}
               </>
             ) : (
               <p className="agent-review__failure">

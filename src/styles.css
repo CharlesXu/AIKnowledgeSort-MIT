@@ -3304,6 +3304,29 @@ input:focus-visible,
   font-weight: 650;
 }
 
+.agent-adjudication__action {
+  width: 100%;
+  min-height: 28px;
+  margin-top: 9px;
+  border: 1px solid #6f6397;
+  border-radius: 4px;
+  color: #fff;
+  background: var(--accent);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.agent-adjudication__action:disabled {
+  opacity: 0.55;
+}
+
+.agent-adjudication__success {
+  display: block;
+  margin-top: 6px;
+  color: #496c59;
+  font-size: 9px;
+}
+
 .agent-review__evidence {
   padding: 0 10px 12px;
 }

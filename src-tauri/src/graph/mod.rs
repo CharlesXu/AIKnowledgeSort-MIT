@@ -64,6 +64,13 @@ pub struct ProposeGraphRelationRequest {
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ImportComparisonRelationsRequest {
+    authority_id: String,
+    comparison_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DecideGraphRelationRequest {
     authority_id: String,
     relation_id: String,
@@ -111,6 +118,25 @@ pub async fn propose_graph_relation(
     })
     .await
     .map_err(|error| format!("Graph proposal worker failed: {error}"))?
+}
+
+#[tauri::command]
+pub async fn import_comparison_relations(
+    request: ImportComparisonRelationsRequest,
+    vaults: tauri::State<'_, VaultAuthorityRegistry>,
+    writes: tauri::State<'_, GraphWriteRegistry>,
+) -> Result<Vec<GraphRelation>, String> {
+    let permit = writes.acquire(format!(
+        "{}:comparison:{}",
+        request.authority_id, request.comparison_id
+    ))?;
+    let vault = vaults.lease(&request.authority_id)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let _permit = permit;
+        store::import_comparison_relations(&vault, &request.comparison_id)
+    })
+    .await
+    .map_err(|error| format!("Graph comparison import worker failed: {error}"))?
 }
 
 #[tauri::command]

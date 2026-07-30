@@ -134,6 +134,7 @@ fn run_application(exit_when_ready: bool) {
             knowledge::save_knowledge_document,
             graph::inspect_knowledge_graph,
             graph::propose_graph_relation,
+            graph::import_comparison_relations,
             graph::decide_graph_relation,
             model_runtime::inspect_model_runtime,
             model_runtime::discover_models,

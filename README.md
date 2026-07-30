@@ -459,8 +459,16 @@ result can be applied to the editable review form or bound to a classification
 batch. It cannot rename, move, archive, or delete a source without the existing
 separate plan review and explicit confirmation.
 
-Applying model suggestions to graph relations, model-generated naming facts,
-physical source renaming,
+An Agent-accepted or Agent-revised knowledge-relation comparison can now be
+sent through an explicit desktop action into the graph review queue. The
+frontend sends only the Vault authority and immutable comparison identity; the
+native boundary reloads and revalidates the persisted comparison, archived
+original, committed Markdown revision, and cited evidence before creating
+deterministic, replay-safe `review` relations. This does not accept graph
+relations automatically: the user must still accept, revise, or reject each
+relation in the graph panel.
+
+Model-generated naming facts, physical source renaming,
 user-controlled cleanup undo, automatic graph inference,
 model-generated knowledge, automatic grant reactivation, write-capable MCP
 tools, third-party runtime installation/configuration, GraphRAG

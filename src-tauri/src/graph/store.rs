@@ -1,9 +1,14 @@
 use crate::archive::verified_registered_original;
 use crate::identity::ContentIdentity;
 use crate::knowledge::open_committed_revision;
+use crate::model_runtime::{
+    build_comparison_envelope, load_comparison_record, AgentDecision, ComparisonStatus,
+    ProposalSide, RelationSuggestion,
+};
 use crate::vault::records::{read_json, write_new_json};
 use crate::vault::VaultLease;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::io;
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -73,6 +78,8 @@ pub struct GraphRelation {
     pub target_node: String,
     pub status: RelationStatus,
     pub evidence: Vec<EvidenceReference>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub comparison_id: Option<String>,
     pub actor: String,
     pub reason: String,
     pub recorded_at_unix_ms: u64,
@@ -126,6 +133,199 @@ pub(crate) fn propose_relation(
     ensure_trusted_directory(vault, &directory)?;
     write_relation(vault, &relation)?;
     Ok(relation)
+}
+
+pub(crate) fn import_comparison_relations(
+    vault: &VaultLease,
+    comparison_id: &str,
+) -> Result<Vec<GraphRelation>, String> {
+    let record = load_comparison_record(vault, comparison_id)?;
+    if record.status != ComparisonStatus::Completed {
+        return Err("Only a completed Agent adjudication can enter graph review".to_owned());
+    }
+    let adjudication = record
+        .adjudication
+        .as_ref()
+        .ok_or_else(|| "Completed comparison is missing Agent adjudication".to_owned())?;
+    let suggestions = match adjudication.decision {
+        AgentDecision::Accept => match adjudication
+            .selected_side
+            .ok_or_else(|| "Accepted adjudication is missing its selected side".to_owned())?
+        {
+            ProposalSide::Desktop => selected_relations(&record.desktop_outcome.proposal)?,
+            ProposalSide::Agent => selected_relations(&record.agent_outcome.proposal)?,
+        },
+        AgentDecision::Revise => adjudication.revised_relations.as_slice(),
+        AgentDecision::Reject | AgentDecision::Review => {
+            return Err("Rejected or unresolved advice cannot enter graph review".to_owned())
+        }
+    };
+
+    let evidence_ranges = record
+        .envelope
+        .evidence
+        .iter()
+        .map(|evidence| crate::model_runtime::EvidenceRange {
+            start_line: evidence.start_line,
+            end_line: evidence.end_line,
+        })
+        .collect::<Vec<_>>();
+    let operation_id = comparison_operation_id(vault, &record, &evidence_ranges)?;
+
+    let prepared = suggestions
+        .iter()
+        .enumerate()
+        .map(|(index, suggestion)| {
+            let relation_id = imported_relation_id(comparison_id, index);
+            let ranges = suggestion_evidence_ranges(suggestion, &record.envelope.evidence)?;
+            let mut relation = build_relation(
+                vault,
+                &relation_id,
+                1,
+                &operation_id,
+                record.envelope.knowledge_revision,
+                &suggestion.source,
+                &suggestion.relation_type,
+                &suggestion.target,
+                &ranges,
+                RelationStatus::Review,
+                "Imported from an Agent-adjudicated model comparison",
+            )?;
+            relation.comparison_id = Some(comparison_id.to_owned());
+            relation.actor = "agent-adjudication-import".to_owned();
+            Ok(relation)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    let existing = prepared
+        .iter()
+        .map(|relation| {
+            match vault
+                .directory
+                .symlink_metadata(relation_directory(&relation.relation_id))
+            {
+                Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                    Err("Imported graph relation path is not trusted".to_owned())
+                }
+                Ok(_) => {
+                    let versions = relation_versions(vault, &relation.relation_id)?;
+                    let first = versions.first().ok_or_else(|| {
+                        "Imported graph relation has no origin version".to_owned()
+                    })?;
+                    let latest = versions.last().cloned().ok_or_else(|| {
+                        "Imported graph relation has no current version".to_owned()
+                    })?;
+                    if !same_import_origin(first, relation)
+                        || latest.comparison_id.as_deref() != Some(comparison_id)
+                        || latest.operation_id != operation_id
+                    {
+                        return Err(
+                            "Imported graph relation ID conflicts with existing data".to_owned()
+                        );
+                    }
+                    verify_relation_evidence(vault, &latest)?;
+                    Ok(Some(latest))
+                }
+                Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+                Err(error) => Err(format!(
+                    "Imported graph relation path cannot be inspected: {error}"
+                )),
+            }
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+
+    let mut imported = Vec::with_capacity(prepared.len());
+    for (relation, existing) in prepared.into_iter().zip(existing) {
+        if let Some(existing) = existing {
+            imported.push(existing);
+        } else {
+            let directory = relation_directory(&relation.relation_id);
+            ensure_trusted_directory(vault, &directory)?;
+            write_relation(vault, &relation)?;
+            imported.push(relation);
+        }
+    }
+    Ok(imported)
+}
+
+fn same_import_origin(existing: &GraphRelation, expected: &GraphRelation) -> bool {
+    existing.schema_version == expected.schema_version
+        && existing.relation_id == expected.relation_id
+        && existing.version == 1
+        && existing.authority_id == expected.authority_id
+        && existing.operation_id == expected.operation_id
+        && existing.knowledge_revision == expected.knowledge_revision
+        && existing.source_node == expected.source_node
+        && existing.relation_type == expected.relation_type
+        && existing.target_node == expected.target_node
+        && existing.status == RelationStatus::Review
+        && existing.evidence == expected.evidence
+        && existing.comparison_id == expected.comparison_id
+        && existing.actor == expected.actor
+        && existing.reason == expected.reason
+}
+
+fn selected_relations(
+    proposal: &Option<crate::model_runtime::ModelProposal>,
+) -> Result<&[RelationSuggestion], String> {
+    proposal
+        .as_ref()
+        .map(|proposal| proposal.relations.as_slice())
+        .ok_or_else(|| "Selected model proposal is unavailable".to_owned())
+}
+
+fn comparison_operation_id(
+    vault: &VaultLease,
+    record: &crate::model_runtime::ComparisonRecord,
+    evidence_ranges: &[crate::model_runtime::EvidenceRange],
+) -> Result<String, String> {
+    let matches = crate::archive::list_verified_registered_originals(vault)?
+        .into_iter()
+        .filter(|original| original.identity == record.envelope.original_identity)
+        .filter_map(|original| {
+            build_comparison_envelope(
+                vault,
+                &original.operation_id,
+                record.envelope.knowledge_revision,
+                evidence_ranges,
+            )
+            .ok()
+            .filter(|rebuilt| {
+                rebuilt.envelope == record.envelope && rebuilt.identity == record.envelope_identity
+            })
+            .map(|_| original.operation_id)
+        })
+        .collect::<Vec<_>>();
+    match matches.as_slice() {
+        [operation_id] => Ok(operation_id.clone()),
+        [] => Err("Comparison evidence no longer matches its committed revision".to_owned()),
+        _ => Err("Comparison evidence matches multiple registered originals".to_owned()),
+    }
+}
+
+fn suggestion_evidence_ranges(
+    suggestion: &RelationSuggestion,
+    evidence: &[crate::model_runtime::EvidenceExcerpt],
+) -> Result<Vec<EvidenceRange>, String> {
+    suggestion
+        .evidence_ids
+        .iter()
+        .map(|evidence_id| {
+            evidence
+                .iter()
+                .find(|candidate| candidate.evidence_id == *evidence_id)
+                .map(|candidate| EvidenceRange {
+                    start_line: candidate.start_line,
+                    end_line: candidate.end_line,
+                })
+                .ok_or_else(|| "Relation cites evidence outside the comparison envelope".to_owned())
+        })
+        .collect()
+}
+
+fn imported_relation_id(comparison_id: &str, index: usize) -> String {
+    let digest = format!("{:x}", Sha256::digest(format!("{comparison_id}:{index}")));
+    digest[..32].to_owned()
 }
 
 pub(crate) fn decide_relation(
@@ -185,7 +385,11 @@ pub(crate) fn decide_relation(
                 &revision.evidence_ranges,
                 RelationStatus::Review,
                 &reason,
-            )?
+            )
+            .map(|mut relation| {
+                relation.comparison_id = current.comparison_id;
+                relation
+            })?
         }
     };
     write_relation(vault, &next)?;
@@ -311,6 +515,7 @@ fn build_relation(
         target_node,
         status,
         evidence,
+        comparison_id: None,
         actor: "desktop-user".to_owned(),
         reason: bounded_text(reason, 512, "Graph relation reason")?,
         recorded_at_unix_ms: unix_time_ms(),
@@ -451,6 +656,10 @@ fn validate_relation_record(
     {
         return Err("Graph relation record is invalid".to_owned());
     }
+    if let Some(comparison_id) = relation.comparison_id.as_deref() {
+        validate_relation_id(comparison_id)
+            .map_err(|_| "Graph relation comparison provenance is invalid".to_owned())?;
+    }
     for evidence in &relation.evidence {
         evidence.markdown_identity.validate()?;
         evidence.original_identity.validate()?;
@@ -517,14 +726,19 @@ fn unix_time_ms() -> u64 {
 #[cfg(test)]
 mod tests {
     use super::{
-        decide_relation, inspect_graph, propose_relation, EvidenceRange, GraphDecision,
-        RelationRevisionInput, RelationStatus,
+        decide_relation, import_comparison_relations, inspect_graph, propose_relation,
+        EvidenceRange, GraphDecision, RelationRevisionInput, RelationStatus,
     };
     use crate::archive::{
         commit_plan_with_faults, ArchivePlan, ArchivePlanItem, TransactionFaults,
     };
     use crate::identity::ContentIdentity;
     use crate::knowledge::save_document;
+    use crate::model_runtime::{
+        build_comparison_envelope, persist_comparison_record, AgentAdjudication, AgentDecision,
+        ComparisonRecord, ComparisonStatus, ModelProposal, ProposalSide, ProviderOutcome,
+        RelationSuggestion,
+    };
     use crate::naming::schema::{NamingDecisionEvidence, NamingFact, NamingFactKind};
     use crate::vault::VaultAuthorityRegistry;
     use std::fs;
@@ -601,6 +815,73 @@ mod tests {
         )
         .unwrap();
         (root, source, lease, operation_id)
+    }
+
+    fn relation(relation_type: &str) -> RelationSuggestion {
+        RelationSuggestion {
+            source: "MCU reset".to_owned(),
+            relation_type: relation_type.to_owned(),
+            target: "Clock stabilization".to_owned(),
+            evidence_ids: vec!["line-2-3".to_owned()],
+        }
+    }
+
+    fn persist_comparison(
+        lease: &crate::vault::VaultLease,
+        operation_id: &str,
+        decision: AgentDecision,
+        selected_side: Option<ProposalSide>,
+        revised_relations: Vec<RelationSuggestion>,
+    ) -> ComparisonRecord {
+        let prepared = build_comparison_envelope(
+            lease,
+            operation_id,
+            1,
+            &[crate::model_runtime::EvidenceRange {
+                start_line: 2,
+                end_line: 3,
+            }],
+        )
+        .unwrap();
+        let record = ComparisonRecord {
+            schema_version: 1,
+            comparison_id: uuid::Uuid::new_v4().simple().to_string(),
+            envelope: prepared.envelope,
+            envelope_identity: prepared.identity,
+            desktop_config_id: "desktop-model".to_owned(),
+            agent_config_id: "agent-model".to_owned(),
+            desktop_outcome: ProviderOutcome::succeeded(
+                "desktop-v1".to_owned(),
+                ModelProposal {
+                    summary: "Desktop proposal".to_owned(),
+                    relations: vec![relation("depends on")],
+                },
+            ),
+            agent_outcome: ProviderOutcome::succeeded(
+                "agent-v1".to_owned(),
+                ModelProposal {
+                    summary: "Agent proposal".to_owned(),
+                    relations: vec![relation("requires")],
+                },
+            ),
+            adjudication: Some(AgentAdjudication {
+                decision,
+                reason: "Agent adjudication is evidence-backed".to_owned(),
+                evidence_ids: vec!["line-2-3".to_owned()],
+                selected_side,
+                revised_relations,
+            }),
+            adjudication_failure: None,
+            status: if decision == AgentDecision::Review {
+                ComparisonStatus::Review
+            } else {
+                ComparisonStatus::Completed
+            },
+            actor: "desktop-orchestrator".to_owned(),
+            recorded_at_unix_ms: 1_785_246_100_000,
+        };
+        persist_comparison_record(lease, &record).unwrap();
+        record
     }
 
     #[test]
@@ -722,6 +1003,123 @@ mod tests {
             .unwrap()
             .relations
             .is_empty());
+        assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
+        drop(lease);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imports_only_the_agent_selected_proposal_as_idempotent_review_relations() {
+        let (root, source, lease, operation_id) = fixture();
+        let source_before = fs::read(&source).unwrap();
+        let record = persist_comparison(
+            &lease,
+            &operation_id,
+            AgentDecision::Accept,
+            Some(ProposalSide::Agent),
+            vec![],
+        );
+
+        let imported = import_comparison_relations(&lease, &record.comparison_id).unwrap();
+        assert_eq!(imported.len(), 1);
+        assert_eq!(imported[0].relation_type, "requires");
+        assert_eq!(imported[0].status, RelationStatus::Review);
+        assert_eq!(imported[0].actor, "agent-adjudication-import");
+        assert_eq!(
+            imported[0].comparison_id.as_deref(),
+            Some(record.comparison_id.as_str())
+        );
+        assert_eq!(imported[0].evidence[0].start_line, 2);
+        assert_eq!(imported[0].evidence[0].end_line, 3);
+        assert_eq!(
+            imported[0].evidence[0].markdown_identity,
+            record.envelope.markdown_identity
+        );
+        assert_eq!(
+            import_comparison_relations(&lease, &record.comparison_id).unwrap(),
+            imported
+        );
+        let revised = decide_relation(
+            &lease,
+            &imported[0].relation_id,
+            1,
+            GraphDecision::Revise,
+            "User narrowed the imported claim",
+            Some(&RelationRevisionInput {
+                knowledge_revision: 1,
+                source_node: "MCU reset".to_owned(),
+                relation_type: "requires".to_owned(),
+                target_node: "Clock stabilization".to_owned(),
+                evidence_ranges: vec![EvidenceRange {
+                    start_line: 3,
+                    end_line: 3,
+                }],
+            }),
+        )
+        .unwrap();
+        let replayed = import_comparison_relations(&lease, &record.comparison_id).unwrap();
+        assert_eq!(replayed, vec![revised]);
+        assert_eq!(
+            inspect_graph(&lease, &operation_id).unwrap().relations,
+            replayed
+        );
+        assert_eq!(fs::read(source).unwrap(), source_before);
+        drop(lease);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn imports_agent_revisions_but_never_rejected_or_review_outcomes() {
+        let (root, source, lease, operation_id) = fixture();
+        let revised = persist_comparison(
+            &lease,
+            &operation_id,
+            AgentDecision::Revise,
+            None,
+            vec![relation("stabilized by")],
+        );
+        let imported = import_comparison_relations(&lease, &revised.comparison_id).unwrap();
+        assert_eq!(imported[0].relation_type, "stabilized by");
+
+        for decision in [AgentDecision::Reject, AgentDecision::Review] {
+            let record = persist_comparison(&lease, &operation_id, decision, None, vec![]);
+            assert!(import_comparison_relations(&lease, &record.comparison_id).is_err());
+        }
+        assert_eq!(
+            inspect_graph(&lease, &operation_id)
+                .unwrap()
+                .relations
+                .len(),
+            1
+        );
+        assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
+        drop(lease);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn rejects_import_when_committed_evidence_changes_after_comparison() {
+        let (root, source, lease, operation_id) = fixture();
+        let record = persist_comparison(
+            &lease,
+            &operation_id,
+            AgentDecision::Accept,
+            Some(ProposalSide::Desktop),
+            vec![],
+        );
+        fs::write(
+            root.join("vault/Knowledge")
+                .join(&operation_id)
+                .join("00000001.md"),
+            "# Tampered\nUnsupported evidence.\n",
+        )
+        .unwrap();
+
+        assert!(import_comparison_relations(&lease, &record.comparison_id).is_err());
+        assert!(fs::read_dir(root.join("vault/.aiks/graph/relations"))
+            .unwrap()
+            .next()
+            .is_none());
         assert_eq!(fs::read(source).unwrap(), SOURCE_BYTES);
         drop(lease);
         fs::remove_dir_all(root).unwrap();

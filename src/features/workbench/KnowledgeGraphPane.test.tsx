@@ -63,6 +63,7 @@ function client(): GraphClient {
   return {
     inspect: vi.fn().mockResolvedValue(snapshot),
     propose: vi.fn().mockResolvedValue(snapshot.relations[0]),
+    importComparison: vi.fn(),
     decide: vi.fn().mockResolvedValue(snapshot.relations[0]),
   };
 }

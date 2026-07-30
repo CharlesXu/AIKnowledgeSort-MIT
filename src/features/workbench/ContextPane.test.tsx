@@ -44,6 +44,7 @@ describe("ContextPane", () => {
     const graphClient = {
       inspect: vi.fn(),
       propose: vi.fn(),
+      importComparison: vi.fn(),
       decide: vi.fn(),
     } as GraphClient;
     const modelRuntimeClient = {
@@ -88,6 +89,7 @@ describe("ContextPane", () => {
     const graphClient: GraphClient = {
       inspect: vi.fn(),
       propose: vi.fn(),
+      importComparison: vi.fn(),
       decide: vi.fn(),
     };
     const modelRuntimeClient: ModelRuntimeClient = {
