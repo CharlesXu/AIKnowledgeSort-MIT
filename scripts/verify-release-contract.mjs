@@ -42,6 +42,14 @@ const tauriConfig = JSON.parse(tauriText);
 const mainCapability = JSON.parse(mainCapabilityText);
 const cargoVersion = cargoPackageVersion(cargoText);
 const violations = [];
+const runtimeDependencyNames = Object.keys({
+  ...packageJson.dependencies,
+  ...packageJson.optionalDependencies,
+});
+
+if (runtimeDependencyNames.some((name) => name.toLowerCase().includes("figma"))) {
+  violations.push("Figma must remain a design-only tool, not a runtime dependency");
+}
 
 if (
   cargoVersion === null

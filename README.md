@@ -49,6 +49,14 @@ and authorization evidence. Missing, unlisted, linked, or byte-changed assets
 fail the build. A third-party entry fails unless it carries a separate explicit
 clearance decision; the generated license sentinel tests both outcomes.
 
+The same release command verifies test traceability. All 75 first-release
+vectors in `docs/TEST_VECTORS.json` must appear exactly once in
+`docs/TEST_EVIDENCE.json`, with one or more anchors to Rust, frontend, browser,
+release-contract, or provenance checks that CI actually executes. Missing,
+duplicate, unknown, stale, linked, or non-CI evidence fails before packaging.
+The current contract resolves to 91 executable evidence anchors across all 46
+requirement IDs.
+
 ## Local source discovery platform scope
 
 The header **Add source** menu opens the native non-blocking file or folder
@@ -492,12 +500,15 @@ deterministic, replay-safe `review` relations. This does not accept graph
 relations automatically: the user must still accept, revise, or reject each
 relation in the graph panel.
 
-Model-generated naming facts, physical source renaming,
-user-controlled cleanup undo, automatic graph inference,
-model-generated knowledge, automatic grant reactivation, write-capable MCP
-tools, third-party runtime installation/configuration, GraphRAG
-indexing/retrieval, a 3D graph, and URL profile
-import through MCP remain unimplemented. Explicit review-only HTTPS profile
-import in the desktop UI is implemented as described above.
+Direct physical renaming of the source is intentionally not implemented: the
+confirmed archive receives the canonical name while the source remains
+byte-unchanged by default. User-controlled cleanup undo, automatic graph
+inference, model-generated knowledge, automatic grant reactivation,
+write-capable MCP tools, third-party runtime installation/configuration,
+GraphRAG indexing/retrieval, a 3D graph, and URL profile import through MCP
+remain future work or explicit non-goals. Explicit review-only HTTPS profile
+import in the desktop UI is implemented as described above, as are
+model-generated classification and canonical-name suggestions under Agent and
+user review.
 Those future integrations must use the same cited-fact, single-use batch, exact
 identity, explicit archive-confirmation, and Agent-grant boundaries.

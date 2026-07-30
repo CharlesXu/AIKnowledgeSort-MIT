@@ -148,6 +148,9 @@ jobs:
         if: runner.os == 'Windows'
         run: cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1 --nocapture
 
+      - name: Run MCP runtime smoke
+        run: cargo test --manifest-path src-tauri/Cargo.toml --test mcp_runtime_smoke -- --test-threads=1 --nocapture
+
       - name: Build unsigned desktop bundles
         run: npm run tauri build -- --ci --no-sign --bundles ${{ matrix.bundles }}
 
