@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import { AgentAccessPanel } from "./AgentAccessPanel";
 import type {
   AgentAccessClient,
@@ -63,6 +64,21 @@ function client(): AgentAccessClient {
 }
 
 describe("AgentAccessPanel", () => {
+  test("renders Agent and MCP controls in Simplified Chinese", async () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <AgentAccessPanel client={client()} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("Agent 授权")).toBeInTheDocument();
+    expect(screen.getByText("本地 MCP 服务")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "启动本地 MCP" }))
+      .toBeInTheDocument();
+    expect(screen.getByText("签发受限访问权限")).toBeInTheDocument();
+    expect(screen.queryByText("Agent grants")).toBeNull();
+  });
+
   test("creates a bounded grant from an opaque native selection and shows its token once", async () => {
     const agentClient = client();
     render(<AgentAccessPanel client={agentClient} />);

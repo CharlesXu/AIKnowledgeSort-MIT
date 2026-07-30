@@ -3,6 +3,7 @@ import {
   sanitizeMermaidSvg,
   validateMermaidSource,
 } from "./mermaidPolicy";
+import { useI18n } from "../../i18n/I18nContext";
 
 interface MermaidBlockProps {
   readonly source: string;
@@ -21,6 +22,7 @@ function rendererId(reactId: string): string {
 }
 
 export function MermaidBlock({ source }: MermaidBlockProps) {
+  const { t } = useI18n();
   const validation = useMemo(() => validateMermaidSource(source), [source]);
   const id = rendererId(useId());
   const [state, setState] = useState<RenderState>({ status: "idle" });
@@ -56,8 +58,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
         if (active) {
           setState({
             status: "error",
-            message:
-              "Check the diagram syntax and correct the highlighted Mermaid source.",
+            message: t("mermaid.syntaxHelp"),
           });
         }
       });
@@ -65,7 +66,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
     return () => {
       active = false;
     };
-  }, [id, source, validation]);
+  }, [id, source, t, validation]);
 
   const diagnostic = validation.ok
     ? state.status === "error"
@@ -79,15 +80,15 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
         <span>Mermaid</span>
         <small>
           {state.status === "loading"
-            ? "Rendering locally…"
+            ? t("mermaid.rendering")
             : diagnostic
-              ? "Source preserved"
-              : "Local diagram"}
+              ? t("mermaid.sourcePreserved")
+              : t("mermaid.localDiagram")}
         </small>
       </header>
       {state.status === "ready" ? (
         <div
-          aria-label="Rendered Mermaid diagram"
+          aria-label={t("mermaid.rendered")}
           className="mermaid-block__diagram"
           dangerouslySetInnerHTML={{ __html: state.svg }}
           role="img"
@@ -95,7 +96,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
       ) : null}
       {diagnostic ? (
         <p
-          aria-label="Mermaid diagnostic"
+          aria-label={t("mermaid.diagnostic")}
           className="mermaid-block__diagnostic"
           role="alert"
         >
@@ -103,7 +104,7 @@ export function MermaidBlock({ source }: MermaidBlockProps) {
         </p>
       ) : null}
       <details className="mermaid-block__source" open={diagnostic !== null}>
-        <summary>Mermaid source</summary>
+        <summary>{t("mermaid.source")}</summary>
         <pre>
           <code>{source}</code>
         </pre>

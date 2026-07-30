@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "../../i18n/I18nContext";
 import type { DiscoveredItem } from "../drop/types";
 import type {
   FileSemanticComparison,
@@ -36,6 +37,7 @@ function Provider({
   readonly label: string;
   readonly outcome: FileSemanticProviderOutcome;
 }) {
+  const { t } = useI18n();
   return (
     <section>
       <strong>{label}</strong>
@@ -43,23 +45,10 @@ function Provider({
       <p>
         {outcome.suggestion?.summary ??
           outcome.failureReason ??
-          "No validated suggestion"}
+          t("semantic.noSuggestion")}
       </p>
     </section>
   );
-}
-
-function adjudicationLabel(comparison: FileSemanticComparison): string {
-  const adjudication = comparison.adjudication;
-  if (adjudication === null) {
-    return "Agent review unavailable";
-  }
-  if (adjudication.decision === "accept" && adjudication.selectedSide !== null) {
-    return `Agent accepted ${
-      adjudication.selectedSide === "desktop" ? "Desktop" : "Agent"
-    }`;
-  }
-  return `Agent ${adjudication.decision}`;
 }
 
 export function FileSemanticReview({
@@ -73,6 +62,7 @@ export function FileSemanticReview({
   results,
   vaultSelected,
 }: FileSemanticReviewProps) {
+  const { t } = useI18n();
   const [runtime, setRuntime] = useState<ModelRuntimeState | null>(null);
   const [desktopConfigId, setDesktopConfigId] = useState("");
   const [agentConfigId, setAgentConfigId] = useState("");
@@ -137,27 +127,40 @@ export function FileSemanticReview({
   }
 
   const configs = runtime?.configs ?? [];
+  function adjudicationLabel(comparison: FileSemanticComparison): string {
+    const adjudication = comparison.adjudication;
+    if (adjudication === null) {
+      return t("semantic.reviewUnavailable");
+    }
+    if (adjudication.decision === "accept" && adjudication.selectedSide !== null) {
+      return adjudication.selectedSide === "desktop"
+        ? t("semantic.acceptedDesktop")
+        : t("semantic.acceptedAgent");
+    }
+    return t("semantic.decision", { decision: adjudication.decision });
+  }
+
   if (items.length === 0) {
     return null;
   }
 
   return (
     <section
-      aria-label="Two-model file semantic review"
+      aria-label={t("semantic.label")}
       className="archive-preview__semantic-review"
     >
       <header>
-        <strong>Two-model classification</strong>
-        <span>AGENT ADJUDICATED · READ ONLY</span>
+        <strong>{t("semantic.title")}</strong>
+        <span>{t("semantic.readOnly")}</span>
       </header>
       {configs.length < 2 ? (
-        <p>Configure two distinct models in Settings.</p>
+        <p>{t("semantic.configureTwo")}</p>
       ) : (
         <div className="archive-preview__model-pair">
           <label>
-            <span>Desktop model</span>
+            <span>{t("semantic.desktopModel")}</span>
             <select
-              aria-label="File semantic desktop model"
+              aria-label={t("semantic.desktopSelect")}
               disabled={pendingItemId !== null || disabled}
               onChange={(event) => setDesktopConfigId(event.target.value)}
               value={desktopConfigId}
@@ -170,9 +173,9 @@ export function FileSemanticReview({
             </select>
           </label>
           <label>
-            <span>Agent model</span>
+            <span>{t("semantic.agentModel")}</span>
             <select
-              aria-label="File semantic agent model"
+              aria-label={t("semantic.agentSelect")}
               disabled={pendingItemId !== null || disabled}
               onChange={(event) => setAgentConfigId(event.target.value)}
               value={agentConfigId}
@@ -201,7 +204,7 @@ export function FileSemanticReview({
             <header>
               <strong>{item.name}</strong>
               <button
-                aria-label={`Compare ${item.name} with two models`}
+                aria-label={t("semantic.compareLabel", { name: item.name })}
                 disabled={
                   disabled ||
                   !vaultSelected ||
@@ -212,7 +215,9 @@ export function FileSemanticReview({
                 onClick={() => void compare(item.itemId)}
                 type="button"
               >
-                {pendingItemId === item.itemId ? "Comparing…" : "Compare"}
+                {pendingItemId === item.itemId
+                  ? t("semantic.comparing")
+                  : t("semantic.compare")}
               </button>
             </header>
             {comparison === undefined ? null : (
@@ -221,14 +226,14 @@ export function FileSemanticReview({
                 <p>
                   {category?.path.join(" / ") ??
                     resolved?.uncertaintyReason ??
-                    "No resolved category"}
+                    t("semantic.noCategory")}
                 </p>
                 <div className="archive-preview__semantic-providers">
-                  <Provider label="Desktop" outcome={comparison.desktopOutcome} />
-                  <Provider label="Agent" outcome={comparison.agentOutcome} />
+                  <Provider label={t("semantic.desktop")} outcome={comparison.desktopOutcome} />
+                  <Provider label={t("semantic.agent")} outcome={comparison.agentOutcome} />
                 </div>
                 <button
-                  aria-label={`Apply reviewed suggestion for ${item.name}`}
+                  aria-label={t("semantic.applyLabel", { name: item.name })}
                   disabled={
                     resolved === null ||
                     resolved.categoryId === null ||
@@ -239,8 +244,8 @@ export function FileSemanticReview({
                   type="button"
                 >
                   {adoptedComparisonIds[item.itemId] === comparison.comparisonId
-                    ? "Applied to review form"
-                    : "Apply to review form"}
+                    ? t("semantic.applied")
+                    : t("semantic.apply")}
                 </button>
               </div>
             )}

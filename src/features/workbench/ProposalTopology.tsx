@@ -1,4 +1,5 @@
 import type { DiscoveryProposal } from "../drop/types";
+import { useI18n } from "../../i18n/I18nContext";
 
 interface ProposalTopologyProps {
   readonly proposal: DiscoveryProposal;
@@ -13,13 +14,14 @@ const positions = [
 ] as const;
 
 export function ProposalTopology({ proposal }: ProposalTopologyProps) {
+  const { t } = useI18n();
   const visibleItems = proposal.items.slice(0, positions.length);
 
   return (
-    <section aria-label="Proposal topology" className="proposal-topology">
+    <section aria-label={t("topology.label")} className="proposal-topology">
       <div className="proposal-topology__notice">
-        <strong>Proposal topology</strong>
-        <span>Not yet ingested</span>
+        <strong>{t("topology.label")}</strong>
+        <span>{t("topology.notIngested")}</span>
       </div>
       <div aria-hidden="true" className="proposal-topology__canvas">
         <svg preserveAspectRatio="none" viewBox="0 0 100 100">
@@ -37,7 +39,7 @@ export function ProposalTopology({ proposal }: ProposalTopologyProps) {
           className="proposal-topology__node proposal-topology__node--root"
           style={{ left: "50%", top: "48%" }}
         >
-          Review
+          {t("topology.review")}
         </span>
         {visibleItems.map((item, index) => (
           <span
@@ -55,15 +57,15 @@ export function ProposalTopology({ proposal }: ProposalTopologyProps) {
       </div>
       <div className="knowledge-timeline">
         <button
-          aria-label="Play knowledge timeline"
+          aria-label={t("graph.playTimeline")}
           disabled
-          title="Available after confirmed ingestion"
+          title={t("topology.availableAfterIngestion")}
           type="button"
         >
           ▶
         </button>
         <input
-          aria-label="Knowledge timeline position"
+          aria-label={t("graph.timelinePosition")}
           disabled
           max="100"
           min="0"
@@ -72,7 +74,7 @@ export function ProposalTopology({ proposal }: ProposalTopologyProps) {
           readOnly
         />
         <select
-          aria-label="Knowledge timeline speed"
+          aria-label={t("graph.timelineSpeed")}
           defaultValue="1"
           disabled
         >
@@ -80,7 +82,7 @@ export function ProposalTopology({ proposal }: ProposalTopologyProps) {
         </select>
       </div>
       <p className="knowledge-timeline__status">
-        Timeline playback is available after confirmed ingestion.
+        {t("topology.timelineHelp")}
       </p>
     </section>
   );

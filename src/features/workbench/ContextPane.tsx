@@ -8,6 +8,7 @@ import type { GraphClient } from "../graph/types";
 import type { KnowledgeDocument } from "../knowledge/types";
 import type { ModelRuntimeClient } from "../models/types";
 import { AgentReviewPane } from "../models/AgentReviewPane";
+import { useI18n } from "../../i18n/I18nContext";
 
 interface ContextPaneProps {
   readonly collapsed: boolean;
@@ -34,18 +35,19 @@ export function ContextPane({
   proposal,
   modelRuntimeClient,
 }: ContextPaneProps) {
+  const { t } = useI18n();
   return (
     <aside
-      aria-label="Import review context"
+      aria-label={t("context.label")}
       className={`context-pane${collapsed ? " context-pane--collapsed" : ""}`}
       data-collapse-at="1440"
     >
       {collapsed ? (
         <button
-          aria-label="Expand Import review context"
+          aria-label={t("context.expand")}
           className="pane-restore-control pane-restore-control--context"
           onClick={() => onCollapsedChange(false)}
-          title="Expand Import review context"
+          title={t("context.expand")}
           type="button"
         >
           <Icon name="chevron" size={14} />
@@ -60,7 +62,7 @@ export function ContextPane({
                 role="tab"
                 type="button"
               >
-                Knowledge Graph
+                {t("context.graph")}
               </button>
               <button
                 aria-selected={mode === "review"}
@@ -68,7 +70,7 @@ export function ContextPane({
                 role="tab"
                 type="button"
               >
-                Import Review
+                {t("context.importReview")}
               </button>
               <button
                 aria-selected={mode === "agent"}
@@ -76,14 +78,14 @@ export function ContextPane({
                 role="tab"
                 type="button"
               >
-                Agent Review
+                {t("context.agentReview")}
               </button>
             </div>
             <button
-              aria-label="Collapse Import review context"
+              aria-label={t("context.collapse")}
               className="pane-collapse-control"
               onClick={() => onCollapsedChange(true)}
-              title="Collapse Import review context"
+              title={t("context.collapse")}
               type="button"
             >
               <Icon name="chevron" size={13} />

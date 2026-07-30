@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  statusTranslationKey,
+  useI18n,
+} from "../../i18n/I18nContext";
 import type {
   ProfileCandidateRecord,
   ProfileClient,
@@ -33,21 +37,24 @@ function errorMessage(error: unknown): string {
 function CandidateDiff({ candidate }: {
   readonly candidate: ProfileCandidateRecord;
 }) {
+  const { t } = useI18n();
   const ruleChanges = [
     ...candidate.diff.addedRuleIds.map((ruleId) => ["+", ruleId] as const),
     ...candidate.diff.changedRuleIds.map((ruleId) => ["~", ruleId] as const),
     ...candidate.diff.removedRuleIds.map((ruleId) => ["−", ruleId] as const),
   ];
-  const categorySummary = `Taxonomy +${candidate.diff.addedCategoryIds.length}`
-    + ` · ~${candidate.diff.changedCategoryIds.length}`
-    + ` · −${candidate.diff.removedCategoryIds.length}`;
+  const categorySummary = t("profile.taxonomyDiff", {
+    added: candidate.diff.addedCategoryIds.length,
+    changed: candidate.diff.changedCategoryIds.length,
+    removed: candidate.diff.removedCategoryIds.length,
+  });
 
   return (
     <>
       <p className="profile-taxonomy-diff">{categorySummary}</p>
-      <ul aria-label="Candidate rule changes" className="profile-diff">
+      <ul aria-label={t("profile.ruleChanges")} className="profile-diff">
       {ruleChanges.length === 0 ? (
-        <li><span>·</span>No rule changes</li>
+        <li><span>·</span>{t("profile.noRuleChanges")}</li>
       ) : ruleChanges.map(([marker, ruleId]) => (
         <li key={`${marker}-${ruleId}`}>
           <span aria-hidden="true">{marker}</span>
@@ -62,6 +69,7 @@ function CandidateDiff({ candidate }: {
 export function ProfileReview({ client }: {
   readonly client: ProfileClient;
 }) {
+  const { t } = useI18n();
   const [state, setState] = useState<ProfileStateSummary | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +112,7 @@ export function ProfileReview({ client }: {
     (profile) => `${profile.profileId}@${profile.version}` === compilerBaseKey,
   ) ?? installed;
   const candidate = state?.candidates[0] ?? null;
+  const installedStatusKey = statusTranslationKey(installed.status);
 
   async function importCandidate(): Promise<void> {
     setBusy(true);
@@ -181,9 +190,11 @@ export function ProfileReview({ client }: {
     <div className="profile-review">
       <section className="context-section" aria-labelledby="profile-mode">
         <div className="profile-section-heading">
-          <h3 id="profile-mode">Classification mode</h3>
+          <h3 id="profile-mode">{t("profile.classificationMode")}</h3>
           <span className={`profile-status profile-status--${installed.status}`}>
-            {installed.status.toUpperCase()}
+            {installedStatusKey
+              ? t(installedStatusKey)
+              : installed.status.toUpperCase()}
           </span>
         </div>
         <strong className="profile-title">{installed.title}</strong>
@@ -191,56 +202,56 @@ export function ProfileReview({ client }: {
           {installed.version}
         </p>
         <p className="profile-meta">
-          {installed.categoryCount} categories ·{" "}
+          {t("profile.categories", { count: installed.categoryCount })} ·{" "}
           {installed.taxonomyCounts.level1} / {installed.taxonomyCounts.level2}
           {" / "}
           {installed.taxonomyCounts.level3} / {installed.taxonomyCounts.level4}
         </p>
         <p className="profile-meta">
           {installed.ruleCount === 0
-            ? "0 executable rules — semantic review required"
-            : `${installed.ruleCount} executable rules`}
+            ? t("profile.noExecutableRules")
+            : t("profile.executableRules", { count: installed.ruleCount })}
         </p>
-        <ul aria-label="Profile governance" className="profile-policy">
+        <ul aria-label={t("profile.governance")} className="profile-policy">
           {installed.uniquePrimaryArchiveCategory ? (
-            <li>One primary archive category</li>
+            <li>{t("profile.onePrimary")}</li>
           ) : null}
           {installed.crossDomainKnowledgeLinks ? (
-            <li>Cross-domain knowledge links</li>
+            <li>{t("profile.crossDomain")}</li>
           ) : null}
         </ul>
         <p className="profile-provenance">{installed.provenanceTitle}</p>
         {state?.active ? (
           <span className="profile-active">
-            Approved and active · {state.active.version}
+            {t("profile.approvedActive", { version: state.active.version })}
           </span>
         ) : (
           <span className="profile-inactive">
-            Discussion draft — not approved or active
+            {t("profile.draftInactive")}
           </span>
         )}
       </section>
 
       <section className="context-section" aria-labelledby="profile-import">
         <div className="profile-section-heading">
-          <h3 id="profile-import">Candidate import</h3>
+          <h3 id="profile-import">{t("profile.candidateImport")}</h3>
           <button
             className="profile-import-button"
             disabled={busy}
             onClick={() => void importCandidate()}
             type="button"
           >
-            Import local profile
+            {t("profile.importLocal")}
           </button>
         </div>
         <p className="profile-help">
-          Declarative data only. Source bytes and digest remain in the Vault.
+          {t("profile.declarativeHelp")}
         </p>
         <p className="profile-help">
-          HTTPS JSON only. Query and fragment values are never retained.
+          {t("profile.httpsHelp")}
         </p>
         <div className="profile-url-import">
-          <label htmlFor="profile-url">Profile URL</label>
+          <label htmlFor="profile-url">{t("profile.url")}</label>
           <div className="profile-url-import__controls">
             <input
               autoComplete="off"
@@ -258,7 +269,7 @@ export function ProfileReview({ client }: {
               onClick={() => void importUrlCandidate()}
               type="button"
             >
-              Import URL
+              {t("profile.importUrl")}
             </button>
           </div>
         </div>
@@ -266,18 +277,16 @@ export function ProfileReview({ client }: {
 
       <section className="context-section" aria-labelledby="profile-compiler">
         <div className="profile-section-heading">
-          <h3 id="profile-compiler">AI candidate compiler</h3>
+          <h3 id="profile-compiler">{t("profile.compiler")}</h3>
           <span className="profile-status profile-status--candidate">
-            REVIEW ONLY
+            {t("profile.reviewOnly")}
           </span>
         </div>
         <p className="profile-help">
-          UTF-8 text, Markdown, HTML, or JSON. The exact source is backed up;
-          the selected model receives its text, and generated data remains
-          unapproved.
+          {t("profile.compilerHelp")}
         </p>
         <div className="profile-url-import">
-          <label htmlFor="compiler-base">Base profile</label>
+          <label htmlFor="compiler-base">{t("profile.baseProfile")}</label>
           <select
             disabled={busy}
             id="compiler-base"
@@ -293,7 +302,7 @@ export function ProfileReview({ client }: {
               </option>
             ))}
           </select>
-          <label htmlFor="compiler-config">Model configuration ID</label>
+          <label htmlFor="compiler-config">{t("profile.modelConfigId")}</label>
           <input
             autoComplete="off"
             disabled={busy}
@@ -303,7 +312,7 @@ export function ProfileReview({ client }: {
             spellCheck={false}
             value={compilerConfigId}
           />
-          <label htmlFor="compiler-version">Candidate version</label>
+          <label htmlFor="compiler-version">{t("profile.candidateVersion")}</label>
           <input
             autoComplete="off"
             disabled={busy}
@@ -313,16 +322,16 @@ export function ProfileReview({ client }: {
             spellCheck={false}
             value={compilerVersion}
           />
-          <label htmlFor="compiler-source-title">Source title</label>
+          <label htmlFor="compiler-source-title">{t("profile.sourceTitle")}</label>
           <input
             autoComplete="off"
             disabled={busy}
             id="compiler-source-title"
             onChange={(event) => setCompilerSourceTitle(event.target.value)}
-            placeholder="Formal notice or discussion draft"
+            placeholder={t("profile.sourceTitlePlaceholder")}
             value={compilerSourceTitle}
           />
-          <label htmlFor="compiler-ownership">Source authority</label>
+          <label htmlFor="compiler-ownership">{t("profile.sourceAuthority")}</label>
           <select
             disabled={busy}
             id="compiler-ownership"
@@ -331,8 +340,8 @@ export function ProfileReview({ client }: {
             )}
             value={compilerOwnership}
           >
-            <option value="owned">Owned</option>
-            <option value="firstPartyAuthorized">First-party authorized</option>
+            <option value="owned">{t("profile.owned")}</option>
+            <option value="firstPartyAuthorized">{t("profile.firstPartyAuthorized")}</option>
           </select>
           <button
             className="profile-import-button"
@@ -345,7 +354,7 @@ export function ProfileReview({ client }: {
             onClick={() => void compileCandidate()}
             type="button"
           >
-            Compile local source
+            {t("profile.compileLocal")}
           </button>
         </div>
       </section>
@@ -355,7 +364,9 @@ export function ProfileReview({ client }: {
           <div className="profile-section-heading">
             <h3 id="profile-candidate">{candidate.sourceBasename}</h3>
             <span className={`profile-status profile-status--${candidate.status}`}>
-              {candidate.status.toUpperCase()}
+              {statusTranslationKey(candidate.status)
+                ? t(statusTranslationKey(candidate.status)!)
+                : candidate.status.toUpperCase()}
             </span>
           </div>
           <p className="profile-meta">
@@ -363,14 +374,16 @@ export function ProfileReview({ client }: {
           </p>
           <p className="profile-meta">
             {candidate.sourceKind === "remoteUrl"
-              ? "Remote URL"
+              ? t("profile.remoteUrl")
               : candidate.sourceKind === "modelGenerated"
-                ? "Model generated"
-                : "Local file"}
+                ? t("profile.modelGenerated")
+                : t("profile.localFile")}
             {" · "}
             {candidate.sourceByteSize > 0
-              ? `${candidate.sourceByteSize.toLocaleString()} bytes`
-              : "size unavailable"}
+              ? t("profile.bytes", {
+                  count: candidate.sourceByteSize.toLocaleString(),
+                })
+              : t("profile.sizeUnavailable")}
           </p>
           <code className="profile-digest" title={candidate.sourceIdentity.digest}>
             SHA-256 {candidate.sourceIdentity.digest.slice(0, 12)}…
@@ -378,9 +391,11 @@ export function ProfileReview({ client }: {
           {candidate.generation ? (
             <div className="profile-generation">
               <p className="profile-meta">
-                Source · {candidate.generation.originalSourceBasename}
+                {t("profile.source")} · {candidate.generation.originalSourceBasename}
                 {" · "}
-                {candidate.generation.originalSourceByteSize.toLocaleString()} bytes
+                {t("profile.bytes", {
+                  count: candidate.generation.originalSourceByteSize.toLocaleString(),
+                })}
               </p>
               <code
                 className="profile-digest"
@@ -390,8 +405,8 @@ export function ProfileReview({ client }: {
                 {candidate.generation.originalSourceIdentity.digest.slice(0, 12)}…
               </code>
               <p className="profile-meta">
-                Model · {candidate.generation.modelConfigId}
-                {" · Base "}
+                {t("profile.modelSource")} · {candidate.generation.modelConfigId}
+                {" · "}{t("profile.base")}{" "}
                 {candidate.generation.base.profileId}@
                 {candidate.generation.base.version}
               </p>
@@ -408,25 +423,27 @@ export function ProfileReview({ client }: {
                   )}
                   type="checkbox"
                 />
-                I reviewed SHA-256 digest {candidate.sourceIdentity.digest.slice(0, 12)}…
+                {t("profile.reviewedDigest", {
+                  digest: candidate.sourceIdentity.digest.slice(0, 12),
+                })}
               </label>
               <div className="profile-actions">
                 <button
-                  aria-label="Reject profile"
+                  aria-label={t("profile.rejectLabel")}
                   disabled={busy || reviewedCandidateId !== candidate.candidateId}
                   onClick={() => void decide("reject")}
                   type="button"
                 >
-                  Reject
+                  {t("profile.reject")}
                 </button>
                 <button
-                  aria-label="Approve profile"
+                  aria-label={t("profile.approveLabel")}
                   className="profile-actions__approve"
                   disabled={busy || reviewedCandidateId !== candidate.candidateId}
                   onClick={() => void decide("approve")}
                   type="button"
                 >
-                  Approve exact digest
+                  {t("profile.approveExact")}
                 </button>
               </div>
             </>
@@ -434,8 +451,8 @@ export function ProfileReview({ client }: {
         </section>
       ) : (
         <section className="context-section context-section--deferred">
-          <h3>No candidate awaiting review</h3>
-          <p>Import a formal notice or draft exported as a profile JSON file.</p>
+          <h3>{t("profile.noCandidate")}</h3>
+          <p>{t("profile.noCandidateHelp")}</p>
         </section>
       )}
 

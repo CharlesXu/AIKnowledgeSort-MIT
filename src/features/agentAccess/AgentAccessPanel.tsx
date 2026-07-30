@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  statusTranslationKey,
+  useI18n,
+  type TranslationKey,
+} from "../../i18n/I18nContext";
 import type {
   AgentAccessClient,
   AgentAccessState,
@@ -18,6 +23,7 @@ function errorMessage(error: unknown): string {
 }
 
 export function AgentAccessPanel({ client }: { readonly client: AgentAccessClient }) {
+  const { t } = useI18n();
   const [state, setState] = useState<AgentAccessState | null>(null);
   const [selection, setSelection] = useState<NativeScopeSelection | null>(null);
   const [agentId, setAgentId] = useState("");
@@ -183,30 +189,38 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
     : null;
 
   const canIssue = Boolean(selection && agentId && label && toolIds.length);
+  const toolTitleKeys: Readonly<Record<string, TranslationKey>> = {
+    "capabilities.read": "agentAccess.toolCapabilities",
+    "knowledge.read": "agentAccess.toolKnowledge",
+    "graph.read": "agentAccess.toolGraph",
+    "comparison.run": "agentAccess.toolComparison",
+    "classification.propose": "agentAccess.toolClassification",
+    "cleanup.suggest": "agentAccess.toolCleanup",
+  };
 
   return (
     <div className="agent-access">
       <section aria-labelledby="agent-grants-heading" className="agent-access__grants">
         <div className="agent-access__section-heading">
           <div>
-            <h3 id="agent-grants-heading">Agent grants</h3>
-            <p>Persistent metadata · runtime capabilities never reopen silently</p>
+            <h3 id="agent-grants-heading">{t("agentAccess.grants")}</h3>
+            <p>{t("agentAccess.persistence")}</p>
           </div>
           <code>{state?.toolCatalogVersion ?? "agent-tools-v1"}</code>
         </div>
-        <section aria-label="Local MCP broker" className="agent-transport">
+        <section aria-label={t("agentAccess.broker")} className="agent-transport">
           <div>
-            <strong>Local MCP broker</strong>
-            <span>{transport?.running ? "RUNNING · loopback only" : "STOPPED"}</span>
+            <strong>{t("agentAccess.broker")}</strong>
+            <span>{transport?.running ? t("agentAccess.running") : t("agentAccess.stopped")}</span>
           </div>
           {transport?.url ? <code>{transport.url}</code> : null}
           {transport?.running ? (
             <button disabled={busy} onClick={() => void stopTransport()} type="button">
-              Stop local MCP
+              {t("agentAccess.stop")}
             </button>
           ) : (
             <button disabled={busy} onClick={() => void startTransport()} type="button">
-              Start local MCP
+              {t("agentAccess.start")}
             </button>
           )}
         </section>
@@ -215,43 +229,47 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
             <div className="agent-grant-row__title">
               <strong>{grant.label}</strong>
               <span className={`agent-grant-status agent-grant-status--${grant.status}`}>
-                {grant.status.toUpperCase()}
+                {statusTranslationKey(grant.status)
+                  ? t(statusTranslationKey(grant.status)!)
+                  : grant.status.toUpperCase()}
               </span>
             </div>
             <span>{grant.agentId}</span>
             <p>{grant.toolIds.join(" · ")}</p>
             {grant.allowedHttpOrigins.map((origin) => <code key={origin}>{origin}</code>)}
             {grant.scopes.map((scope) => <code key={scope.scopeId}>{scope.displayPath}</code>)}
-            <small>Expires {new Date(grant.expiresAtUnixMs).toLocaleString()}</small>
+            <small>{t("agentAccess.expires", {
+              time: new Date(grant.expiresAtUnixMs).toLocaleString(),
+            })}</small>
             {grant.status === "active" || grant.status === "inactive" ? (
               <button
                 disabled={busy}
                 onClick={() => void revoke(grant.grantId)}
                 type="button"
               >
-                Revoke {grant.label}
+                {t("agentAccess.revoke", { label: grant.label })}
               </button>
             ) : null}
           </article>
-        )) : <p className="model-settings__empty">No Agent grants.</p>}
+        )) : <p className="model-settings__empty">{t("agentAccess.none")}</p>}
         {issuedToken ? (
           <div className="agent-token" role="status">
-            <strong>One-time grant token</strong>
-            <p>This token cannot be recovered after dismissal. Configure it only in the intended local Agent runtime.</p>
+            <strong>{t("agentAccess.oneTimeToken")}</strong>
+            <p>{t("agentAccess.tokenWarning")}</p>
             <code>{issuedToken}</code>
             {directHttpTemplate && stdioTemplate ? (
               <div className="agent-token__templates">
                 <label>
-                  Direct HTTP configuration
-                  <textarea aria-label="Direct HTTP configuration" readOnly value={directHttpTemplate} />
+                  {t("agentAccess.httpConfig")}
+                  <textarea aria-label={t("agentAccess.httpConfig")} readOnly value={directHttpTemplate} />
                 </label>
                 <label>
-                  stdio relay configuration
-                  <textarea aria-label="stdio relay configuration" readOnly value={stdioTemplate} />
+                  {t("agentAccess.stdioConfig")}
+                  <textarea aria-label={t("agentAccess.stdioConfig")} readOnly value={stdioTemplate} />
                 </label>
               </div>
             ) : null}
-            <button onClick={dismissToken} type="button">Dismiss token</button>
+            <button onClick={dismissToken} type="button">{t("agentAccess.dismiss")}</button>
           </div>
         ) : null}
       </section>
@@ -263,78 +281,84 @@ export function AgentAccessPanel({ client }: { readonly client: AgentAccessClien
           void issueGrant();
         }}
       >
-        <h3>Issue bounded access</h3>
+        <h3>{t("agentAccess.issueTitle")}</h3>
         <label>
-          Agent ID
+          {t("agentAccess.agentId")}
           <input onChange={(event) => setAgentId(event.target.value)} value={agentId} />
         </label>
         <label>
-          Grant label
+          {t("agentAccess.grantLabel")}
           <input onChange={(event) => setLabel(event.target.value)} value={label} />
         </label>
         <label htmlFor="agent-http-origins">
-          Allowed HTTP origins
+          {t("agentAccess.origins")}
           <textarea
             aria-describedby="agent-origin-help"
             id="agent-http-origins"
             onChange={(event) => setAllowedOriginText(event.target.value)}
-            placeholder="Optional · one literal loopback origin per line"
+            placeholder={t("agentAccess.originsPlaceholder")}
             value={allowedOriginText}
           />
         </label>
         <small id="agent-origin-help">
-          Browser callers only. Use canonical http://127.0.0.1:port origins; stdio and native clients may omit Origin.
+          {t("agentAccess.originsHelp")}
         </small>
         <div className="agent-scope-picker">
           <button disabled={busy} onClick={() => void chooseDirectories()} type="button">
-            Choose directories
+            {t("agentAccess.chooseDirectories")}
           </button>
           {selection?.scopes.map((scope) => (
             <code key={scope.scopeId}>{scope.displayPath}</code>
           ))}
-          {!selection ? <span>No native scope selected.</span> : null}
+          {!selection ? <span>{t("agentAccess.noScope")}</span> : null}
         </div>
         <fieldset className="agent-tool-list">
-          <legend>Allowed tools</legend>
-          {state?.tools.map((tool) => (
-            <label key={tool.toolId}>
-              <input
-                aria-label={tool.title}
-                checked={toolIds.includes(tool.toolId)}
-                onChange={() => toggleTool(tool.toolId)}
-                type="checkbox"
-              />
-              <span>
-                {tool.title}
-                <small>{tool.toolId} · {tool.effect === "read" ? "Read" : "Semantic advice"}</small>
-              </span>
-            </label>
-          ))}
+          <legend>{t("agentAccess.allowedTools")}</legend>
+          {state?.tools.map((tool) => {
+            const titleKey = toolTitleKeys[tool.toolId];
+            const localizedTitle = titleKey ? t(titleKey) : tool.title;
+            return (
+              <label key={tool.toolId}>
+                <input
+                  aria-label={localizedTitle}
+                  checked={toolIds.includes(tool.toolId)}
+                  onChange={() => toggleTool(tool.toolId)}
+                  type="checkbox"
+                />
+                <span>
+                  {localizedTitle}
+                  <small>{tool.toolId} · {tool.effect === "read"
+                    ? t("agentAccess.effectRead")
+                    : t("agentAccess.effectAdvice")}</small>
+                </span>
+              </label>
+            );
+          })}
         </fieldset>
         <div className="agent-limit-grid">
           <label>
-            Expiry (hours)
+            {t("agentAccess.expiryHours")}
             <input min="0.0166667" max="720" step="any" type="number" value={expiryHours}
               onChange={(event) => setExpiryHours(event.target.value)} />
           </label>
           <label>
-            Maximum requests
+            {t("agentAccess.maxRequests")}
             <input min="1" max="100000" type="number" value={limits.maxRequestsPerSession}
               onChange={(event) => updateLimits({ maxRequestsPerSession: Number(event.target.value) })} />
           </label>
           <label>
-            Request bytes
+            {t("agentAccess.requestBytes")}
             <input min="1024" max="1048576" type="number" value={limits.maxRequestBytes}
               onChange={(event) => updateLimits({ maxRequestBytes: Number(event.target.value) })} />
           </label>
           <label>
-            Response bytes
+            {t("agentAccess.responseBytes")}
             <input min="1024" max="4194304" type="number" value={limits.maxResponseBytes}
               onChange={(event) => updateLimits({ maxResponseBytes: Number(event.target.value) })} />
           </label>
         </div>
         <button className="model-settings__save" disabled={busy || !canIssue} type="submit">
-          {busy ? "Working…" : "Issue Agent grant"}
+          {busy ? t("agentAccess.working") : t("agentAccess.issue")}
         </button>
       </form>
       {error ? <p className="model-settings__error agent-access__error" role="alert">{error}</p> : null}

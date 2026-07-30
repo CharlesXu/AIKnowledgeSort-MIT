@@ -1,4 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import {
+  statusTranslationKey,
+  useI18n,
+} from "../../i18n/I18nContext";
 import type { GraphClient, GraphEvent, GraphRelation, GraphSnapshot } from "../graph/types";
 import type { KnowledgeDocument } from "../knowledge/types";
 
@@ -48,6 +52,7 @@ function graphLayout(events: readonly GraphEvent[]): ReadonlyMap<string, { x: nu
 }
 
 export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps) {
+  const { t } = useI18n();
   const [snapshot, setSnapshot] = useState<GraphSnapshot | null>(null);
   const [draft, setDraft] = useState<RelationDraft>(emptyDraft);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -180,13 +185,16 @@ export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps
 
   const activeEvent = position > 0 ? snapshot?.events[position - 1] : undefined;
   return (
-    <section aria-label="Knowledge graph" className="knowledge-graph">
+    <section aria-label={t("graph.label")} className="knowledge-graph">
       <div className="knowledge-graph__notice">
-        <div><strong>Evidence graph</strong><span>Vault revision {document.revision}</span></div>
-        <span>{snapshot?.relations.length ?? 0} relations</span>
+        <div>
+          <strong>{t("graph.evidenceGraph")}</strong>
+          <span>{t("graph.vaultRevision", { revision: document.revision })}</span>
+        </div>
+        <span>{t("graph.relationsCount", { count: snapshot?.relations.length ?? 0 })}</span>
       </div>
       {error !== null ? <p className="knowledge-graph__error" role="alert">{error}</p> : null}
-      <div aria-label="Knowledge network" className="knowledge-graph__canvas" role="img">
+      <div aria-label={t("graph.network")} className="knowledge-graph__canvas" role="img">
         <svg aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 100 100">
           {visibleEvents.map((event) => {
             const source = nodeLayout.get(event.sourceNode);
@@ -206,11 +214,13 @@ export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps
             {name}
           </span>
         ))}
-        {visibleEvents.length === 0 ? <span className="knowledge-graph__empty">No persisted relations</span> : null}
+        {visibleEvents.length === 0 ? (
+          <span className="knowledge-graph__empty">{t("graph.noRelations")}</span>
+        ) : null}
       </div>
       <div className="knowledge-timeline" data-height="34">
         <button
-          aria-label={playing ? "Pause knowledge timeline" : "Play knowledge timeline"}
+          aria-label={playing ? t("graph.pauseTimeline") : t("graph.playTimeline")}
           disabled={(snapshot?.events.length ?? 0) === 0}
           onClick={() => {
             if (!playing && snapshot !== null && position >= snapshot.events.length) setPosition(0);
@@ -219,7 +229,7 @@ export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps
           type="button"
         >{playing ? "Ⅱ" : "▶"}</button>
         <input
-          aria-label="Knowledge timeline position"
+          aria-label={t("graph.timelinePosition")}
           disabled={(snapshot?.events.length ?? 0) === 0}
           max={snapshot?.events.length ?? 0}
           min="0"
@@ -227,26 +237,30 @@ export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps
           type="range"
           value={position}
         />
-        <select aria-label="Knowledge timeline speed" onChange={(event) => setSpeed(Number(event.target.value))} value={speed}>
+        <select aria-label={t("graph.timelineSpeed")} onChange={(event) => setSpeed(Number(event.target.value))} value={speed}>
           <option value="1">1×</option><option value="2">2×</option>
         </select>
       </div>
       <p className="knowledge-timeline__status">
-        {activeEvent ? `${activeEvent.status} · ${new Date(activeEvent.recordedAtUnixMs).toLocaleString()}` : "Start of graph history"}
+        {activeEvent
+          ? `${statusTranslationKey(activeEvent.status)
+              ? t(statusTranslationKey(activeEvent.status)!)
+              : activeEvent.status} · ${new Date(activeEvent.recordedAtUnixMs).toLocaleString()}`
+          : t("graph.historyStart")}
       </p>
       <form className="knowledge-graph__form" onSubmit={(event) => { event.preventDefault(); void propose(); }}>
-        <input aria-label="Relation source node" onChange={(event) => updateDraft("sourceNode", event.target.value)} placeholder="Source node" value={draft.sourceNode} />
-        <input aria-label="Relation type" onChange={(event) => updateDraft("relationType", event.target.value)} placeholder="Relation" value={draft.relationType} />
-        <input aria-label="Relation target node" onChange={(event) => updateDraft("targetNode", event.target.value)} placeholder="Target node" value={draft.targetNode} />
+        <input aria-label={t("graph.sourceNode")} onChange={(event) => updateDraft("sourceNode", event.target.value)} placeholder={t("graph.sourceNodePlaceholder")} value={draft.sourceNode} />
+        <input aria-label={t("graph.relationType")} onChange={(event) => updateDraft("relationType", event.target.value)} placeholder={t("graph.relationPlaceholder")} value={draft.relationType} />
+        <input aria-label={t("graph.targetNode")} onChange={(event) => updateDraft("targetNode", event.target.value)} placeholder={t("graph.targetNodePlaceholder")} value={draft.targetNode} />
         <div className="knowledge-graph__range">
-          <input aria-label="Evidence start line" min="1" onChange={(event) => updateDraft("startLine", event.target.value)} type="number" value={draft.startLine} />
+          <input aria-label={t("graph.evidenceStart")} min="1" onChange={(event) => updateDraft("startLine", event.target.value)} type="number" value={draft.startLine} />
           <span>–</span>
-          <input aria-label="Evidence end line" min="1" onChange={(event) => updateDraft("endLine", event.target.value)} type="number" value={draft.endLine} />
+          <input aria-label={t("graph.evidenceEnd")} min="1" onChange={(event) => updateDraft("endLine", event.target.value)} type="number" value={draft.endLine} />
         </div>
-        <button disabled={pending || document.revision === 0} type="submit">Add relation</button>
+        <button disabled={pending || document.revision === 0} type="submit">{t("graph.addRelation")}</button>
       </form>
-      {document.revision === 0 ? <p className="knowledge-graph__hint">Save a Vault revision before adding relations.</p> : null}
-      <div aria-label="Graph relations" className="knowledge-graph__relations" role="list">
+      {document.revision === 0 ? <p className="knowledge-graph__hint">{t("graph.saveFirst")}</p> : null}
+      <div aria-label={t("graph.relations")} className="knowledge-graph__relations" role="list">
         {snapshot?.relations.map((relation) => (
           <div key={relation.relationId} role="listitem">
             <button
@@ -255,24 +269,31 @@ export function KnowledgeGraphPane({ client, document }: KnowledgeGraphPaneProps
               type="button"
             >
               <strong>{relation.sourceNode} {relation.relationType} {relation.targetNode}</strong>
-              <span>{relation.status} · v{relation.version}</span>
+              <span>
+                {statusTranslationKey(relation.status)
+                  ? t(statusTranslationKey(relation.status)!)
+                  : relation.status} · v{relation.version}
+              </span>
             </button>
           </div>
         ))}
       </div>
       {selected !== undefined ? (
-        <section aria-label="Relation evidence" className="knowledge-graph__evidence">
+        <section aria-label={t("graph.relationEvidence")} className="knowledge-graph__evidence">
           {selected.evidence.map((evidence) => (
             <blockquote key={`${evidence.startLine}-${evidence.endLine}`}>
-              <span>Lines {evidence.startLine}–{evidence.endLine}</span>{evidence.text}
+              <span>{t("graph.lines", {
+                start: evidence.startLine,
+                end: evidence.endLine,
+              })}</span>{evidence.text}
             </blockquote>
           ))}
           {selected.status === "review" ? (
             <div className="knowledge-graph__decisions">
-              <input aria-label="Relation decision reason" onChange={(event) => setReason(event.target.value)} placeholder="Decision reason" value={reason} />
-              <button disabled={pending} onClick={() => void decide("accept")} type="button">Accept</button>
-              <button disabled={pending} onClick={() => void decide("revise")} type="button">Revise</button>
-              <button disabled={pending} onClick={() => void decide("reject")} type="button">Reject</button>
+              <input aria-label={t("graph.decisionReason")} onChange={(event) => setReason(event.target.value)} placeholder={t("graph.decisionReasonPlaceholder")} value={reason} />
+              <button disabled={pending} onClick={() => void decide("accept")} type="button">{t("graph.accept")}</button>
+              <button disabled={pending} onClick={() => void decide("revise")} type="button">{t("graph.revise")}</button>
+              <button disabled={pending} onClick={() => void decide("reject")} type="button">{t("graph.reject")}</button>
             </div>
           ) : null}
         </section>

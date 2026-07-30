@@ -11,10 +11,11 @@ The repository now contains the first independently implemented desktop
 milestones described below.
 
 Settings provides a persisted English/简体中文 interface selector. The
-application header, tool rail, source discovery surface, status bar, Settings,
-and model configuration flow switch immediately and restore the selected
-language on the next launch; stored classification and knowledge identifiers
-remain language-neutral.
+application shell, source discovery, profile review, archive workflow, document
+workspace, Markdown/Mermaid controls, graph timeline, model comparison, Agent
+access, Settings, and status surfaces switch immediately and restore the
+selected language on the next launch. User content, model names, classification
+identifiers, and knowledge identifiers remain unchanged and language-neutral.
 
 License: MIT
 

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 const extendedFixture = `---
@@ -39,6 +40,19 @@ afterEach(() => {
 });
 
 describe("MarkdownPreview", () => {
+  test("localizes preview chrome without changing document content", () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <MarkdownPreview source={extendedFixture} />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("region", { name: "文档预览" })).toBeInTheDocument();
+    expect(screen.getByText("前置元数据")).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "任务已完成" })).toBeDisabled();
+    expect(screen.getByRole("heading", { name: "Review note" })).toBeVisible();
+  });
+
   test("renders extended local Markdown representations", () => {
     render(<MarkdownPreview source={extendedFixture} />);
 

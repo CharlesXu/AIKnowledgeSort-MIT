@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import type { GraphClient, GraphSnapshot } from "../graph/types";
 import type { KnowledgeDocument } from "../knowledge/types";
 import { KnowledgeGraphPane } from "./KnowledgeGraphPane";
@@ -67,6 +68,21 @@ function client(): GraphClient {
 }
 
 describe("KnowledgeGraphPane", () => {
+  test("renders graph controls and evidence review in Simplified Chinese", async () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <KnowledgeGraphPane client={client()} document={document} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("证据图谱")).toBeInTheDocument();
+    expect(screen.getByText("Vault 修订版本 2")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "添加关系" }))
+      .toBeInTheDocument();
+    expect(screen.getByLabelText("知识图谱时间轴位置")).toBeInTheDocument();
+    expect(screen.queryByText("Evidence graph")).toBeNull();
+  });
+
   test("shows persisted relation evidence and sends an exact review decision", async () => {
     const graphClient = client();
     render(<KnowledgeGraphPane client={graphClient} document={document} />);

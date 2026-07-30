@@ -287,11 +287,17 @@ test("switches the main interface to Simplified Chinese and keeps it after reloa
   await expect(page.getByRole("button", { name: "来源", exact: true }))
     .toBeVisible();
   await expect(page.getByRole("region", { name: "扫描报告" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "归档预览" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "知识图谱" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "导入审查" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Agent 审查" })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole("button", { name: "设置", exact: true }))
     .toBeVisible();
   await expect(page.getByRole("region", { name: "扫描报告" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "归档预览" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "知识图谱" })).toBeVisible();
 });
 
 test("keeps Agent access local, unissued, and non-mutating in the browser fixture", async ({

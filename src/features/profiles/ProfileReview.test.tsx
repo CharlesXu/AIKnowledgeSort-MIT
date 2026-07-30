@@ -5,6 +5,7 @@ import type {
   ProfileStateSummary,
   ProfileSummary,
 } from "./types";
+import { I18nProvider } from "../../i18n/I18nContext";
 import { ProfileReview } from "./ProfileReview";
 
 const digest = "a".repeat(64);
@@ -85,6 +86,23 @@ function client(): ProfileClient {
 }
 
 describe("ProfileReview", () => {
+  test("renders the complete profile workflow in Simplified Chinese", async () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <ProfileReview client={client()} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("分类模式")).toBeInTheDocument();
+    expect(screen.getByText("候选方案导入")).toBeInTheDocument();
+    expect(screen.getByText("AI 候选方案编译器")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "导入本地分类方案" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "批准分类方案" }))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Classification mode")).toBeNull();
+  });
+
   test("shows the bundled draft and requires an exact candidate decision", async () => {
     const profileClient = client();
     render(<ProfileReview client={profileClient} />);

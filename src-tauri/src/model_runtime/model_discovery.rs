@@ -241,33 +241,80 @@ mod tests {
     #[test]
     fn derives_model_endpoints_from_base_v1_models_and_complete_urls() {
         let cases = [
-            ("https://api.example.com", "/v1/models"),
-            ("https://api.example.com/", "/v1/models"),
-            ("https://api.example.com/v1", "/v1/models"),
+            ("https://api.example.com", &["/v1/models", "/models"][..]),
+            ("https://api.example.com/", &["/v1/models", "/models"][..]),
+            ("https://api.example.com/v1", &["/v1/models"][..]),
+            ("https://api.example.com/chat/completions", &["/models"][..]),
             (
                 "https://api.example.com/openai/v1/chat/completions",
-                "/openai/v1/models",
+                &["/openai/v1/models"][..],
             ),
+            ("https://api.example.com/messages", &["/models"][..]),
             (
                 "https://api.example.com/anthropic/v1/messages",
-                "/anthropic/v1/models",
+                &["/anthropic/v1/models"][..],
             ),
-            ("https://api.example.com/v1/models", "/v1/models"),
+            ("https://api.example.com/models", &["/models"][..]),
+            ("https://api.example.com/v1/models/", &["/v1/models"][..]),
+            (
+                "https://api.example.com/gateway",
+                &["/gateway/v1/models", "/gateway/models"][..],
+            ),
         ];
-        for (input, expected_path) in cases {
+        for (input, expected_paths) in cases {
             assert_eq!(
-                model_endpoint_candidates(input).unwrap()[0].path(),
-                expected_path
+                model_endpoint_candidates(input)
+                    .unwrap()
+                    .iter()
+                    .map(Url::path)
+                    .collect::<Vec<_>>(),
+                expected_paths,
+                "unexpected discovery candidates for {input}",
             );
         }
-        assert_eq!(
-            model_endpoint_candidates("https://api.example.com/gateway")
-                .unwrap()
-                .iter()
-                .map(Url::path)
-                .collect::<Vec<_>>(),
-            ["/gateway/v1/models", "/gateway/models"]
-        );
+    }
+
+    #[test]
+    fn normalizes_all_supported_url_shapes_for_both_protocols() {
+        let cases = [
+            (
+                "https://api.example.com",
+                ModelProtocol::OpenAi,
+                "https://api.example.com/v1/chat/completions",
+            ),
+            (
+                "https://api.example.com/v1",
+                ModelProtocol::Anthropic,
+                "https://api.example.com/v1/messages",
+            ),
+            (
+                "https://api.example.com/models",
+                ModelProtocol::OpenAi,
+                "https://api.example.com/chat/completions",
+            ),
+            (
+                "https://api.example.com/v1/models/",
+                ModelProtocol::Anthropic,
+                "https://api.example.com/v1/messages",
+            ),
+            (
+                "https://api.example.com/openai/v1/chat/completions/",
+                ModelProtocol::OpenAi,
+                "https://api.example.com/openai/v1/chat/completions",
+            ),
+            (
+                "https://api.example.com/anthropic/v1/messages/",
+                ModelProtocol::Anthropic,
+                "https://api.example.com/anthropic/v1/messages",
+            ),
+        ];
+        for (input, protocol, expected) in cases {
+            assert_eq!(
+                normalize_completion_endpoint(input, protocol).unwrap(),
+                expected,
+                "unexpected completion endpoint for {input}",
+            );
+        }
     }
 
     #[test]
@@ -339,5 +386,61 @@ mod tests {
         assert_eq!(result.provider_protocol, ModelProtocol::Anthropic);
         assert_eq!(result.models, ["claude-test"]);
         assert!(result.completion_endpoint_url.ends_with("/v1/messages"));
+    }
+
+    #[test]
+    fn falls_back_to_a_model_endpoint_without_v1() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind discovery server");
+        let address = listener.local_addr().expect("read discovery address");
+        let server = thread::spawn(move || {
+            for (expected_path, status, body) in [
+                (
+                    "/gateway/v1/models",
+                    "404 Not Found",
+                    r#"{"error":"missing"}"#,
+                ),
+                (
+                    "/gateway/models",
+                    "200 OK",
+                    r#"{"data":[{"id":"local-chat","object":"model"}]}"#,
+                ),
+            ] {
+                let (mut stream, _) = listener.accept().expect("accept discovery request");
+                let mut request = [0_u8; 2_048];
+                let length = stream.read(&mut request).expect("read discovery request");
+                let request = String::from_utf8_lossy(&request[..length]);
+                assert!(
+                    request.starts_with(&format!("GET {expected_path} ")),
+                    "unexpected request: {request}",
+                );
+                write!(
+                    stream,
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len(),
+                )
+                .expect("write discovery response");
+            }
+        });
+
+        let result = discover(
+            &DiscoverModelsRequest {
+                config_id: None,
+                location: ModelLocation::Local,
+                endpoint_url: format!("http://{address}/gateway"),
+                timeout_ms: 1_000,
+                authenticated: false,
+                credential_source: ModelCredentialSource::Environment,
+                api_key: None,
+            },
+            None,
+        )
+        .expect("discover model without v1");
+        server.join().expect("join discovery server");
+        assert_eq!(result.provider_protocol, ModelProtocol::OpenAi);
+        assert_eq!(result.models, ["local-chat"]);
+        assert!(result.models_endpoint_url.ends_with("/gateway/models"));
+        assert!(result
+            .completion_endpoint_url
+            .ends_with("/gateway/chat/completions"));
     }
 }

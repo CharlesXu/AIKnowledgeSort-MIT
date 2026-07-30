@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import type { DiscoveryProposal } from "../drop/types";
 import type { GraphClient } from "../graph/types";
 import type { ProfileClient } from "../profiles/types";
@@ -31,6 +32,46 @@ const proposal: DiscoveryProposal = {
 };
 
 describe("ContextPane", () => {
+  test("renders all context tabs in Simplified Chinese", () => {
+    const profileClient = {
+      inspect: vi.fn().mockResolvedValue({ installed: [], active: null, candidates: [] }),
+      importLocalCandidate: vi.fn(),
+      importUrlCandidate: vi.fn(),
+      compileLocalCandidate: vi.fn(),
+      decideCandidate: vi.fn(),
+      createClassificationBatch: vi.fn(),
+    } as ProfileClient;
+    const graphClient = {
+      inspect: vi.fn(),
+      propose: vi.fn(),
+      decide: vi.fn(),
+    } as GraphClient;
+    const modelRuntimeClient = {
+      inspect: vi.fn().mockResolvedValue({ schemaVersion: 1, configs: [] }),
+    } as unknown as ModelRuntimeClient;
+
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <ContextPane
+          collapsed={false}
+          document={null}
+          graphClient={graphClient}
+          mode="graph"
+          modelRuntimeClient={modelRuntimeClient}
+          onCollapsedChange={vi.fn()}
+          onModeChange={vi.fn()}
+          profileClient={profileClient}
+          proposal={proposal}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("tab", { name: "知识图谱" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "导入审查" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Agent 审查" })).toBeInTheDocument();
+    expect(screen.getByText("尚未入库")).toBeInTheDocument();
+  });
+
   test("keeps graph and governed profile review as separate right-pane tabs", async () => {
     const profileClient: ProfileClient = {
       inspect: vi.fn().mockResolvedValue({

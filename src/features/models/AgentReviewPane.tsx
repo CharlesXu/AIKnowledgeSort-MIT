@@ -1,4 +1,8 @@
 import { useEffect, useState } from "react";
+import {
+  statusTranslationKey,
+  useI18n,
+} from "../../i18n/I18nContext";
 import type { KnowledgeDocument } from "../knowledge/types";
 import type {
   ComparisonRecord,
@@ -28,14 +32,17 @@ function ProviderCard({
   readonly outcome: ProviderOutcome;
   readonly side: "Desktop" | "Agent";
 }) {
+  const { t } = useI18n();
   return (
     <article className="agent-provider-card">
       <header>
-        <span>{side}</span>
+        <span>{side === "Desktop" ? t("agentReview.desktop") : t("agentReview.agent")}</span>
         <strong>{config?.label ?? configId}</strong>
       </header>
       <p className={`agent-provider-card__status agent-provider-card__status--${outcome.status}`}>
-        {outcome.status.toUpperCase()} · {outcome.model ?? "No model response"}
+        {statusTranslationKey(outcome.status)
+          ? t(statusTranslationKey(outcome.status)!)
+          : outcome.status.toUpperCase()} · {outcome.model ?? t("agentReview.noResponse")}
       </p>
       {outcome.proposal ? (
         <>
@@ -60,6 +67,7 @@ function ProviderCard({
 }
 
 export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
+  const { t } = useI18n();
   const [runtime, setRuntime] = useState<ModelRuntimeState | null>(null);
   const [desktopConfigId, setDesktopConfigId] = useState("");
   const [agentConfigId, setAgentConfigId] = useState("");
@@ -122,9 +130,9 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
   if (!saved) {
     return (
       <section className="agent-review agent-review--empty">
-        <h3>Agent Review</h3>
-        <p>A saved Vault revision is required before evidence can be compared.</p>
-        <span>Draft editor text is never submitted as authoritative evidence.</span>
+        <h3>{t("agentReview.title")}</h3>
+        <p>{t("agentReview.savedRequired")}</p>
+        <span>{t("agentReview.draftWarning")}</span>
         {error ? <p className="agent-review__failure" role="alert">{error}</p> : null}
       </section>
     );
@@ -135,13 +143,13 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
       <section className="context-section agent-review__controls" aria-labelledby="agent-review-run">
         <div className="agent-review__heading">
           <div>
-            <h3 id="agent-review-run">Evidence comparison</h3>
-            <p>Vault revision {document.revision} · exact line ranges only</p>
+            <h3 id="agent-review-run">{t("agentReview.comparison")}</h3>
+            <p>{t("agentReview.revision", { revision: document.revision })}</p>
           </div>
-          <span>READ ONLY</span>
+          <span>{t("agentReview.readOnly")}</span>
         </div>
         {configs.length < 2 ? (
-          <p className="agent-review__notice">Configure two distinct models in Settings.</p>
+          <p className="agent-review__notice">{t("agentReview.configureTwo")}</p>
         ) : (
           <form
             className="agent-review__form"
@@ -151,7 +159,7 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
             }}
           >
             <label>
-              Desktop model
+              {t("agentReview.desktopModel")}
               <select value={desktopConfigId} onChange={(event) => setDesktopConfigId(event.target.value)}>
                 {configs.map((config) => (
                   <option key={config.configId} value={config.configId}>{config.label}</option>
@@ -159,7 +167,7 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
               </select>
             </label>
             <label>
-              Agent model
+              {t("agentReview.agentModel")}
               <select value={agentConfigId} onChange={(event) => setAgentConfigId(event.target.value)}>
                 {configs.map((config) => (
                   <option key={config.configId} value={config.configId}>{config.label}</option>
@@ -168,16 +176,16 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
             </label>
             <div className="agent-review__range">
               <label>
-                Start line
+                {t("agentReview.startLine")}
                 <input min="1" onChange={(event) => setStartLine(event.target.value)} type="number" value={startLine} />
               </label>
               <label>
-                End line
+                {t("agentReview.endLine")}
                 <input min="1" onChange={(event) => setEndLine(event.target.value)} type="number" value={endLine} />
               </label>
             </div>
             <button disabled={!canRun || busy} type="submit">
-              {busy ? "Comparing…" : "Run comparison"}
+              {busy ? t("agentReview.comparing") : t("agentReview.run")}
             </button>
           </form>
         )}
@@ -185,14 +193,16 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
       </section>
 
       {result ? (
-        <section aria-label="Model comparison result" className="agent-review__result">
+        <section aria-label={t("agentReview.result")} className="agent-review__result">
           <header className="agent-review__result-header">
             <div>
-              <span>ENVELOPE SHA-256</span>
+              <span>{t("agentReview.envelope")}</span>
               <code>{result.envelopeIdentity.digest}</code>
             </div>
             <strong className={`agent-review__status agent-review__status--${result.status}`}>
-              {result.status.toUpperCase()}
+              {statusTranslationKey(result.status)
+                ? t(statusTranslationKey(result.status)!)
+                : result.status.toUpperCase()}
             </strong>
           </header>
           <div className="agent-review__providers">
@@ -210,22 +220,28 @@ export function AgentReviewPane({ client, document }: AgentReviewPaneProps) {
             />
           </div>
           <article className="agent-adjudication">
-            <span>AGENT DECISION</span>
+            <span>{t("agentReview.decision")}</span>
             {result.adjudication ? (
               <>
-                <strong>{result.adjudication.decision.toUpperCase()}</strong>
+                <strong>
+                  {statusTranslationKey(result.adjudication.decision)
+                    ? t(statusTranslationKey(result.adjudication.decision)!)
+                    : result.adjudication.decision.toUpperCase()}
+                </strong>
                 <p>{result.adjudication.reason}</p>
-                <small>Evidence: {result.adjudication.evidenceIds.join(", ")}</small>
+                <small>{t("agentReview.evidence", {
+                  ids: result.adjudication.evidenceIds.join(", "),
+                })}</small>
               </>
             ) : (
               <p className="agent-review__failure">
-                {result.adjudicationFailure ?? "Adjudication did not run because a proposal failed."}
+                {result.adjudicationFailure ?? t("agentReview.adjudicationSkipped")}
               </p>
             )}
-            <em>Semantic advice · no operation authorized</em>
+            <em>{t("agentReview.semanticAdvice")}</em>
           </article>
-          <section className="agent-review__evidence" aria-label="Comparison evidence">
-            <h4>Authoritative evidence</h4>
+          <section className="agent-review__evidence" aria-label={t("agentReview.authoritativeEvidence")}>
+            <h4>{t("agentReview.authoritativeEvidence")}</h4>
             {result.envelope.evidence.map((evidence) => (
               <article key={evidence.evidenceId}>
                 <span>{evidence.evidenceId}</span>

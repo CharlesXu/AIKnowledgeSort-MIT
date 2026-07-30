@@ -6,6 +6,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import { calloutKind, prepareLocalMarkdown } from "./localMarkdown";
 import { MermaidBlock } from "./MermaidBlock";
+import { useI18n } from "../../i18n/I18nContext";
 
 interface MarkdownPreviewProps {
   readonly source: string;
@@ -57,6 +58,7 @@ function languageLabel(className?: string): string {
 }
 
 export function MarkdownPreview({ source }: MarkdownPreviewProps) {
+  const { t } = useI18n();
   const prepared = useMemo(() => prepareLocalMarkdown(source), [source]);
   const [handoffMessage, setHandoffMessage] = useState("");
 
@@ -73,7 +75,7 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
             data-link-kind={effectiveKind}
             onClick={() =>
               setHandoffMessage(
-                `Link opening is disabled in this local preview (${effectiveKind}).`,
+                t("markdown.linkDisabled", { kind: effectiveKind }),
               )
             }
             type="button"
@@ -100,7 +102,7 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
           <section className="code-preview">
             <header>
               <span>{languageLabel(className)}</span>
-              <small>Code block</small>
+              <small>{t("markdown.codeBlock")}</small>
             </header>
             <pre>
               <code className={className}>{children}</code>
@@ -112,7 +114,7 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
         return (
           <input
             {...props}
-            aria-label={checked ? "Task done" : "Task pending"}
+            aria-label={checked ? t("markdown.taskDone") : t("markdown.taskPending")}
             checked={checked}
             disabled
             readOnly
@@ -123,18 +125,18 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
         return <>{children}</>;
       },
     }),
-    [],
+    [t],
   );
 
   return (
     <article
-      aria-label="Document preview"
+      aria-label={t("markdown.preview")}
       className="document-preview"
       role="region"
     >
       {prepared.frontmatter.length > 0 ? (
-        <section aria-label="Document metadata" className="markdown-frontmatter">
-          <strong>Frontmatter</strong>
+        <section aria-label={t("markdown.metadata")} className="markdown-frontmatter">
+          <strong>{t("markdown.frontmatter")}</strong>
           <ul>
             {prepared.frontmatter.map((line, index) => (
               <li key={`${index}-${line}`}>
@@ -154,7 +156,7 @@ export function MarkdownPreview({ source }: MarkdownPreviewProps) {
       </ReactMarkdown>
       {handoffMessage ? (
         <p
-          aria-label="Link handoff status"
+          aria-label={t("markdown.linkStatus")}
           className="markdown-link-status"
           role="status"
         >

@@ -145,7 +145,7 @@ export function SourceTree({
       </ul>
       {filteredTree === null ? (
         <p
-          aria-label="Source filter status"
+          aria-label={t("sources.filterStatus")}
           className="source-tree__empty"
           role="status"
         >

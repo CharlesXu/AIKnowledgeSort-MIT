@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import type {
   ArchiveClient,
   ArchivePlan,
@@ -360,6 +361,30 @@ function modelRuntimeClient(): ModelRuntimeClient {
 }
 
 describe("archive preview", () => {
+  test("renders the archive safety workflow in Simplified Chinese", () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <ArchivePreviewPane
+          archiveClient={client()}
+          namingClient={namingClient()}
+          profileClient={profileClient()}
+          proposal={proposal}
+        />
+      </I18nProvider>,
+    );
+
+    expect(screen.getByRole("region", { name: "归档预览" })).toBeInTheDocument();
+    expect(screen.getByText("尚未选择 Vault")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "选择 Vault" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("checkbox", { name: "纳入 notes.md" }));
+    expect(screen.getByText("本地证据")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "notes.md 的主题" }))
+      .toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "审查分类" }))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Archive Preview")).toBeNull();
+  });
+
   test("applies only an Agent-resolved semantic suggestion to the editable review form", async () => {
     const models = modelRuntimeClient();
     const archiveClient = client();

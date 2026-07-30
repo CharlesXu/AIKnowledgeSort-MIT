@@ -28,6 +28,7 @@ import type {
 } from "../models/types";
 import { Icon } from "../../ui/Icon";
 import { FileSemanticReview } from "./FileSemanticReview";
+import { useI18n, type TranslationKey } from "../../i18n/I18nContext";
 
 interface ArchivePreviewPaneProps {
   readonly archiveClient: ArchiveClient;
@@ -79,27 +80,32 @@ const emptyEvidence: EvidenceDraft = {
   evidenceLocation: "",
 };
 
-const factFields: readonly {
-  readonly kind: NamingFactKind;
-  readonly label: string;
-}[] = [
-  { kind: "project", label: "Project" },
-  { kind: "model", label: "Model" },
-  { kind: "regulation", label: "Regulation" },
-  { kind: "version", label: "Version" },
-  { kind: "subject", label: "Subject" },
+const factFields: readonly NamingFactKind[] = [
+  "project",
+  "model",
+  "regulation",
+  "version",
+  "subject",
 ];
 
-const reviewReasonLabels: Record<NamingReviewReason, string> = {
-  missingEvidence: "Missing evidence",
-  conflictingEvidence: "Conflicting evidence",
-  unsafeName: "Unsafe canonical name",
-  collision: "Unresolved name collision",
+const factLabelKeys: Record<NamingFactKind, TranslationKey> = {
+  project: "archive.factProject",
+  model: "archive.factModel",
+  regulation: "archive.factRegulation",
+  version: "archive.factVersion",
+  subject: "archive.factSubject",
 };
 
-const classificationReviewReasonLabels = {
-  missingEvidence: "Missing semantic evidence",
-  conflictingRules: "Conflicting classification rules",
+const reviewReasonLabelKeys: Record<NamingReviewReason, TranslationKey> = {
+  missingEvidence: "archive.missingEvidence",
+  conflictingEvidence: "archive.conflictingEvidence",
+  unsafeName: "archive.unsafeName",
+  collision: "archive.collision",
+};
+
+const classificationReviewReasonLabelKeys = {
+  missingEvidence: "archive.missingSemanticEvidence",
+  conflictingRules: "archive.conflictingClassificationRules",
 } as const;
 
 function errorText(error: unknown): string {
@@ -119,6 +125,7 @@ export function ArchivePreviewPane({
   proposal,
   selectedItemIds,
 }: ArchivePreviewPaneProps) {
+  const { t } = useI18n();
   const proposalId = useRef(proposal.proposalId);
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(
     () => new Set(),
@@ -382,7 +389,7 @@ export function ArchivePreviewPane({
         proposalId: proposal.proposalId,
         items: selectedItems.map((item) => {
           const draft = evidence[item.itemId] ?? emptyEvidence;
-          const facts = factFields.flatMap<NamingFact>(({ kind }) => {
+          const facts = factFields.flatMap<NamingFact>((kind) => {
             const value = draft[kind].trim();
             return value.length === 0
               ? []
@@ -674,25 +681,29 @@ export function ArchivePreviewPane({
   const namingNeedsReview =
     namingBatch?.proposals.some((item) => item.status !== "proposed") ?? true;
   const statusLabel =
-    result === null ? "Uncommitted" : committed ? "Committed" : "Attention";
+    result === null
+      ? t("archive.uncommitted")
+      : committed
+        ? t("archive.committed")
+        : t("archive.attention");
 
   return (
     <section
-      aria-label="Archive preview"
+      aria-label={t("archive.label")}
       className="archive-preview"
       ref={focusRef}
       tabIndex={-1}
     >
       <header className="archive-preview__header">
-        <h2>Archive Preview</h2>
+        <h2>{t("archive.title")}</h2>
         <span>{statusLabel}</span>
       </header>
 
       <div className="archive-preview__vault">
         <div>
-          <strong>Vault</strong>
+          <strong>{t("archive.vault")}</strong>
           <span title={vault?.displayPath}>
-            {vault?.displayPath ?? "No Vault selected"}
+            {vault?.displayPath ?? t("archive.noVault")}
           </span>
         </div>
         <button
@@ -700,23 +711,23 @@ export function ArchivePreviewPane({
           onClick={() => void chooseVault()}
           type="button"
         >
-          {pending === "vault" ? "Choosing…" : "Choose Vault"}
+          {pending === "vault" ? t("archive.choosing") : t("archive.chooseVault")}
         </button>
       </div>
 
-      <ul aria-label="Proposed archive tree" role="tree">
+      <ul aria-label={t("archive.tree")} role="tree">
         <li role="none">
           <div aria-expanded="true" aria-level={1} role="treeitem">
             <Icon name="chevron" size={12} />
             <Icon name="folder" size={14} />
-            <span>Reviewed sources</span>
+            <span>{t("archive.reviewedSources")}</span>
           </div>
           <ul role="group">
             {proposal.items.map((item) => (
               <li key={item.itemId} role="none">
                 <label className="archive-preview__item">
                   <input
-                    aria-label={`Include ${item.name}`}
+                    aria-label={t("archive.include", { name: item.name })}
                     checked={effectiveSelectedIds.has(item.itemId)}
                     disabled={pending !== null || committed}
                     onChange={() => toggleItem(item.itemId)}
@@ -756,37 +767,45 @@ export function ArchivePreviewPane({
 
       {selectedItems.length === 0 ? null : (
         <section
-          aria-label="Local naming evidence"
+          aria-label={t("archive.namingEvidence")}
           className="archive-preview__evidence"
         >
           <header>
-            <strong>Local evidence</strong>
-            <span>cited facts</span>
+            <strong>{t("archive.localEvidence")}</strong>
+            <span>{t("archive.citedFacts")}</span>
           </header>
           {selectedItems.map((item) => {
             const draft = evidence[item.itemId] ?? emptyEvidence;
             return (
               <fieldset key={item.itemId}>
                 <legend>{item.name}</legend>
-                {factFields.map(({ kind, label }) => (
-                  <label key={kind}>
-                    <span>{label}</span>
-                    <input
-                      aria-label={`${label} for ${item.name}`}
-                      disabled={pending !== null || committed}
-                      onChange={(event) =>
-                        updateEvidence(item.itemId, kind, event.target.value)
-                      }
-                      required={kind === "subject"}
-                      type="text"
-                      value={draft[kind]}
-                    />
-                  </label>
-                ))}
+                {factFields.map((kind) => {
+                  const label = t(factLabelKeys[kind]);
+                  return (
+                    <label key={kind}>
+                      <span>{label}</span>
+                      <input
+                        aria-label={t("archive.factFor", {
+                          label,
+                          name: item.name,
+                        })}
+                        disabled={pending !== null || committed}
+                        onChange={(event) =>
+                          updateEvidence(item.itemId, kind, event.target.value)
+                        }
+                        required={kind === "subject"}
+                        type="text"
+                        value={draft[kind]}
+                      />
+                    </label>
+                  );
+                })}
                 <label>
-                  <span>Classification evidence</span>
+                  <span>{t("archive.classificationEvidence")}</span>
                   <textarea
-                    aria-label={`Classification evidence for ${item.name}`}
+                    aria-label={t("archive.classificationEvidenceFor", {
+                      name: item.name,
+                    })}
                     disabled={pending !== null || committed}
                     onChange={(event) =>
                       updateEvidence(
@@ -795,15 +814,17 @@ export function ArchivePreviewPane({
                         event.target.value,
                       )
                     }
-                    placeholder="Paste the source passage that supports its primary category"
+                    placeholder={t("archive.classificationPlaceholder")}
                     required
                     value={draft.classificationText}
                   />
                 </label>
                 <label>
-                  <span>Evidence location</span>
+                  <span>{t("archive.evidenceLocation")}</span>
                   <input
-                    aria-label={`Evidence location for ${item.name}`}
+                    aria-label={t("archive.evidenceLocationFor", {
+                      name: item.name,
+                    })}
                     disabled={pending !== null || committed}
                     onChange={(event) =>
                       updateEvidence(
@@ -831,15 +852,15 @@ export function ArchivePreviewPane({
           type="button"
         >
           {pending === "classification"
-            ? "Checking classification…"
-            : "Review classification"}
+            ? t("archive.checkingClassification")
+            : t("archive.reviewClassification")}
         </button>
         <button
           disabled={classificationNeedsReview || pending !== null || committed}
           onClick={() => void reviewNames()}
           type="button"
         >
-          {pending === "naming" ? "Checking names…" : "Review canonical names"}
+          {pending === "naming" ? t("archive.checkingNames") : t("archive.reviewNames")}
         </button>
         <button
           disabled={
@@ -854,17 +875,17 @@ export function ArchivePreviewPane({
           onClick={() => void reviewPlan()}
           type="button"
         >
-          {pending === "plan" ? "Building plan…" : "Review archive plan"}
+          {pending === "plan" ? t("archive.buildingPlan") : t("archive.reviewPlan")}
         </button>
       </div>
 
       {classificationBatch === null ? null : (
         <section
-          aria-label="Classification review"
+          aria-label={t("archive.classificationReview")}
           className="archive-preview__classification-review"
         >
           <header>
-            <strong>Primary classification</strong>
+            <strong>{t("archive.primaryClassification")}</strong>
             <span>
               {classificationBatch.profileId} ·{" "}
               {classificationBatch.profileVersion}
@@ -873,25 +894,25 @@ export function ArchivePreviewPane({
           {classificationBatch.items.map((item) => (
             <article key={item.itemId}>
               <p>
-                {item.proposal.destination?.join(" / ") ?? "Review required"}
+                {item.proposal.destination?.join(" / ") ?? t("archive.reviewRequired")}
               </p>
               {item.proposal.reviewReason === null ? null : (
                 <strong>
-                  {classificationReviewReasonLabels[item.proposal.reviewReason]}
+                  {t(classificationReviewReasonLabelKeys[item.proposal.reviewReason])}
                 </strong>
               )}
               <dl>
-                <dt>Rules</dt>
+                <dt>{t("archive.rules")}</dt>
                 <dd>
                   {item.proposal.ruleIds.join(", ") ||
                     item.proposal.semanticDecisionId ||
-                    "None"}
+                    t("archive.none")}
                 </dd>
-                <dt>Evidence</dt>
+                <dt>{t("archive.evidence")}</dt>
                 <dd>
                   {item.proposal.evidence
                     .map((citation) => citation.location)
-                    .join(", ") || "None"}
+                    .join(", ") || t("archive.none")}
                 </dd>
                 <dt>SHA-256</dt>
                 <dd>{item.proposal.sourceIdentity.digest}</dd>
@@ -903,11 +924,11 @@ export function ArchivePreviewPane({
 
       {namingBatch === null ? null : (
         <section
-          aria-label="Canonical name review"
+          aria-label={t("archive.canonicalNameReview")}
           className="archive-preview__naming-review"
         >
           <header>
-            <strong>Canonical names</strong>
+            <strong>{t("archive.canonicalNames")}</strong>
             <span>
               {namingBatch.policyId} · {namingBatch.policyVersion}
             </span>
@@ -915,10 +936,10 @@ export function ArchivePreviewPane({
           {namingBatch.proposals.map((item) => (
             <article key={item.itemId}>
               <p>
-                {item.originalName} → {item.canonicalName ?? "Review required"}
+                {item.originalName} → {item.canonicalName ?? t("archive.reviewRequired")}
               </p>
               {item.reviewReason === null ? null : (
-                <strong>{reviewReasonLabels[item.reviewReason]}</strong>
+                <strong>{t(reviewReasonLabelKeys[item.reviewReason])}</strong>
               )}
               <dl>
                 <dt>SHA-256</dt>
@@ -931,37 +952,39 @@ export function ArchivePreviewPane({
 
       {plan === null ? null : (
         <section
-          aria-label="Exact archive plan"
+          aria-label={t("archive.exactPlan")}
           className="archive-preview__plan"
         >
           <header>
-            <strong>Exact plan · {plan.items.length}</strong>
-            <span>Expires {new Date(plan.expiresAtUnixMs).toLocaleTimeString()}</span>
+            <strong>{t("archive.exactPlanCount", { count: plan.items.length })}</strong>
+            <span>{t("archive.expires", {
+              time: new Date(plan.expiresAtUnixMs).toLocaleTimeString(),
+            })}</span>
           </header>
           <p className="archive-preview__invariant">
-            Source file remains in place. A verified original is added to the Vault.
+            {t("archive.sourcePreservedInvariant")}
           </p>
           {plan.items.map((item) => (
             <details key={item.itemId}>
               <summary>{item.sourcePath.split(/[\\/]/).pop()}</summary>
               <dl>
-                <dt>Source</dt>
+                <dt>{t("archive.source")}</dt>
                 <dd>{item.sourcePath}</dd>
-                <dt>Destination</dt>
+                <dt>{t("archive.destination")}</dt>
                 <dd>{item.destinationPath}</dd>
-                <dt>Canonical name</dt>
+                <dt>{t("archive.canonicalName")}</dt>
                 <dd>
                   {item.originalName} → {item.canonicalName}
                 </dd>
-                <dt>Naming policy</dt>
+                <dt>{t("archive.namingPolicy")}</dt>
                 <dd>
                   {item.naming.policyId} · {item.naming.policyVersion}
                 </dd>
                 {item.classification === undefined ? null : (
                   <>
-                    <dt>Primary category</dt>
+                    <dt>{t("archive.primaryCategory")}</dt>
                     <dd>{item.classification.destination?.join(" / ")}</dd>
-                    <dt>Classification profile</dt>
+                    <dt>{t("archive.classificationProfile")}</dt>
                     <dd>
                       {item.classification.profileId} ·{" "}
                       {item.classification.profileVersion}
@@ -980,14 +1003,14 @@ export function ArchivePreviewPane({
               onChange={(event) => setConfirmed(event.target.checked)}
               type="checkbox"
             />
-            <span>I reviewed every source, destination, and SHA-256.</span>
+            <span>{t("archive.confirmation")}</span>
           </label>
           <button
             disabled={!confirmed || pending !== null || result !== null}
             onClick={() => void confirmPlan()}
             type="button"
           >
-            {pending === "commit" ? "Verifying…" : "Confirm verified archive"}
+            {pending === "commit" ? t("archive.verifying") : t("archive.confirm")}
           </button>
         </section>
       )}
@@ -1000,35 +1023,36 @@ export function ArchivePreviewPane({
 
       {result === null ? (
         <p className="archive-preview__notice">
-          No file changes until an exact plan is confirmed.
+          {t("archive.noChanges")}
         </p>
       ) : (
         <section
-          aria-label="Archive result"
+          aria-label={t("archive.result")}
           className={`archive-preview__result archive-preview__result--${result.status}`}
         >
           <strong>
-            {committed ? "Archive committed" : "Archive needs attention"}
+            {committed ? t("archive.commitSuccess") : t("archive.commitAttention")}
           </strong>
           <span>
-            {result.items.filter((item) => item.status === "committed").length}
-            /{result.items.length} verified · source preserved
+            {t("archive.verifiedCount", {
+              committed: result.items.filter((item) => item.status === "committed").length,
+              total: result.items.length,
+            })}
           </span>
         </section>
       )}
 
       {activeCommittedItems.length > 0 ? (
         <section
-          aria-label="Archive undo"
+          aria-label={t("archive.undo")}
           className="archive-preview__cleanup"
         >
           <header>
-            <strong>Archive undo</strong>
-            <span>Bounded · Trash</span>
+            <strong>{t("archive.undo")}</strong>
+            <span>{t("archive.boundedTrash")}</span>
           </header>
           <p className="archive-preview__invariant">
-            Available only while the matching source remains a verified
-            original and no authoritative knowledge depends on the archive.
+            {t("archive.undoHelp")}
           </p>
           {activeCommittedItems.map((item) => (
             <button
@@ -1043,11 +1067,11 @@ export function ArchivePreviewPane({
               type="button"
             >
               {pending === "undoPlan"
-                ? "Rechecking undo…"
-                : `Review archive undo · ${
-                    item.destinationPath.split(/[\\/]/).pop() ??
-                    item.operationId
-                  }`}
+                ? t("archive.recheckingUndo")
+                : t("archive.reviewUndo", {
+                    name: item.destinationPath.split(/[\\/]/).pop()
+                      ?? item.operationId,
+                  })}
             </button>
           ))}
         </section>
@@ -1055,22 +1079,20 @@ export function ArchivePreviewPane({
 
       {undoPlan === null ? null : (
         <section
-          aria-label="Exact archive undo plan"
+          aria-label={t("archive.exactUndo")}
           className="archive-preview__plan archive-preview__cleanup-plan"
         >
           <header>
-            <strong>Exact archive undo plan</strong>
-            <span>Operating-system trash</span>
+            <strong>{t("archive.exactUndo")}</strong>
+            <span>{t("archive.systemTrash")}</span>
           </header>
           <p className="archive-preview__invariant">
-            The external source is independently reverified before and after
-            the archived copy changes. An unsafe execution restores the Vault
-            original from transaction staging.
+            {t("archive.undoInvariant")}
           </p>
           <dl>
-            <dt>Source original</dt>
+            <dt>{t("archive.sourceOriginal")}</dt>
             <dd>{undoPlan.sourcePath}</dd>
-            <dt>Archived original</dt>
+            <dt>{t("archive.archivedOriginal")}</dt>
             <dd>{undoPlan.archivedPath}</dd>
             <dt>SHA-256</dt>
             <dd>{undoPlan.identity.digest}</dd>
@@ -1082,7 +1104,7 @@ export function ArchivePreviewPane({
               onChange={(event) => setUndoConfirmed(event.target.checked)}
               type="checkbox"
             />
-            <span>I reviewed the source, archive path, and SHA-256.</span>
+            <span>{t("archive.undoConfirmation")}</span>
           </label>
           <button
             disabled={!undoConfirmed || pending !== null || undoResult !== null}
@@ -1090,25 +1112,25 @@ export function ArchivePreviewPane({
             type="button"
           >
             {pending === "undoCommit"
-              ? "Reverifying undo…"
-              : "Confirm archive undo"}
+              ? t("archive.reverifyingUndo")
+              : t("archive.confirmUndo")}
           </button>
         </section>
       )}
 
       {undoResult === null ? null : (
         <section
-          aria-label="Archive undo result"
+          aria-label={t("archive.undoResult")}
           className={`archive-preview__result archive-preview__result--${undoResult.status}`}
         >
           <strong>
             {undoResult.status === "committed"
-              ? "Archive undo committed"
-              : "Archive undo failed"}
+              ? t("archive.undoCommitted")
+              : t("archive.undoFailed")}
           </strong>
           <span>
             {undoResult.status === "committed"
-              ? "Source original preserved · archived registration deactivated"
+              ? t("archive.undoPreserved")
               : undoResult.failureReason}
           </span>
         </section>
@@ -1116,12 +1138,12 @@ export function ArchivePreviewPane({
 
       {activeCommittedItems.length > 0 ? (
         <section
-          aria-label="Source cleanup"
+          aria-label={t("archive.cleanup")}
           className="archive-preview__cleanup"
         >
           <header>
-            <strong>Source cleanup</strong>
-            <span>Off by default</span>
+            <strong>{t("archive.cleanup")}</strong>
+            <span>{t("archive.offByDefault")}</span>
           </header>
           <label className="archive-preview__confirmation">
             <input
@@ -1135,7 +1157,7 @@ export function ArchivePreviewPane({
               }}
               type="checkbox"
             />
-            <span>Enable cleanup for these archived sources.</span>
+            <span>{t("archive.enableCleanup")}</span>
           </label>
           <button
             disabled={
@@ -1147,37 +1169,38 @@ export function ArchivePreviewPane({
             onClick={() => void reviewCleanup()}
             type="button"
           >
-            {pending === "cleanupPlan" ? "Rechecking originals…" : "Review source cleanup"}
+            {pending === "cleanupPlan"
+              ? t("archive.recheckingOriginals")
+              : t("archive.reviewCleanup")}
           </button>
         </section>
       ) : null}
 
       {cleanupPlan === null ? null : (
         <section
-          aria-label="Exact cleanup plan"
+          aria-label={t("archive.exactCleanup")}
           className="archive-preview__plan archive-preview__cleanup-plan"
         >
           <header>
             <strong>
-              Exact cleanup plan · {cleanupPlan.items.length}
+              {t("archive.exactCleanupCount", { count: cleanupPlan.items.length })}
             </strong>
             <span>
               {cleanupPlan.disposition === "trash"
-                ? "Operating-system trash"
-                : "Permanent deletion"}
+                ? t("archive.systemTrash")
+                : t("archive.permanentDeletion")}
             </span>
           </header>
           <p className="archive-preview__invariant">
-            A freshly verified retained original remains in the Vault for every
-            selected source.
+            {t("archive.cleanupInvariant")}
           </p>
           {cleanupPlan.items.map((item) => (
             <details key={item.operationId}>
               <summary>{item.sourcePath.split(/[\\/]/).pop()}</summary>
               <dl>
-                <dt>Source copy</dt>
+                <dt>{t("archive.sourceCopy")}</dt>
                 <dd>{item.sourcePath}</dd>
-                <dt>Retained original</dt>
+                <dt>{t("archive.retainedOriginal")}</dt>
                 <dd>{item.retainedPath}</dd>
                 <dt>SHA-256</dt>
                 <dd>{item.identity.digest}</dd>
@@ -1186,8 +1209,7 @@ export function ArchivePreviewPane({
           ))}
           {cleanupPlan.disposition === "permanentDelete" ? (
             <p className="archive-preview__error">
-              Permanent deletion cannot be undone. This is the separate,
-              second confirmation.
+              {t("archive.permanentWarning")}
             </p>
           ) : null}
           <label className="archive-preview__confirmation">
@@ -1197,7 +1219,7 @@ export function ArchivePreviewPane({
               onChange={(event) => setCleanupConfirmed(event.target.checked)}
               type="checkbox"
             />
-            <span>I reviewed every cleanup path and SHA-256.</span>
+            <span>{t("archive.cleanupConfirmation")}</span>
           </label>
           <div className="archive-preview__actions">
             <button
@@ -1206,10 +1228,10 @@ export function ArchivePreviewPane({
               type="button"
             >
               {pending === "cleanupCommit"
-                ? "Reverifying…"
+                ? t("archive.reverifying")
                 : cleanupPlan.disposition === "trash"
-                  ? "Confirm move to trash"
-                  : "Confirm permanent deletion"}
+                  ? t("archive.confirmTrash")
+                  : t("archive.confirmPermanent")}
             </button>
             {cleanupPlan.disposition === "trash" ? (
               <button
@@ -1218,8 +1240,8 @@ export function ArchivePreviewPane({
                 type="button"
               >
                 {pending === "permanentCleanup"
-                  ? "Preparing separate confirmation…"
-                  : "Request permanent deletion"}
+                  ? t("archive.preparingPermanent")
+                  : t("archive.requestPermanent")}
               </button>
             ) : null}
           </div>
@@ -1228,18 +1250,18 @@ export function ArchivePreviewPane({
 
       {cleanupResult === null ? null : (
         <section
-          aria-label="Cleanup result"
+          aria-label={t("archive.cleanupResult")}
           className={`archive-preview__result archive-preview__result--${cleanupResult.status}`}
         >
           <strong>
             {cleanupResult.status === "committed"
-              ? "Source cleanup committed"
-              : "Source cleanup failed"}
+              ? t("archive.cleanupCommitted")
+              : t("archive.cleanupFailed")}
           </strong>
           <span>
-            {cleanupResult.removedPaths.length} source
-            {cleanupResult.removedPaths.length === 1 ? "" : "s"} handled ·
-            retained original preserved
+            {t("archive.handledCount", {
+              count: cleanupResult.removedPaths.length,
+            })}
           </span>
         </section>
       )}

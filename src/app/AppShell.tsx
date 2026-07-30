@@ -300,7 +300,7 @@ export function AppShell({
             <header className="source-panel__header">
               <div>
                 <p className="section-kicker">{t("sources.local")}</p>
-                <h2>IndexedSource</h2>
+                <h2>{t("sources.indexed")}</h2>
               </div>
               <div className="pane-header__actions">
                 <span className="source-panel__count">

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Icon } from "../../ui/Icon";
+import { useI18n } from "../../i18n/I18nContext";
 import type { SelectionState, SourceNode } from "./types";
 
 interface SourceTreeRowProps {
@@ -19,10 +20,17 @@ export function SourceTreeRow({
   onToggleExpanded,
   onToggleSelection,
 }: SourceTreeRowProps) {
+  const { t } = useI18n();
   const checkboxRef = useRef<HTMLInputElement>(null);
   const isDirectory = node.kind === "directory";
-  const checkboxLabel = `Select ${node.name} ${node.kind}`;
-  const disclosureLabel = `${expanded ? "Collapse" : "Expand"} ${node.name} directory`;
+  const checkboxLabel = t("sources.select", {
+    name: node.name,
+    kind: t(isDirectory ? "sources.kindDirectory" : "sources.kindFile"),
+  });
+  const disclosureLabel = t(
+    expanded ? "sources.collapseDirectory" : "sources.expandDirectory",
+    { name: node.name },
+  );
 
   useEffect(() => {
     if (checkboxRef.current) {
@@ -62,7 +70,7 @@ export function SourceTreeRow({
       <Icon name={isDirectory ? "folder" : "document"} size={15} />
       <span className="source-tree-row__name">{node.name}</span>
       {!isDirectory && !node.eligible ? (
-        <span className="source-tree-row__note">Excluded</span>
+        <span className="source-tree-row__note">{t("sources.excluded")}</span>
       ) : null}
     </div>
   );

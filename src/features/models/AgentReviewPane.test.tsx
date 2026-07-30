@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
+import { I18nProvider } from "../../i18n/I18nContext";
 import type { KnowledgeDocument } from "../knowledge/types";
 import type { ContentIdentity } from "../drop/types";
 import { AgentReviewPane } from "./AgentReviewPane";
@@ -132,6 +133,21 @@ function client(): ModelRuntimeClient {
 }
 
 describe("AgentReviewPane", () => {
+  test("renders model comparison controls in Simplified Chinese", async () => {
+    render(
+      <I18nProvider initialLanguage="zh-CN">
+        <AgentReviewPane client={client()} document={savedDocument} />
+      </I18nProvider>,
+    );
+
+    expect(await screen.findByText("证据比对")).toBeInTheDocument();
+    expect(screen.getByLabelText("桌面模型")).toBeInTheDocument();
+    expect(screen.getByLabelText("Agent 模型")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "运行比对" }))
+      .toBeInTheDocument();
+    expect(screen.queryByText("Evidence comparison")).toBeNull();
+  });
+
   test("requires one saved authoritative Vault revision", async () => {
     const modelClient = client();
     render(<AgentReviewPane client={modelClient} document={null} />);

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useI18n } from "../../i18n/I18nContext";
 import { MarkdownPreview } from "../editor/MarkdownPreview";
 import type { KnowledgeClient, KnowledgeDocument, KnowledgeTarget } from "../knowledge/types";
 
@@ -42,14 +43,7 @@ type ReviewState = "draft" | "approved";
 const currentState: ReviewState = "draft";
 \`\`\``;
 
-const modes: readonly {
-  readonly id: DocumentMode;
-  readonly label: string;
-}[] = [
-  { id: "source", label: "Source" },
-  { id: "live", label: "Live preview" },
-  { id: "reading", label: "Reading" },
-];
+const modes: readonly DocumentMode[] = ["source", "live", "reading"];
 
 interface DocumentPaneProps {
   readonly client: KnowledgeClient;
@@ -57,12 +51,12 @@ interface DocumentPaneProps {
   readonly targets: readonly KnowledgeTarget[];
 }
 
-function displayName(target: KnowledgeTarget | undefined): string {
-  return target?.destinationPath.split("/").at(-1) ?? "Knowledge workspace";
+function displayName(target: KnowledgeTarget | undefined, fallback: string): string {
+  return target?.destinationPath.split("/").at(-1) ?? fallback;
 }
 
-function heading(target: KnowledgeTarget | undefined): string {
-  return displayName(target).replace(/\.[^.]+$/, "");
+function heading(target: KnowledgeTarget | undefined, fallback: string): string {
+  return displayName(target, fallback).replace(/\.[^.]+$/, "");
 }
 
 export function DocumentPane({
@@ -70,6 +64,7 @@ export function DocumentPane({
   onDocumentChange,
   targets,
 }: DocumentPaneProps) {
+  const { t } = useI18n();
   const [mode, setMode] = useState<DocumentMode>("source");
   const [draft, setDraft] = useState(initialDraft);
   const [selectedOperationId, setSelectedOperationId] = useState("");
@@ -150,50 +145,56 @@ export function DocumentPane({
   }
 
   return (
-    <section aria-label="Document workspace" className="document-pane">
+    <section aria-label={t("document.workspace")} className="document-pane">
       <header className="document-toolbar">
         <div className="document-toolbar__path">
-          {document?.markdownPath ?? "Workspace / Drafts / Knowledge workspace.md"}
+          {document?.markdownPath ?? t("document.draftPath")}
         </div>
         <div
-          aria-label="Document mode"
+          aria-label={t("document.mode")}
           className="document-toolbar__tabs"
           role="tablist"
         >
           {modes.map((item) => (
             <button
-              aria-selected={mode === item.id}
-              key={item.id}
-              onClick={() => setMode(item.id)}
+              aria-selected={mode === item}
+              key={item}
+              onClick={() => setMode(item)}
               role="tab"
               type="button"
             >
-              {item.label}
+              {item === "source"
+                ? t("document.source")
+                : item === "live"
+                  ? t("document.livePreview")
+                  : t("document.reading")}
             </button>
           ))}
         </div>
       </header>
       <div className="document-heading">
         <div>
-          <h1>{heading(selectedTarget)}</h1>
+          <h1>{heading(selectedTarget, t("shell.workspace"))}</h1>
           <p>
             {document === null
-              ? "Local draft · not saved"
+              ? t("document.localDraft")
               : document.revision === 0
-                ? "New Vault note · not saved"
-                : `Saved revision ${document.revision}${dirty ? " · unsaved edits" : ""}`}
+                ? t("document.newNote")
+                : `${t("document.savedRevision", { revision: document.revision })}${
+                    dirty ? ` · ${t("document.unsavedEdits")}` : ""
+                  }`}
           </p>
         </div>
         <div className="document-heading__actions">
           {targets.length > 0 ? (
             <select
-              aria-label="Eligible archived original"
+              aria-label={t("document.eligibleOriginal")}
               onChange={(event) => selectTarget(event.target.value)}
               value={selectedOperationId}
             >
               {targets.map((target) => (
                 <option key={target.operationId} value={target.operationId}>
-                  {displayName(target)}
+                  {displayName(target, t("shell.workspace"))}
                 </option>
               ))}
             </select>
@@ -204,7 +205,7 @@ export function DocumentPane({
               onClick={() => void openDocument()}
               type="button"
             >
-              {pending === "open" ? "Opening…" : "Create knowledge note"}
+              {pending === "open" ? t("document.opening") : t("document.createNote")}
             </button>
           ) : null}
           {document !== null ? (
@@ -213,7 +214,7 @@ export function DocumentPane({
               onClick={() => void saveDocument()}
               type="button"
             >
-              {pending === "save" ? "Saving…" : "Save Vault revision"}
+              {pending === "save" ? t("document.saving") : t("document.saveRevision")}
             </button>
           ) : null}
           <span className="document-heading__formats">
@@ -228,7 +229,7 @@ export function DocumentPane({
       >
         {mode !== "reading" ? (
           <textarea
-            aria-label="Markdown, Mermaid, and code editor"
+            aria-label={t("document.editor")}
             className="document-editor"
             onChange={(event) => {
               setDraft(event.target.value);
